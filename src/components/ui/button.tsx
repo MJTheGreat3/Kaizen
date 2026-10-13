@@ -35,7 +35,15 @@ export interface ButtonProps
 }
 
 export function Button({ className, variant, size, asChild, loading, disabled, children, ...props }: ButtonProps) {
-  const Comp = asChild ? Slot.Root : "button";
+  if (asChild) {
+    // Slot needs exactly one child, so no spinner here.
+    return (
+      <Slot.Root className={cn(buttonVariants({ variant, size }), className)} {...props}>
+        {children}
+      </Slot.Root>
+    );
+  }
+  const Comp = "button";
   return (
     <Comp
       className={cn(buttonVariants({ variant, size }), className)}

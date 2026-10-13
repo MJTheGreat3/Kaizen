@@ -30,7 +30,7 @@ Tauri 2 (Rust) · React · TypeScript · Tailwind CSS · SQLite + SQLCipher
 
 ## Status
 
-Phase 0 (foundation) is done: encrypted storage, unlock and recovery, backups, app shell and settings on desktop and Android. Modules arrive from Phase 1. See [PLAN.md](PLAN.md) for the design and roadmap.
+Phases 0 and 1 are done: encrypted storage, unlock and backups, plus Lists, Debts, Ideas, Habits, Calendar (timetable, attendance, important dates), notifications and the Today dashboard. Next is LAN sync (Phase 2). See [PLAN.md](PLAN.md) for the design and roadmap.
 
 ## Development
 

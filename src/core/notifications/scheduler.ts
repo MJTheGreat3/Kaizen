@@ -28,7 +28,8 @@ async function plugin() {
 
 export async function notificationsAllowed(): Promise<boolean> {
   try {
-    return await (await plugin()).isPermissionGranted();
+    // Android answers null while the user hasn't decided yet.
+    return (await (await plugin()).isPermissionGranted()) === true;
   } catch {
     return false;
   }
@@ -37,7 +38,7 @@ export async function notificationsAllowed(): Promise<boolean> {
 export async function requestNotifications(): Promise<boolean> {
   try {
     const n = await plugin();
-    if (await n.isPermissionGranted()) return true;
+    if ((await n.isPermissionGranted()) === true) return true;
     return (await n.requestPermission()) === "granted";
   } catch (e) {
     log.warn(`notification permission request failed: ${String(e)}`);

@@ -466,7 +466,7 @@ kaizen/
 | Phase | Scope |
 |---|---|
 | 0. Foundation (done) | Tauri 2 project (desktop + Android), design system, navigation shell, SQLite + migrations, encryption, settings, backup/export, `activity_events` table, search index skeleton |
-| 1. Daily core | To-do / watch / read with NL parsing, notification service, habits, idea scrapbook, important dates, college timetable with attendance, debt recorder, Today dashboard |
+| 1. Daily core (done) | To-do / watch / read with NL parsing, notification service, habits, idea scrapbook, important dates, college timetable with attendance, debt recorder, Today dashboard |
 | 2. Sync | LAN sync with QR pairing, so the phone is usable daily from here on |
 | 3. Focus and activity | Forest-style focus timer (Android strict mode), activity heatmap with filters, streaks, universal search + command palette |
 | 4. Practice | Codeforces + LeetCode connectors, CP analytics, contest reminders, revisit queue |
@@ -566,6 +566,24 @@ Follow-ups:
 - Windows and Linux builds are untested; macOS dev builds are unsigned, so the keychain may ask for access again after a rebuild.
 
 ---
+
+### 6.3 Phase 1 outcome (2026-10-13)
+
+Built and verified (browser preview on real SQL, plus the phone for setup, notifications and Today):
+- **Lists**: to-do, watch and read with natural-language quick add (dates, times, `#tags`, `!priority`, "every week"), live preview, overdue/today/upcoming/someday groups, recurring tasks, editor with reading progress and ratings.
+- **Debts**: natural-language entries ("Rahul owes 250 for pizza yesterday", "paid Priya back 600"), people with net balances, history, settle-up, nudge via share sheet or clipboard, bill splitting, due-soon strip.
+- **Ideas**: scrapbook with `#tags`, links, pin, colours, search and resurface.
+- **Habits**: done/not-done or amounts, daily / chosen days / N per week, streaks (days or weeks), week strip to fix missed days, 30-day rate, reminder time.
+- **Calendar**: semester with 80% target and optional separate lab/tutorial counting, subjects, weekly timetable (grid on desktop, day list on the phone) with odd/even weeks, extra classes, cancellations, holidays, vacations and copy-day; one-tap present/absent/excused; per-subject stats with bunk calculator; needs-marking list; important dates with countdowns and ages.
+- **Notifications**: classes (before), attendance check (after), tasks, habits, dates, debts and a morning summary; exact alarms on Android (verified firing on time with the app in the background), timers on desktop; per-category settings.
+- **Today**: live dashboard of the above.
+- Activity events are recorded for tasks, reading, habits and attended classes, ready for the Phase 3 heatmap.
+
+Deferred:
+- Goals that link habits to other modules, to Phase 3 with the activity heatmap.
+- Drag to move/resize timetable slots (edit dialog for now).
+- Present/Absent buttons inside the notification itself (tapping opens the app).
+- Receipt photos for debts, picking people from phone contacts, TMDB/Open Library metadata.
 
 ## 7. Open questions
 
