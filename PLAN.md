@@ -627,6 +627,18 @@ Known limits:
 - Notifications are rescheduled only when the app is opened, not after a background sync.
 - The QR scanner (ML Kit) sends Google anonymous usage statistics; it could be swapped for a ZXing-based scanner.
 
+### 6.5 Phase 3 progress: focus timer (2026-10-14)
+
+Built and verified on the phone (desktop in the browser preview and dev app):
+- Sessions (presets 25/5, 50/10, 90/15 or 5-180 min) with tag and linked task; six hand-drawn SVG species growing from seed to tree; coins (one per completed minute) unlock species; forest by day/week/month; stats (today, 7 days, all time, best hour, longest, 14-day chart, tags). Completed sessions record `focus` activity for the heatmap.
+- Full-screen focus mode on both devices: everything but the tree, ring, clock and controls is blurred.
+- Android: native `focus` plugin (`src-tauri/plugins/focus`) with a special-use foreground service: countdown notification with Pause / Give up, strict mode via usage access (another app in front past the grace period withers the tree; home, phone and system UI allowed), Do Not Disturb with the previous setting restored, alerts when the app is closed. Events are applied to the session when the app returns.
+- Laptop: other apps allowed (strict mode is phone-only for now); chime and notification at the end.
+
+Still to check: end-of-session notifications on the laptop, which need the bundled `Kaizen.app` (dev builds are not a real app bundle, so macOS drops their notifications).
+
+Next in Phase 3 (on request): activity heatmap with streaks, universal search and command palette, goals.
+
 ## 7. Open questions
 
 Answered: Android 16, CSV statements, sync via Google Drive (dedicated account) plus LAN / Tailscale (college Wi-Fi blocks LAN), React, LLM on laptop only, package `com.matt.kaizen`, Spotify Premium (yes), attendance minimum 80%, sports teams and players followed from inside the app, debts in ₹ only, bank is PNB, timetable entered manually (weekly) with extra classes, cancellations, holidays and vacations, labs/tutorials counted separately as an option, medical/duty leave counts as present, extra modules chosen (section 3), Finance built last.
