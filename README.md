@@ -27,4 +27,50 @@ Tauri 2 (Rust) · React · TypeScript · Tailwind CSS · SQLite + SQLCipher
 
 ## Status
 
-Planning. See [PLAN.md](PLAN.md) for the full design and roadmap.
+Phase 0 (foundation) is done: encrypted storage, unlock and recovery, backups, app shell and settings on desktop and Android. Modules arrive from Phase 1. See [PLAN.md](PLAN.md) for the design and roadmap.
+
+## Development
+
+### Requirements
+
+- Node 20+ and pnpm
+- Rust (stable) with `clippy` and `rustfmt`
+- For Android: Android Studio with SDK platform 36, NDK, command-line tools, and JDK 17 or 21
+
+Android environment (in `~/.zshrc`):
+
+```sh
+export JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export NDK_HOME="$ANDROID_HOME/ndk/<version>"
+export PATH="$ANDROID_HOME/platform-tools:$PATH"
+# The vendored OpenSSL (for SQLCipher) needs LLVM's ar/ranlib from the NDK
+export AR_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+export RANLIB_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ranlib"
+rustup target add aarch64-linux-android
+```
+
+### Commands
+
+| Task | Command |
+|---|---|
+| Install dependencies | `pnpm install` |
+| Run the desktop app | `pnpm tauri dev` |
+| Build an Android debug APK (arm64) | `pnpm android:build` |
+| Install it on a USB-connected phone | `adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk` |
+| Frontend tests / Rust tests | `pnpm test` / `pnpm test:rust` |
+| Lint / format | `pnpm lint` / `pnpm format` |
+
+### Layout
+
+```
+src/                  React frontend
+  core/               db (Drizzle schema + client), security, shell, backups, theme
+  modules/            one folder per module; registry.ts lists them
+  components/ui/      shared UI components
+src-tauri/            Rust backend
+  src/db/             SQLCipher connection and migrations (schema source of truth)
+  src/vault.rs        key derivation, wrapping and device unlock
+  src/backup.rs       backup, restore and erase
+  gen/android/        Android project
+```

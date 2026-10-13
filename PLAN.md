@@ -377,7 +377,7 @@ kaizen/
 
 | Phase | Scope |
 |---|---|
-| 0. Foundation | Tauri 2 project (desktop + Android), design system, navigation shell, SQLite + migrations, encryption, settings, backup/export, `activity_events` table, search index skeleton |
+| 0. Foundation (done) | Tauri 2 project (desktop + Android), design system, navigation shell, SQLite + migrations, encryption, settings, backup/export, `activity_events` table, search index skeleton |
 | 1. Daily core | To-do / watch / read with NL parsing, notification service, habits, idea scrapbook, important dates, college timetable + attendance, Today dashboard |
 | 2. Sync | LAN sync with QR pairing, so the phone is usable daily from here on |
 | 3. Focus and activity | Forest-style focus timer (Android strict mode), activity heatmap with filters, streaks, universal search + command palette |
@@ -451,6 +451,28 @@ Goal: an empty but real app that installs on the laptop and the Android phone, u
 - Backup, wipe and restore round-trip recovers the data.
 
 **Explicitly not in Phase 0**: notifications, NL parsing, any module feature, sync itself, search results.
+
+### 6.2 Phase 0 outcome (2026-10-13)
+
+Done and verified on the Nothing phone (Android 16) and macOS:
+- Setup, recovery key, fingerprint unlock, passphrase unlock (wrong passphrase rejected), recovery-key reset.
+- Encrypted database with migrations, shared columns, sync change-log triggers, FTS5 trigram index, seeded activity types.
+- Database check in Settings (write, read, soft delete, sync log, cleanup) passes through Drizzle on the phone.
+- Scheduled backups (first one runs right after unlock), manual backup, retention, restore, erase, JSON export, log viewer.
+- Rust tests cover the vault, migrations, wrong-key rejection and a backup, erase, restore round trip.
+
+Decisions made while building:
+- Rust owns the database (`rusqlite` + bundled SQLCipher with vendored OpenSSL); Drizzle `sqlite-proxy` on the frontend.
+- The database key is random; `vault.json` stores it wrapped (XChaCha20-Poly1305) under Argon2id keys from the passphrase and from the recovery key.
+- Device-specific preferences (backup folder, schedule, auto-lock) live in the unsynced `local_meta` table; the theme lives in `localStorage` so the lock screen matches.
+- Icons: Phosphor. Font: Geist. Routing: TanStack Router with hash history.
+- Android cloud backup and device-to-device transfer are disabled in the manifest, so app data never leaves the phone that way.
+
+Follow-ups:
+- Android quick-unlock key is kept in app-private storage behind the biometric prompt; wrap it with an Android Keystore key (small Kotlin plugin).
+- Android backups currently live in app-private storage and are removed if the app is uninstalled; add export to a user-visible folder, and LAN sync (Phase 2) adds a second copy.
+- Split the frontend bundle per module (currently about 800 KB of JS).
+- Windows and Linux builds are untested; macOS dev builds are unsigned, so the keychain may ask for access again after a rebuild.
 
 ---
 

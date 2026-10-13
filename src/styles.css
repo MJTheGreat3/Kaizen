@@ -1,0 +1,134 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens. Neutral cool greys with one accent (ink indigo).
+ * Activity colours are semantic: each activity type keeps its own hue
+ * so the heatmap stays readable.
+ */
+:root {
+  --radius: 0.75rem;
+
+  --background: oklch(0.985 0.002 260);
+  --foreground: oklch(0.22 0.012 260);
+  --surface: oklch(1 0 0);
+  --surface-muted: oklch(0.965 0.003 260);
+  --muted-foreground: oklch(0.5 0.012 260);
+  --border: oklch(0.91 0.004 260);
+  --input: oklch(0.88 0.005 260);
+  --ring: oklch(0.55 0.12 262);
+
+  --accent: oklch(0.47 0.13 262);
+  --accent-foreground: oklch(0.985 0.002 260);
+  --accent-soft: oklch(0.94 0.025 262);
+  --accent-soft-foreground: oklch(0.38 0.12 262);
+
+  --danger: oklch(0.55 0.19 25);
+  --danger-foreground: oklch(0.985 0.002 260);
+  --danger-soft: oklch(0.95 0.03 25);
+  --success: oklch(0.56 0.12 155);
+
+  --shadow-color: 260 20% 30%;
+
+  --activity-cp: #3fa66b;
+  --activity-gym: #e8833a;
+  --activity-sports: #3d8bd9;
+  --activity-focus: #2fa5a0;
+  --activity-habits: #8e6bd8;
+  --activity-reading: #d9a62e;
+  --activity-tasks: #8a8f98;
+  --activity-classes: #d9608f;
+}
+
+.dark {
+  --background: oklch(0.16 0.006 260);
+  --foreground: oklch(0.95 0.004 260);
+  --surface: oklch(0.195 0.007 260);
+  --surface-muted: oklch(0.225 0.008 260);
+  --muted-foreground: oklch(0.68 0.01 260);
+  --border: oklch(0.28 0.008 260);
+  --input: oklch(0.32 0.009 260);
+  --ring: oklch(0.7 0.11 262);
+
+  --accent: oklch(0.74 0.1 262);
+  --accent-foreground: oklch(0.17 0.02 262);
+  --accent-soft: oklch(0.27 0.04 262);
+  --accent-soft-foreground: oklch(0.86 0.06 262);
+
+  --danger: oklch(0.68 0.17 25);
+  --danger-foreground: oklch(0.16 0.02 25);
+  --danger-soft: oklch(0.27 0.05 25);
+  --success: oklch(0.72 0.12 155);
+
+  --shadow-color: 260 30% 2%;
+}
+
+@theme inline {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-foreground: var(--accent-soft-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 4px 16px -4px hsl(var(--shadow-color) / 0.1);
+  --shadow-float: 0 2px 4px hsl(var(--shadow-color) / 0.08), 0 16px 40px -8px hsl(var(--shadow-color) / 0.22);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "ss01", "cv11";
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--accent-soft-foreground);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
