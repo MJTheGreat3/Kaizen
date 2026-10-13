@@ -387,3 +387,6 @@ export const focusUnlocks = sqliteTable("focus_unlocks", {
 
 export type FocusSession = typeof focusSessions.$inferSelect;
 export type FocusUnlock = typeof focusUnlocks.$inferSelect;
+
+export type ActivityType = typeof activityTypes.$inferSelect;
+export type ActivityEvent = typeof activityEvents.$inferSelect;

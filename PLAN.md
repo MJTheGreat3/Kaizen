@@ -637,7 +637,9 @@ Built and verified on the phone (desktop in the browser preview and dev app):
 
 Still to check: end-of-session notifications on the laptop, which need the bundled `Kaizen.app` (dev builds are not a real app bundle, so macOS drops their notifications).
 
-Next in Phase 3 (on request): activity heatmap with streaks, universal search and command palette, goals.
+**Activity heatmap** (built 2026-10-14): GitHub-style grid over 3 months / 6 months / a year from `activity_events`, one colour per type with intensity by each type's own quartiles, split cells for days with several activities, type toggles (double-click for one type), tag filter (tasks and focus tags), tap a day for its log with titles from each source, totals per type for the range. Streaks per type and overall with editable rules: daily minimum, weekly streaks (N active days a week), rest weekdays and freezes per month. Milestones at 7/30/100/365 (toast and notification, once each) and an 8:30 pm nudge for daily streaks of 3+ days not yet done (Settings → Notifications → Streaks). A Today card shows the overall streak and the last five weeks. Not yet: year-over-year comparison, monthly totals view.
+
+Next in Phase 3 (on request): universal search and command palette, goals.
 
 ## 7. Open questions
 

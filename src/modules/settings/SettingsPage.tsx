@@ -137,7 +137,7 @@ function SecuritySection() {
   );
 }
 
-function NotifyToggle({ prefKey, label, description }: { prefKey: "notify.classes" | "notify.attendance" | "notify.habits" | "notify.tasks" | "notify.dates" | "notify.debts"; label: string; description: string }) {
+function NotifyToggle({ prefKey, label, description }: { prefKey: "notify.classes" | "notify.attendance" | "notify.habits" | "notify.tasks" | "notify.dates" | "notify.debts" | "notify.streaks"; label: string; description: string }) {
   const [value, setValue] = usePref(prefKey);
   return (
     <Row label={label} description={description} inline>
@@ -190,6 +190,7 @@ function NotificationsSection() {
       <NotifyToggle prefKey="notify.habits" label="Habit reminders" description="Only if the habit isn't done yet." />
       <NotifyToggle prefKey="notify.dates" label="Important dates" description="At the times chosen for each date." />
       <NotifyToggle prefKey="notify.debts" label="Debts due" description="On the due date." />
+      <NotifyToggle prefKey="notify.streaks" label="Streaks" description="At 8:30 pm if a streak of 3+ days isn't done yet." />
       <Row label="Morning summary" description="Classes, tasks and habits for the day.">
         <DateTimeInput type="time" aria-label="Morning summary time" className="h-9 w-32" value={digest} onChange={(e) => setDigest(e.target.value)} />
         {digest ? (

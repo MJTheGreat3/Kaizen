@@ -28,6 +28,8 @@ export interface PlanInput {
   calendar: CalendarData;
   dates: ImportantDate[];
   debts: DebtsData;
+  /** Streaks at risk today: current length and whether today already counts. */
+  streaks?: { name: string; current: number; doneToday: boolean; unit: "days" | "weeks" }[];
 }
 
 /** 31-bit positive integer from a string (FNV-1a). */
@@ -116,6 +118,18 @@ export function buildPlan(input: PlanInput, horizonDays = 3): PlannedNotificatio
         at: atTime(d.dueOn, 10 * 60),
         title: d.direction === "owed_to_me" ? `${name} owes you ${formatPaise(Math.abs(balance))}` : `You owe ${name} ${formatPaise(Math.abs(balance))}`,
         body: d.reason ? `Due today: ${d.reason}` : "Due today",
+      });
+    }
+  }
+
+  if (prefs["notify.streaks"]) {
+    for (const st of input.streaks ?? []) {
+      if (st.unit !== "days" || st.doneToday || st.current < 3) continue;
+      push({
+        key: `streak:${st.name}:${today}`,
+        at: atTime(today, 20 * 60 + 30),
+        title: `Keep your ${st.current}-day ${st.name} streak`,
+        body: "A little today keeps it going.",
       });
     }
   }

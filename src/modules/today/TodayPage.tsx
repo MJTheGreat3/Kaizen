@@ -10,6 +10,7 @@ import {
   CalendarBlank,
   HandCoins,
   Hourglass,
+  GridFour,
   Lightbulb,
   ListChecks,
   Plus,
@@ -43,6 +44,7 @@ import { loadHabits, logHabit } from "@/modules/habits/data";
 import { isDone, isScheduled } from "@/modules/habits/streaks";
 import { loadTasks, setTaskDone, useAddTask } from "@/modules/lists/data";
 import { modules } from "@/modules/registry";
+import { ActivityGlance } from "@/modules/activity/Glance";
 
 /** Module routes are built from the registry, so their paths are plain strings. */
 const CALENDAR_PATH: string = "/calendar";
@@ -344,12 +346,16 @@ export function TodayPage() {
               )}
             </Card>
 
+            <Card to="/activity" title="Activity" icon={GridFour} hue={hueOf("activity")} className="md:col-span-3">
+              <ActivityGlance hue={hueOf("activity")} />
+            </Card>
+
             <Card
               to="/ideas"
               title="From your scrapbook"
               icon={Lightbulb}
               hue={hueOf("ideas")}
-              className="md:col-span-6"
+              className="md:col-span-3"
               action={
                 data.ideas.length > 1 ? (
                   <Button variant="ghost" size="sm" onClick={() => setShuffle((s) => s + 1)}>

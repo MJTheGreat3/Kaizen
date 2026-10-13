@@ -59,6 +59,20 @@ describe("buildPlan", () => {
     expect(titles).toContain("14 Mom's birthday today");
   });
 
+  it("nudges in the evening only for daily streaks at risk", () => {
+    const titles = plan({
+      streaks: [
+        { name: "Focus", current: 12, doneToday: false, unit: "days" },
+        { name: "Tasks", current: 5, doneToday: true, unit: "days" },
+        { name: "Habits", current: 2, doneToday: false, unit: "days" },
+        { name: "Gym", current: 4, doneToday: false, unit: "weeks" },
+      ],
+    })
+      .filter((n) => n.key.startsWith("streak:"))
+      .map((n) => [n.title, n.at.getHours(), n.at.getMinutes()]);
+    expect(titles).toEqual([["Keep your 12-day Focus streak", 20, 30]]);
+  });
+
   it("makes stable positive ids", () => {
     expect(notificationId("class:x")).toBe(notificationId("class:x"));
     expect(notificationId("class:x")).toBeGreaterThan(0);

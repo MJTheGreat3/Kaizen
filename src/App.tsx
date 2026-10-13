@@ -11,6 +11,7 @@ import { useAutoLock } from "@/core/security/useAutoLock";
 import { useNotificationSync } from "@/core/notifications/scheduler";
 import { useAutoSync } from "@/core/sync/autosync";
 import { useFocusEngine } from "@/modules/focus/engine";
+import { useStreakMilestones } from "@/modules/activity/milestones";
 import { setNativePlatform } from "@/modules/focus/native";
 import { useTheme } from "@/core/theme";
 import { log } from "@/lib/log";
@@ -41,6 +42,7 @@ export function App() {
   useAutoSync(unlocked, platform);
   useEffect(() => setNativePlatform(platform === "android"), [platform]);
   useFocusEngine(unlocked, platform);
+  useStreakMilestones(unlocked);
 
   return (
     <>

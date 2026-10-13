@@ -22,12 +22,16 @@ export interface Prefs {
   "notify.tasks": boolean;
   "notify.dates": boolean;
   "notify.debts": boolean;
+  /** Evening nudge when a streak would break. */
+  "notify.streaks": boolean;
   /** Morning summary time (`HH:MM`), or empty for none. */
   "notify.digest": string;
   /** Shared folder to sync through (desktop), or empty. */
   "sync.folder": string;
   /** Laptop address for direct sync (phone): IP or name, optional `:port`. */
   "sync.lanHost": string;
+  /** Streak milestones already celebrated: type id -> "since:milestone". */
+  "streak.celebrated": Record<string, string>;
   /** Focus timer defaults on this device. */
   "focus.minutes": number;
   "focus.rest": number;
@@ -52,9 +56,11 @@ export const defaultPrefs: Prefs = {
   "notify.tasks": true,
   "notify.dates": true,
   "notify.debts": true,
+  "notify.streaks": true,
   "notify.digest": "07:30",
   "sync.folder": "",
   "sync.lanHost": "",
+  "streak.celebrated": {},
   "focus.minutes": 25,
   "focus.rest": 5,
   "focus.species": "oak",

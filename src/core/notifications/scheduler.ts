@@ -11,6 +11,7 @@ import { getAllPrefs } from "@/core/db/prefs";
 import { log } from "@/lib/log";
 import { loadCalendar, loadDates } from "@/modules/calendar/data";
 import { loadDebts } from "@/modules/debts/data";
+import { currentStreaks } from "@/modules/activity/milestones";
 import { loadHabits } from "@/modules/habits/data";
 import { loadTasks } from "@/modules/lists/data";
 import { buildPlan, notificationId, type PlannedNotification } from "./plan";
@@ -107,15 +108,16 @@ async function applyDesktop(plan: PlannedNotification[]) {
 /** Rebuilds the plan from the database and (re)schedules everything. */
 export async function syncNotifications(platform: Platform) {
   if (!(await notificationsAllowed())) return;
-  const [prefs, tasks, habits, calendar, dates, debts] = await Promise.all([
+  const [prefs, tasks, habits, calendar, dates, debts, streaks] = await Promise.all([
     getAllPrefs(),
     loadTasks(),
     loadHabits(14),
     loadCalendar(),
     loadDates(),
     loadDebts(),
+    currentStreaks(),
   ]);
-  const plan = buildPlan({ now: new Date(), prefs, tasks, habits, calendar, dates, debts });
+  const plan = buildPlan({ now: new Date(), prefs, tasks, habits, calendar, dates, debts, streaks });
   if (platform === "android") await applyAndroid(plan);
   else await applyDesktop(plan);
   log.info(`scheduled ${plan.length} notifications`);
