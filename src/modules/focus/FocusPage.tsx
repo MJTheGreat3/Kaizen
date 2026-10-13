@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import {
@@ -173,7 +174,7 @@ function SetupCard({ tags, unlocked, onLocked }: { tags: string[]; unlocked: (s:
         action: { label: "Open settings", onClick: () => void focusNative.openDndSettings() },
       });
     }
-    if (strict) {
+    if (mobile && strict) {
       if (perms && !perms.usage) {
         toast("Allow usage access for strict mode", {
           description: "Kaizen needs it to notice when you open another app. Turn on Kaizen in the list, then come back.",
@@ -182,12 +183,14 @@ function SetupCard({ tags, unlocked, onLocked }: { tags: string[]; unlocked: (s:
         throw new Error("Usage access is needed for strict mode");
       }
     }
-    const session = await startSession({ minutes, tag: tag.trim() || null, taskId: taskId || null, species, strict });
+    // On the laptop other apps are allowed (study material lives there), so strict mode is phone-only for now.
+    const strictNow = mobile && strict;
+    const session = await startSession({ minutes, tag: tag.trim() || null, taskId: taskId || null, species, strict: strictNow });
     await focusNative.start({
       sessionId: session.id,
       title: tag.trim() ? `Focus: ${tag.trim()}` : "Focus session",
       endsAt: endsAt(session, Date.now()),
-      strict,
+      strict: strictNow,
       dnd: mobile && dnd,
       graceSeconds: grace,
     });
@@ -293,20 +296,18 @@ function SetupCard({ tags, unlocked, onLocked }: { tags: string[]; unlocked: (s:
             </div>
           ) : null}
 
-          <div className="grid gap-1 rounded-xl bg-surface-muted/60 p-1">
-            <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg px-3 py-2.5">
-              <span className="flex items-center gap-3">
-                <ShieldCheck size={20} style={{ color: HUE }} weight="duotone" />
-                <span className="grid">
-                  <span className="text-[14px] font-medium">Strict mode</span>
-                  <span className="text-[12px] text-muted-foreground">
-                    {mobile ? `Opening another app withers the tree after ${grace} s.` : `Leaving this window withers the tree after ${grace} s.`}
+          {mobile ? (
+            <div className="grid gap-1 rounded-xl bg-surface-muted/60 p-1">
+              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg px-3 py-2.5">
+                <span className="flex items-center gap-3">
+                  <ShieldCheck size={20} style={{ color: HUE }} weight="duotone" />
+                  <span className="grid">
+                    <span className="text-[14px] font-medium">Strict mode</span>
+                    <span className="text-[12px] text-muted-foreground">Opening another app withers the tree after {grace} s.</span>
                   </span>
                 </span>
-              </span>
-              <Switch checked={strict} onCheckedChange={setStrict} aria-label="Strict mode" />
-            </label>
-            {mobile ? (
+                <Switch checked={strict} onCheckedChange={setStrict} aria-label="Strict mode" />
+              </label>
               <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg px-3 py-2.5">
                 <span className="flex items-center gap-3">
                   <MoonStars size={20} style={{ color: HUE }} weight="duotone" />
@@ -317,8 +318,8 @@ function SetupCard({ tags, unlocked, onLocked }: { tags: string[]; unlocked: (s:
                 </span>
                 <Switch checked={dnd} onCheckedChange={setDnd} aria-label="Do Not Disturb" />
               </label>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
 
           <Button
             size="lg"
@@ -347,12 +348,9 @@ function SetupCard({ tags, unlocked, onLocked }: { tags: string[]; unlocked: (s:
 // ---------------------------------------------------------------------------
 
 function RunningCard({ session }: { session: FocusSession }) {
-  const info = useSession((s) => s.info);
-  const mobile = isMobile(info);
   const now = useNow(true, 1000);
   const away = useFocusAway((s) => s.away);
   const [confirmGiveUp, setConfirmGiveUp] = useState(false);
-  const [dnd] = usePref("focus.dnd");
   const [grace] = usePref("focus.grace");
   const paused = session.status === "paused";
   const left = remainingMs(session, now);
@@ -373,35 +371,30 @@ function RunningCard({ session }: { session: FocusSession }) {
     await focusNative.stop();
   });
 
-  return (
-    <motion.section
-      variants={rise}
-      className="relative overflow-hidden rounded-3xl border border-border shadow-soft"
-      style={{ background: `linear-gradient(180deg, color-mix(in srgb, ${HUE} 16%, var(--surface)), var(--surface) 70%)` }}
+  // Focus mode: everything but the tree, ring, clock and controls is blurred
+  // away, on top of the whole app (navigation included).
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5, ease }}
+      className="fixed inset-0 z-[35] grid place-items-center overflow-y-auto bg-background/55 px-4 pb-safe pt-safe backdrop-blur-2xl"
+      style={{ backgroundImage: `radial-gradient(60% 50% at 50% 38%, color-mix(in srgb, ${HUE} 16%, transparent), transparent 70%)` }}
     >
-      <div className="grid justify-items-center gap-5 px-5 pb-6 pt-8 md:pb-8 md:pt-10">
-        <div className="flex flex-wrap justify-center gap-1.5">
-          <Chip icon={TreeIcon} tone="hue" hue={HUE}>
-            {species.name}
-          </Chip>
-          {session.tag ? (
-            <Chip icon={Tag} tone="hue" hue={HUE}>
-              {session.tag}
-            </Chip>
-          ) : null}
-          {session.strict ? <Chip icon={ShieldCheck}>Strict</Chip> : null}
-          {mobile && dnd ? <Chip icon={MoonStars}>Do Not Disturb</Chip> : null}
-        </div>
-
-        <div className="relative grid size-[260px] place-items-center md:size-[300px]">
+      <motion.div
+        initial={{ opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.6, ease, delay: 0.1 }}
+        className="grid justify-items-center gap-6 py-10"
+      >
+        <div className="relative grid size-[280px] place-items-center md:size-[340px]">
           <GrowthRing value={grown} />
-          <Tree species={session.species} growth={grown} sway={!paused} className="relative h-[190px] w-[190px] md:h-[220px] md:w-[220px]" />
+          <Tree species={session.species} growth={grown} sway={!paused} className="relative h-[200px] w-[200px] md:h-[250px] md:w-[250px]" />
         </div>
 
         <div className="grid justify-items-center gap-1">
-          <span className="text-[56px] font-semibold leading-none tracking-[-0.04em] tabular-nums md:text-[64px]">
-            {formatClock(left)}
-          </span>
+          <span className="text-[60px] font-semibold leading-none tracking-[-0.04em] tabular-nums md:text-[76px]">{formatClock(left)}</span>
           <span className="text-[14px] text-muted-foreground">
             {paused ? "Paused" : `Ends at ${new Date(endsAt(session, now)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}
           </span>
@@ -417,7 +410,7 @@ function RunningCard({ session }: { session: FocusSession }) {
             Give up
           </Button>
         </div>
-      </div>
+      </motion.div>
 
       <AnimatePresence>
         {away ? (
@@ -425,7 +418,7 @@ function RunningCard({ session }: { session: FocusSession }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 grid place-items-center bg-background/85 backdrop-blur-sm"
+            className="fixed inset-0 grid place-items-center bg-background/85 backdrop-blur-sm"
           >
             <div className="grid justify-items-center gap-2 px-6 text-center">
               <Lightning size={32} className="text-danger" weight="fill" />
@@ -446,7 +439,8 @@ function RunningCard({ session }: { session: FocusSession }) {
         confirmLabel="Give up"
         onConfirm={() => giveUp.mutate(undefined)}
       />
-    </motion.section>
+    </motion.div>,
+    document.body,
   );
 }
 

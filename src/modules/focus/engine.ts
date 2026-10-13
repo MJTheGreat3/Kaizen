@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 
 import { getPref } from "@/core/db/prefs";
+import { playChime } from "@/lib/chime";
 import { log } from "@/lib/log";
 import { finishSession, loadFocus, pauseSession, resumeSession } from "./data";
 import { endsAt, speciesFor } from "./logic";
@@ -101,6 +102,7 @@ export function useFocusEngine(enabled: boolean, platform: "android" | "desktop"
         if (!current || current.id !== active.id || current.status !== "running") return;
         await finishSession(current, "completed", Math.min(Date.now(), endsAt(current, Date.now())));
         await focusNative.stop();
+        if (document.visibilityState === "visible") playChime();
         if (platform === "desktop") {
           notify(`${speciesFor(current.species).name} grown`, `${current.plannedMinutes} minutes of focus. Time for a break.`);
         }
