@@ -12,6 +12,7 @@ import { useNotificationSync } from "@/core/notifications/scheduler";
 import { useAutoSync } from "@/core/sync/autosync";
 import { useFocusEngine } from "@/modules/focus/engine";
 import { useStreakMilestones } from "@/modules/activity/milestones";
+import { useGoalCompletion } from "@/modules/goals/watch";
 import { setNativePlatform } from "@/modules/focus/native";
 import { useTheme } from "@/core/theme";
 import { log } from "@/lib/log";
@@ -43,6 +44,7 @@ export function App() {
   useEffect(() => setNativePlatform(platform === "android"), [platform]);
   useFocusEngine(unlocked, platform);
   useStreakMilestones(unlocked);
+  useGoalCompletion(unlocked);
 
   return (
     <>

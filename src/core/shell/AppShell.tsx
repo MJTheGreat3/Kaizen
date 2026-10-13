@@ -13,6 +13,7 @@ import { useSession } from "@/core/security/session";
 import { SyncButton } from "@/core/sync/SyncButton";
 import { CommandPalette } from "./CommandPalette";
 import { usePalette } from "./palette";
+import { PullToSearch } from "./PullToSearch";
 
 const groups: ModuleGroup[] = ["daily", "track", "create"];
 const SETTINGS_HUE = "#7d8696";
@@ -269,6 +270,7 @@ export function AppShell() {
       <BottomNav />
       <SyncButton variant="floating" />
       <CommandPalette />
+      <PullToSearch />
     </div>
   );
 }

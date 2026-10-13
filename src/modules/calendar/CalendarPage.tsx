@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarCheck, CalendarDots, CalendarHeart, GearSix, GraduationCap } from "@phosphor-icons/react";
 
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Segmented, Skeleton } from "@/components/ui/controls";
 import { EmptyState } from "@/components/ui/kit";
 import { Page, PageHeader } from "@/core/shell/PageHeader";
+import { useOpenRequest } from "@/core/shell/openRequest";
 import { relativeDay } from "@/lib/dates";
 import { rise } from "@/lib/motion";
 import { modules } from "@/modules/registry";
@@ -20,11 +21,23 @@ const HUE = mod.hue;
 
 type Tab = "timetable" | "attendance" | "dates";
 
+const tabFor = (module: string | undefined): Tab | null => (module === "dates" ? "dates" : module === "subjects" ? "timetable" : null);
+
 export function CalendarPage() {
   const { data, isLoading } = useCalendar();
-  const [tab, setTab] = useState<Tab>("timetable");
+  const [tab, setTab] = useState<Tab>(() => tabFor(useOpenRequest.getState().target?.module) ?? "timetable");
   const [semesterOpen, setSemesterOpen] = useState(false);
   const semester = data?.semester ?? null;
+
+  // Switch to the tab that can open a search result; that view takes the request.
+  useEffect(
+    () =>
+      useOpenRequest.subscribe((s) => {
+        const next = tabFor(s.target?.module);
+        if (next) setTab(next);
+      }),
+    [],
+  );
 
   return (
     <Page hue={HUE} className="max-w-[1100px]">

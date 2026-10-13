@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { WEEKDAYS } from "@/modules/habits/streaks";
 import { modules } from "@/modules/registry";
 import { useActivity, useDayLog, useSaveRule, type TypeWithRule } from "./data";
+import { amount, UNITS } from "./format";
 import {
   activeDays,
   activeRate,
@@ -33,42 +34,6 @@ const HUE = mod.hue;
 type Range = "3m" | "6m" | "year";
 const RANGE_DAYS: Record<Range, number> = { "3m": 91, "6m": 182, year: 364 };
 
-/** How a type's quantity reads. */
-function amount(typeId: string, q: number) {
-  const n = Math.round(q * 10) / 10;
-  const plural = (one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-  switch (typeId) {
-    case "focus":
-    case "sports":
-      return n >= 60 ? `${Math.floor(n / 60)} h ${Math.round(n % 60)} min` : `${n} min`;
-    case "tasks":
-      return plural("task");
-    case "reading":
-      return plural("book");
-    case "habits":
-      return plural("habit");
-    case "classes":
-      return plural("class", "classes");
-    case "cp":
-      return plural("problem");
-    case "gym":
-      return plural("session");
-    default:
-      return String(n);
-  }
-}
-
-/** What each type's quantity counts (the stored `unit` predates the modules). */
-const UNITS: Record<string, string> = {
-  focus: "minutes",
-  sports: "minutes",
-  tasks: "tasks",
-  reading: "books",
-  habits: "habits",
-  classes: "classes",
-  cp: "problems",
-  gym: "sessions",
-};
 const unitOf = (t: TypeWithRule) => UNITS[t.id] ?? t.unit;
 
 const LEVEL_MIX = [0, 32, 52, 74, 100];

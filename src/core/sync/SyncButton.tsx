@@ -3,27 +3,12 @@
  * phone's top bar. Spins while any sync runs (manual or automatic) and shows
  * a red dot when the last one failed.
  */
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { toast } from "sonner";
 import { ArrowsClockwise } from "@phosphor-icons/react";
 
 import { cn } from "@/lib/utils";
-import { syncNow, useSyncState } from "./autosync";
-
-function useSyncAction() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: syncNow,
-    onSuccess: (report) => {
-      if (!report) toast("Sync isn't set up yet", { description: "Pair your devices in Settings → Sync." });
-      else if (report.received || report.sent) toast.success(`Synced: sent ${report.sent}, received ${report.received}`);
-      else toast.success(report.peers ? "Already up to date" : "Uploaded. Waiting for your other device.");
-    },
-    onError: (e) => toast.error(`Sync failed: ${e instanceof Error ? e.message : String(e)}`),
-    onSettled: () => client.invalidateQueries({ queryKey: ["sync-status"] }),
-  });
-}
+import { useSyncState } from "./autosync";
+import { useSyncAction } from "./useSyncAction";
 
 export function SyncButton({ variant }: { variant: "floating" | "icon" }) {
   const sync = useSyncAction();

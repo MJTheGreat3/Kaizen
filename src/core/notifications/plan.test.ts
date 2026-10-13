@@ -73,6 +73,11 @@ describe("buildPlan", () => {
     expect(titles).toEqual([["Keep your 12-day Focus streak", 20, 30]]);
   });
 
+  it("reminds a week and a day before a goal's finish date", () => {
+    const goals = plan({ goals: [{ id: "g", title: "100 h focus", targetDate: "2026-10-17", left: "Behind: 12 h to go" }] }).filter((n) => n.key.startsWith("goal:"));
+    expect(goals.map((n) => [n.title, n.body])).toEqual([["100 h focus: due tomorrow", "Behind: 12 h to go"]]);
+  });
+
   it("makes stable positive ids", () => {
     expect(notificationId("class:x")).toBe(notificationId("class:x"));
     expect(notificationId("class:x")).toBeGreaterThan(0);

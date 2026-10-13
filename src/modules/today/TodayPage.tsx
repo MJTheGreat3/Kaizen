@@ -8,6 +8,7 @@ import {
   ArrowUpRight,
   Bell,
   CalendarBlank,
+  Flag,
   HandCoins,
   Hourglass,
   GridFour,
@@ -45,6 +46,9 @@ import { isDone, isScheduled } from "@/modules/habits/streaks";
 import { loadTasks, setTaskDone, useAddTask } from "@/modules/lists/data";
 import { modules } from "@/modules/registry";
 import { ActivityGlance } from "@/modules/activity/Glance";
+import { useGoals } from "@/modules/goals/data";
+import { activeGoals } from "@/modules/goals/format";
+import { GoalsGlance } from "@/modules/goals/Glance";
 
 /** Module routes are built from the registry, so their paths are plain strings. */
 const CALENDAR_PATH: string = "/calendar";
@@ -117,6 +121,7 @@ export function TodayPage() {
   const info = useSession((s) => s.info);
   const client = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["today"], queryFn: loadToday });
+  const goals = activeGoals(useGoals().data);
   const allowed = useQuery({ queryKey: ["notify-allowed"], queryFn: notificationsAllowed });
   const [shuffle, setShuffle] = useState(0);
   const refresh = () => {
@@ -345,6 +350,12 @@ export function TodayPage() {
                 </>
               )}
             </Card>
+
+            {goals.length ? (
+              <Card to="/goals" title="Goals" icon={Flag} hue={hueOf("goals")} className="md:col-span-6">
+                <GoalsGlance goals={goals} />
+              </Card>
+            ) : null}
 
             <Card to="/activity" title="Activity" icon={GridFour} hue={hueOf("activity")} className="md:col-span-3">
               <ActivityGlance hue={hueOf("activity")} />

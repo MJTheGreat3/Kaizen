@@ -2,13 +2,11 @@
  * Streak milestones (7, 30, 100, 365) celebrated once each, plus the
  * streak list the notification plan uses for its evening nudge.
  */
-import { useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { notify, useAfterChanges } from "@/core/afterChanges";
 import { getPref, setPref } from "@/core/db/prefs";
 import { todayKey } from "@/lib/dates";
-import { log } from "@/lib/log";
 import { loadActivity } from "./data";
 import { activeDays, milestoneAt, streak, totalsByDay } from "./logic";
 
@@ -33,33 +31,12 @@ async function celebrate() {
     next[s.id] = mark;
     const unit = s.unit === "weeks" ? "weeks" : "days";
     toast.success(`${m} ${unit} of ${s.name}`, { description: "A new streak milestone. Keep going." });
-    try {
-      const n = await import("@tauri-apps/plugin-notification");
-      if ((await n.isPermissionGranted()) === true) n.sendNotification({ title: `${m}-${unit.slice(0, -1)} ${s.name} streak`, body: "A new milestone. Keep going." });
-    } catch {
-      // The toast is enough.
-    }
+    await notify(`${m}-${unit.slice(0, -1)} ${s.name} streak`, "A new milestone. Keep going.");
   }
   if (JSON.stringify(next) !== JSON.stringify(celebrated)) await setPref("streak.celebrated", next);
 }
 
 /** Checks for new milestones after unlocking and after each change. */
 export function useStreakMilestones(enabled: boolean) {
-  const client = useQueryClient();
-  useEffect(() => {
-    if (!enabled) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const soon = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => celebrate().catch((e) => log.warn(`milestones failed: ${String(e)}`)), 2_500);
-    };
-    soon();
-    const unsubscribe = client.getMutationCache().subscribe((event) => {
-      if (event.type === "updated" && event.mutation.state.status === "success") soon();
-    });
-    return () => {
-      clearTimeout(timer);
-      unsubscribe();
-    };
-  }, [enabled, client]);
+  useAfterChanges(enabled, "milestones", celebrate);
 }

@@ -22,6 +22,7 @@ import { Chip, DateTimeInput, EmptyState, QuickAdd, RowMenu, SectionTitle } from
 import type { Person } from "@/core/db/schema";
 import { parseDebt } from "@/core/nl/parse";
 import { Page, PageHeader } from "@/core/shell/PageHeader";
+import { useOpenTarget } from "@/core/shell/openRequest";
 import { daysBetween, relativeDay, todayKey } from "@/lib/dates";
 import { ease, rise } from "@/lib/motion";
 import { formatPaise, parseRupees } from "@/lib/money";
@@ -420,6 +421,11 @@ export function DebtsPage() {
   const [selected, setSelected] = useState<Person | null>(null);
   const [filter, setFilter] = useState<"open" | "all">("open");
   const today = todayKey();
+
+  useOpenTarget(["people", "debts"], !!data, ({ module, id }) => {
+    const personId = module === "debts" ? data?.debts.find((d) => d.id === id)?.personId : id;
+    setSelected(data?.people.find((p) => p.id === personId) ?? null);
+  });
 
   const sum = data ? totals(data.balance) : { owedToMe: 0, iOwe: 0, net: 0 };
   const people = useMemo(() => {

@@ -30,7 +30,7 @@ Tauri 2 (Rust) · React · TypeScript · Tailwind CSS · SQLite + SQLCipher
 
 ## Status
 
-Phases 0 and 1 are done: encrypted storage, unlock and backups, plus Lists, Debts, Ideas, Habits, Calendar (timetable, attendance, important dates), notifications and the Today dashboard. Phase 2 is done too: end-to-end encrypted sync between laptop and phone through Google Drive or directly (LAN / Tailscale), with background sync on Android. Next is Phase 3: focus timer, activity heatmap and universal search. See [PLAN.md](PLAN.md) for the design and roadmap.
+Phases 0 and 1 are done: encrypted storage, unlock and backups, plus Lists, Debts, Ideas, Habits, Calendar (timetable, attendance, important dates), notifications and the Today dashboard. Phase 2 is done too: end-to-end encrypted sync between laptop and phone through Google Drive or directly (LAN / Tailscale), with background sync on Android. Phase 3 is done as well: a Forest-style focus timer (strict mode and Do Not Disturb on Android), the activity heatmap with streaks, universal search with a command palette, and goals. See [PLAN.md](PLAN.md) for the design and roadmap.
 
 ## Development
 

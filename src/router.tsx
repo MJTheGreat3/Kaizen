@@ -12,6 +12,7 @@ import { HabitsPage } from "@/modules/habits/HabitsPage";
 import { CalendarPage } from "@/modules/calendar/CalendarPage";
 import { FocusPage } from "@/modules/focus/FocusPage";
 import { ActivityPage } from "@/modules/activity/ActivityPage";
+import { GoalsPage } from "@/modules/goals/GoalsPage";
 
 /** Built modules; the rest show their placeholder. */
 const pages: Record<string, () => React.ReactNode> = {
@@ -23,6 +24,7 @@ const pages: Record<string, () => React.ReactNode> = {
   calendar: CalendarPage,
   focus: FocusPage,
   activity: ActivityPage,
+  goals: GoalsPage,
 };
 
 const rootRoute = createRootRoute({ component: AppShell });

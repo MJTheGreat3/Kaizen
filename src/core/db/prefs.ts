@@ -24,6 +24,8 @@ export interface Prefs {
   "notify.debts": boolean;
   /** Evening nudge when a streak would break. */
   "notify.streaks": boolean;
+  /** A week and a day before a goal's finish date. */
+  "notify.goals": boolean;
   /** Morning summary time (`HH:MM`), or empty for none. */
   "notify.digest": string;
   /** Shared folder to sync through (desktop), or empty. */
@@ -42,6 +44,10 @@ export interface Prefs {
   "focus.dnd": boolean;
   /** Seconds allowed away before the tree withers. */
   "focus.grace": number;
+  /** Last searches typed in the palette, newest first. */
+  "search.recent": string[];
+  /** Items last opened from search, newest first. */
+  "search.opened": { module: string; id: string; title: string }[];
 }
 
 export const defaultPrefs: Prefs = {
@@ -57,6 +63,7 @@ export const defaultPrefs: Prefs = {
   "notify.dates": true,
   "notify.debts": true,
   "notify.streaks": true,
+  "notify.goals": true,
   "notify.digest": "07:30",
   "sync.folder": "",
   "sync.lanHost": "",
@@ -67,6 +74,8 @@ export const defaultPrefs: Prefs = {
   "focus.strict": true,
   "focus.dnd": true,
   "focus.grace": 10,
+  "search.recent": [],
+  "search.opened": [],
 };
 
 const PREFIX = "pref.";

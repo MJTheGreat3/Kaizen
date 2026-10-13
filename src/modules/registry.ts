@@ -3,6 +3,7 @@ import {
   Barbell,
   Basketball,
   CalendarDots,
+  Flag,
   Code,
   GridFour,
   HandCoins,
@@ -76,7 +77,7 @@ export const modules: ModuleDef[] = [
     title: "Habits",
     icon: Target,
     group: "daily",
-    summary: "Habits, streaks and longer goals.",
+    summary: "Daily, weekly and counted habits with streaks.",
     planned: ["Daily, weekly or quantity targets", "Smart reminders", "Goals that track other modules"],
     phase: 1,
   },
@@ -133,6 +134,17 @@ export const modules: ModuleDef[] = [
     planned: ["One colour per activity", "Filters by type, range and tag", "Streaks with rest days and freezes"],
     phase: 3,
     mobilePrimary: true,
+  },
+  {
+    id: "goals",
+    hue: "#1f9bd1",
+    path: "/goals",
+    title: "Goals",
+    icon: Flag,
+    group: "track",
+    summary: "Longer targets that fill themselves from other modules.",
+    planned: ["Numbers you log, activity totals, habits or tasks", "Pace against a finish date", "Promote an idea into a goal"],
+    phase: 3,
   },
   {
     id: "practice",
@@ -226,3 +238,6 @@ export const groupLabels: Record<ModuleGroup, string> = {
   track: "Track",
   create: "Create and play",
 };
+
+/** A module's route, typed as a plain string since routes are built from this list. */
+export const pathOf = (id: string): string => modules.find((m) => m.id === id)?.path ?? "/";

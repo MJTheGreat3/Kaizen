@@ -361,7 +361,7 @@ fn seed_activity_types(conn: &Connection) -> Result<()> {
 /// Every synced table, parents before children so rows referencing other
 /// rows can be applied in order.
 pub fn synced_tables() -> impl Iterator<Item = &'static str> {
-    V1_SYNCED.iter().chain(V2_SYNCED).chain(V6_SYNCED).copied()
+    V1_SYNCED.iter().chain(V2_SYNCED).chain(V6_SYNCED).chain(V7_SYNCED).copied()
 }
 
 /// Synced tables that existed when v3/v4 ran; those migrations must not see
@@ -558,7 +558,236 @@ CREATE TABLE focus_unlocks (
     Ok(())
 }
 
-pub const LATEST: i64 = 6;
+const V7_SYNCED: &[&str] = &["goals", "goal_links", "goal_entries"];
+
+/// One module's rows in the search index. Each expression reads the row
+/// through `R.`, which becomes `NEW.` in triggers and the table name when
+/// backfilling.
+struct SearchSource {
+    table: &'static str,
+    module: &'static str,
+    title: &'static str,
+    body: &'static str,
+    tags: &'static str,
+    date: &'static str,
+    amount: &'static str,
+    status: &'static str,
+}
+
+const LOCAL_DAY: &str = "date(R.created_at / 1000, 'unixepoch', 'localtime')";
+
+fn search_sources() -> Vec<SearchSource> {
+    let tags = "(SELECT group_concat(value, ' ') FROM json_each(R.tags))";
+    let first_line = "CASE WHEN instr(R.body, char(10)) > 0 THEN substr(R.body, 1, instr(R.body, char(10)) - 1) ELSE R.body END";
+    vec![
+        SearchSource {
+            table: "tasks",
+            module: "R.list",
+            title: "R.title",
+            body: "concat_ws(' ', R.notes, json_extract(R.meta, '$.author'), json_extract(R.meta, '$.medium'))",
+            tags,
+            date: "coalesce(R.due_date, date(R.created_at / 1000, 'unixepoch', 'localtime'))",
+            amount: "NULL",
+            status: "R.status",
+        },
+        SearchSource {
+            table: "ideas",
+            module: "'ideas'",
+            title: first_line,
+            body: "R.body",
+            tags,
+            date: LOCAL_DAY,
+            amount: "NULL",
+            status: "CASE WHEN R.pinned THEN 'pinned' END",
+        },
+        SearchSource {
+            table: "habits",
+            module: "'habits'",
+            title: "R.name",
+            body: "R.unit",
+            tags: "NULL",
+            date: "R.start_date",
+            amount: "NULL",
+            status: "CASE WHEN R.archived THEN 'archived' ELSE 'active' END",
+        },
+        SearchSource {
+            table: "important_dates",
+            module: "'dates'",
+            title: "R.title",
+            body: "concat_ws(' ', R.kind, R.notes)",
+            tags: "NULL",
+            date: "R.date",
+            amount: "NULL",
+            status: "R.kind",
+        },
+        SearchSource {
+            table: "subjects",
+            module: "'subjects'",
+            title: "R.name",
+            body: "concat_ws(' ', R.code, R.professor)",
+            tags: "NULL",
+            date: "NULL",
+            amount: "NULL",
+            status: "NULL",
+        },
+        SearchSource {
+            table: "people",
+            module: "'people'",
+            title: "R.name",
+            body: "concat_ws(' ', R.phone, R.notes)",
+            tags: "NULL",
+            date: "NULL",
+            amount: "NULL",
+            status: "NULL",
+        },
+        SearchSource {
+            table: "debts",
+            module: "'debts'",
+            title: "coalesce(nullif(R.reason, ''), 'Debt')",
+            body: "concat_ws(' ', (SELECT name FROM people WHERE id = R.person_id), R.notes)",
+            tags: "NULL",
+            date: "R.occurred_on",
+            amount: "R.amount_paise / 100.0",
+            status: "R.direction",
+        },
+        SearchSource {
+            table: "goals",
+            module: "'goals'",
+            title: "R.title",
+            body: "R.notes",
+            tags: "NULL",
+            date: "R.target_date",
+            amount: "NULL",
+            status: "R.status",
+        },
+    ]
+}
+
+impl SearchSource {
+    fn select(&self, row: &str) -> String {
+        let r = |expr: &str| expr.replace("R.", &format!("{row}."));
+        format!(
+            "SELECT '{table}', {row}.id, {module}, {title}, coalesce({body}, ''), coalesce({tags}, ''), {date}, {amount}, {status}",
+            table = self.table,
+            module = r(self.module),
+            title = r(self.title),
+            body = r(self.body),
+            tags = r(self.tags),
+            date = r(self.date),
+            amount = r(self.amount),
+            status = r(self.status),
+        )
+    }
+}
+
+const SEARCH_COLUMNS: &str = "src, ref_id, module, title, body, tags, date, amount, status";
+
+/// Keeps `search_index` in step with each indexed table, including rows
+/// written by sync. Soft-deleted rows leave the index. Trigger names start
+/// with `search_index` so the schema dump for the browser preview skips
+/// them along with the FTS5 table.
+fn install_search_triggers(conn: &Connection, s: &SearchSource) -> Result<()> {
+    let t = s.table;
+    let remove = format!("DELETE FROM search_index WHERE src = '{t}' AND ref_id = OLD.id;");
+    let add = format!(
+        "INSERT INTO search_index ({SEARCH_COLUMNS}) {} WHERE NEW.deleted_at IS NULL;",
+        s.select("NEW")
+    );
+    conn.execute_batch(&format!(
+        "
+CREATE TRIGGER search_index_{t}_insert AFTER INSERT ON {t} BEGIN
+  {add}
+END;
+CREATE TRIGGER search_index_{t}_update AFTER UPDATE ON {t} BEGIN
+  {remove}
+  {add}
+END;
+CREATE TRIGGER search_index_{t}_delete AFTER DELETE ON {t} BEGIN
+  {remove}
+END;
+"
+    ))?;
+    conn.execute_batch(&format!(
+        "INSERT INTO search_index ({SEARCH_COLUMNS}) {} FROM {t} WHERE {t}.deleted_at IS NULL;",
+        s.select(t)
+    ))?;
+    Ok(())
+}
+
+/// Phase 3: goals, and the universal search index.
+///
+/// A goal's progress comes from its `kind`: `manual` from logged
+/// `goal_entries` (e.g. a rating or a lift), `activity` from the total of an
+/// activity type since `start_date`, `habits` from days its linked habits
+/// were done, `tasks` from its linked tasks being completed.
+///
+/// `search_index` (empty until now) is rebuilt with filter columns and kept
+/// filled by triggers.
+fn v7(conn: &Connection) -> Result<()> {
+    conn.execute_batch(&format!(
+        "
+CREATE TABLE goals (
+  id            TEXT PRIMARY KEY,
+  title         TEXT NOT NULL,
+  notes         TEXT,
+  kind          TEXT NOT NULL CHECK (kind IN ('manual', 'activity', 'habits', 'tasks')),
+  unit          TEXT,
+  start_value   REAL NOT NULL DEFAULT 0,
+  target_value  REAL NOT NULL DEFAULT 1,
+  start_date    TEXT NOT NULL,
+  target_date   TEXT,
+  activity_type TEXT,
+  activity_tag  TEXT,
+  color         TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'done', 'archived')),
+  completed_at  INTEGER,
+  sort_order    REAL NOT NULL DEFAULT 0,{BASE_COLUMNS}
+) STRICT;
+
+-- Habits or tasks a goal is made of.
+CREATE TABLE goal_links (
+  id      TEXT PRIMARY KEY,
+  goal_id TEXT NOT NULL REFERENCES goals (id),
+  kind    TEXT NOT NULL CHECK (kind IN ('habit', 'task')),
+  ref_id  TEXT NOT NULL,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX goal_links_goal ON goal_links (goal_id);
+
+-- Logged values for manual goals.
+CREATE TABLE goal_entries (
+  id      TEXT PRIMARY KEY,
+  goal_id TEXT NOT NULL REFERENCES goals (id),
+  date    TEXT NOT NULL,
+  value   REAL NOT NULL,
+  note    TEXT,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX goal_entries_goal ON goal_entries (goal_id, date);
+
+DROP TABLE search_index;
+CREATE VIRTUAL TABLE search_index USING fts5 (
+  src UNINDEXED,
+  ref_id UNINDEXED,
+  module UNINDEXED,
+  title,
+  body,
+  tags,
+  date UNINDEXED,
+  amount UNINDEXED,
+  status UNINDEXED,
+  tokenize = 'trigram'
+);
+"
+    ))?;
+    for table in V7_SYNCED {
+        install_clock_triggers(conn, table)?;
+    }
+    for source in search_sources() {
+        install_search_triggers(conn, &source)?;
+    }
+    Ok(())
+}
+
+pub const LATEST: i64 = 7;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -592,6 +821,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             4 => v4(&tx)?,
             5 => v5(&tx)?,
             6 => v6(&tx)?,
+            7 => v7(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;
@@ -646,6 +876,40 @@ mod tests {
             )
             .unwrap();
         assert_eq!(old, 0);
+    }
+
+    #[test]
+    fn search_index_follows_rows() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrate(&mut conn).unwrap();
+        let find = |conn: &Connection, q: &str| -> Vec<(String, String, String)> {
+            conn.prepare("SELECT module, title, tags FROM search_index WHERE search_index MATCH ?1")
+                .unwrap()
+                .query_map([q], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect()
+        };
+        conn.execute_batch(
+            "INSERT INTO tasks (id, list, title, notes, tags, created_at, updated_at, device_id)
+               VALUES ('t1', 'read', 'Dune', 'by Frank Herbert', '[\"scifi\",\"novel\"]', 1, 1, 'd');
+             INSERT INTO people (id, name, created_at, updated_at, device_id) VALUES ('p1', 'Rahul', 1, 1, 'd');
+             INSERT INTO debts (id, person_id, direction, amount_paise, occurred_on, reason, created_at, updated_at, device_id)
+               VALUES ('d1', 'p1', 'owed_to_me', 45000, '2026-10-01', 'Swiggy dinner', 1, 1, 'd');",
+        )
+        .unwrap();
+        assert_eq!(find(&conn, "herbert"), vec![("read".into(), "Dune".into(), "scifi novel".into())]);
+        let amount: f64 = conn
+            .query_row("SELECT amount FROM search_index WHERE ref_id = 'd1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(amount, 450.0);
+        assert_eq!(find(&conn, "rahul").len(), 2);
+
+        conn.execute("UPDATE tasks SET title = 'Dune Messiah' WHERE id = 't1'", []).unwrap();
+        assert_eq!(find(&conn, "messiah").len(), 1);
+        assert_eq!(find(&conn, "dune").len(), 1);
+        conn.execute("UPDATE tasks SET deleted_at = 2 WHERE id = 't1'", []).unwrap();
+        assert!(find(&conn, "dune").is_empty());
     }
 
     /// Upserts on synced tables (device registration, activity events) must

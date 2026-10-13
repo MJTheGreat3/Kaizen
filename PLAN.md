@@ -627,7 +627,7 @@ Known limits:
 - Notifications are rescheduled only when the app is opened, not after a background sync.
 - The QR scanner (ML Kit) sends Google anonymous usage statistics; it could be swapped for a ZXing-based scanner.
 
-### 6.5 Phase 3 progress: focus timer (2026-10-14)
+### 6.5 Phase 3 outcome (2026-10-14)
 
 Built and verified on the phone (desktop in the browser preview and dev app):
 - Sessions (presets 25/5, 50/10, 90/15 or 5-180 min) with tag and linked task; six hand-drawn SVG species growing from seed to tree; coins (one per completed minute) unlock species; forest by day/week/month; stats (today, 7 days, all time, best hour, longest, 14-day chart, tags). Completed sessions record `focus` activity for the heatmap.
@@ -639,7 +639,11 @@ Still to check: end-of-session notifications on the laptop, which need the bundl
 
 **Activity heatmap** (built 2026-10-14): GitHub-style grid over 3 months / 6 months / a year from `activity_events`, one colour per type with intensity by each type's own quartiles, split cells for days with several activities, type toggles (double-click for one type), tag filter (tasks and focus tags), tap a day for its log with titles from each source, totals per type for the range. Streaks per type and overall with editable rules: daily minimum, weekly streaks (N active days a week), rest weekdays and freezes per month. Milestones at 7/30/100/365 (toast and notification, once each) and an 8:30 pm nudge for daily streaks of 3+ days not yet done (Settings → Notifications → Streaks). A Today card shows the overall streak and the last five weeks. Not yet: year-over-year comparison, monthly totals view.
 
-Next in Phase 3 (on request): universal search and command palette, goals.
+**Universal search and command palette** (built 2026-10-14): migration v7 rebuilds `search_index` (FTS5, trigram) with filter columns (`src`, `module`, `date`, `amount`, `status`) and fills it with triggers on tasks, ideas, habits, important dates, subjects, people, debts and goals, so rows written by sync are indexed too; soft-deleted rows drop out. Matching runs in memory over the index rows: substrings anywhere, word-prefix typos (1 edit from 4 letters, 2 from 7, transpositions count as one) and results grouped by module with highlighted titles. Filters: `in:` (tasks, books, watch, ideas, habits, dates, college, debts, people, goals, lists, calendar), `tag:` or `#tag`, `before:` / `after:` (a day or a month), `amount:>500`, `is:done|open|pinned|archived`. The same palette runs commands (start a focus session, new goal, new habit, sync, back up, theme, lock), adds the typed text as a task (natural language) or an idea, and keeps recent searches and recently opened items (device-local). Picking a result opens it in its module (task editor, idea, habit, date, subject, person, goal). `Cmd/Ctrl+K` on desktop; the search button or a pull-down from the top of any page on the phone. Not yet: transactions, CP problems, workouts and whiteboard text, which arrive with their modules.
+
+**Goals** (built 2026-10-14): `goals`, `goal_links` and `goal_entries` (synced). Four kinds: a number logged by hand (rating, weight; may go down), an activity total since the start date (optionally one tag, focus in hours), check-ins of linked habits, or linked tasks done. Cards show progress, a step chart against the planned pace, ahead / on track / behind, days left and what is needed per day or week. Goals are marked reached automatically (toast and notification); reminders a week and a day before the finish date (Settings → Notifications → Goals). Ideas can become a task or a goal; Today shows the active goals.
+
+Phase 3 is complete; the laptop end-of-session notification still needs checking with the bundled app.
 
 ## 7. Open questions
 

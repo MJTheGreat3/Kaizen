@@ -10,6 +10,7 @@ import { CheckCircle, ColorPicker, ConfirmDialog, DateTimeInput, EmptyState, Pil
 import { ProgressRing } from "@/components/ui/ring";
 import type { Habit, HabitSchedule } from "@/core/db/schema";
 import { Page, PageHeader } from "@/core/shell/PageHeader";
+import { useOpenTarget } from "@/core/shell/openRequest";
 import { addDaysKey, fromKey, todayKey } from "@/lib/dates";
 import { ease, rise } from "@/lib/motion";
 import { PALETTE } from "@/lib/palette";
@@ -269,6 +270,10 @@ export function HabitsPage() {
   const [editor, setEditor] = useState<{ open: boolean; habit: Habit | null }>({ open: false, habit: null });
   const today = todayKey();
   const due = data?.habits.filter((hb) => isScheduled(hb, today) || hb.schedule.type === "weekly") ?? [];
+  useOpenTarget(["habits"], !!data, ({ id }) => {
+    const habit = data?.habits.find((hb) => hb.id === id) ?? null;
+    if (habit || id === "new") setEditor({ open: true, habit });
+  });
   const doneCount = due.filter((hb) => isDone(hb, data!.values.get(hb.id)?.get(today))).length;
 
   return (

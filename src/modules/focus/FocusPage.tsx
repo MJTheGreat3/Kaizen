@@ -27,6 +27,7 @@ import { usePref } from "@/core/db/prefs";
 import type { FocusSession } from "@/core/db/schema";
 import { isMobile, useSession } from "@/core/security/session";
 import { Page, PageHeader } from "@/core/shell/PageHeader";
+import { useOpenTarget } from "@/core/shell/openRequest";
 import { addDaysKey, fromKey, todayKey } from "@/lib/dates";
 import { ease, rise } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -195,6 +196,11 @@ function SetupCard({ tags, unlocked, onLocked }: { tags: string[]; unlocked: (s:
       graceSeconds: grace,
     });
     return session;
+  });
+
+  // "Start focus" from the command palette.
+  useOpenTarget(["focus"], true, ({ id }) => {
+    if (id === "start" && !start.isPending) start.mutate(undefined);
   });
 
   return (

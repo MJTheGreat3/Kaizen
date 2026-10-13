@@ -5,6 +5,7 @@ import { CalendarHeart, Plus } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, SectionTitle } from "@/components/ui/kit";
 import type { ImportantDate } from "@/core/db/schema";
+import { useOpenTarget } from "@/core/shell/openRequest";
 import { daysBetween, formatLongDate, todayKey } from "@/lib/dates";
 import { ease } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,10 @@ export function DatesView() {
   const { data } = useDates();
   const [editor, setEditor] = useState<{ open: boolean; item: ImportantDate | null }>({ open: false, item: null });
   const today = todayKey();
+  useOpenTarget(["dates"], !!data, ({ id }) => {
+    const item = data?.find((x) => x.id === id);
+    if (item) setEditor({ open: true, item });
+  });
   const items = (data ?? []).map((item) => ({ item, next: nextOccurrence(item, today) }));
   const upcoming = items.filter((x) => x.next).sort((a, b) => (a.next! < b.next! ? -1 : 1));
   const soon = upcoming.filter((x) => daysBetween(today, x.next!) <= 30);

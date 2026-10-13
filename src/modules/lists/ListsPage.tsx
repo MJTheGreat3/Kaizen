@@ -20,6 +20,7 @@ import { CheckCircle, Chip, EmptyState, QuickAdd, RowMenu } from "@/components/u
 import type { Task, TaskList } from "@/core/db/schema";
 import { parseTask } from "@/core/nl/parse";
 import { Page, PageHeader } from "@/core/shell/PageHeader";
+import { useOpenTarget } from "@/core/shell/openRequest";
 import { addDaysKey, formatMinutes, relativeDay, timeToMinutes, todayKey } from "@/lib/dates";
 import { ease, rise } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -222,6 +223,13 @@ export function ListsPage() {
   const all = useTasks();
   const add = useAddTask();
   const today = todayKey();
+
+  useOpenTarget(["todo", "watch", "read"], !!all.data, ({ id }) => {
+    const task = all.data?.find((t) => t.id === id);
+    if (!task) return;
+    setList(task.list);
+    setEditing(task);
+  });
 
   const counts = useMemo(() => {
     const c = { todo: 0, watch: 0, read: 0 };

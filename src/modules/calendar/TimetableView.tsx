@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { EmptyState, RowMenu, SectionTitle } from "@/components/ui/kit";
 import type { Subject, TimetableSlot } from "@/core/db/schema";
+import { useOpenTarget } from "@/core/shell/openRequest";
 import { addDaysKey, formatMinutes, fromKey, isoWeekday, relativeDay, todayKey, type DateKey } from "@/lib/dates";
 import { ease } from "@/lib/motion";
 import { PALETTE } from "@/lib/palette";
@@ -153,6 +154,10 @@ export function TimetableView({ data }: { data: CalendarData }) {
   const [breakOpen, setBreakOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
   const deleteException = useDeleteException();
+  useOpenTarget(["subjects"], true, ({ id }) => {
+    const subject = data.subjects.find((x) => x.id === id);
+    if (subject) setSubjectEditor({ open: true, subject });
+  });
 
   const hasWeekend = (wd: number) =>
     data.slots.some((s) => s.weekday === wd) || data.exceptions.some((e) => e.kind === "extra" && isoWeekday(e.date) === wd);

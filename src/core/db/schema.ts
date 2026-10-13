@@ -390,3 +390,74 @@ export type FocusUnlock = typeof focusUnlocks.$inferSelect;
 
 export type ActivityType = typeof activityTypes.$inferSelect;
 export type ActivityEvent = typeof activityEvents.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Phase 3 (migration v7): goals and the search index
+// ---------------------------------------------------------------------------
+
+export type GoalKind = "manual" | "activity" | "habits" | "tasks";
+export type GoalStatus = "active" | "done" | "archived";
+
+export const goals = sqliteTable("goals", {
+  id: id(),
+  title: text("title").notNull(),
+  notes: text("notes"),
+  kind: text("kind", { enum: ["manual", "activity", "habits", "tasks"] }).notNull(),
+  unit: text("unit"),
+  /** Manual goals: where the metric started (a lower target means "go down"). */
+  startValue: real("start_value").notNull().default(0),
+  targetValue: real("target_value").notNull().default(1),
+  startDate: text("start_date").notNull(),
+  targetDate: text("target_date"),
+  /** Activity goals: the type to total, optionally only events with this tag. */
+  activityType: text("activity_type"),
+  activityTag: text("activity_tag"),
+  color: text("color").notNull(),
+  status: text("status", { enum: ["active", "done", "archived"] })
+    .notNull()
+    .default("active"),
+  completedAt: integer("completed_at"),
+  sortOrder: real("sort_order").notNull().default(0),
+  ...base,
+});
+
+export const goalLinks = sqliteTable("goal_links", {
+  id: id(),
+  goalId: text("goal_id")
+    .notNull()
+    .references(() => goals.id),
+  kind: text("kind", { enum: ["habit", "task"] }).notNull(),
+  refId: text("ref_id").notNull(),
+  ...base,
+});
+
+export const goalEntries = sqliteTable("goal_entries", {
+  id: id(),
+  goalId: text("goal_id")
+    .notNull()
+    .references(() => goals.id),
+  date: text("date").notNull(),
+  value: real("value").notNull(),
+  note: text("note"),
+  ...base,
+});
+
+/** FTS5 table kept filled by triggers; read-only from the frontend. */
+export const searchIndex = sqliteTable("search_index", {
+  /** Source table and row. */
+  src: text("src").notNull(),
+  refId: text("ref_id").notNull(),
+  /** Where the row lives: todo, watch, read, ideas, habits, dates, subjects, people, debts, goals. */
+  module: text("module").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  tags: text("tags").notNull(),
+  date: text("date"),
+  amount: real("amount"),
+  status: text("status"),
+});
+
+export type Goal = typeof goals.$inferSelect;
+export type GoalLink = typeof goalLinks.$inferSelect;
+export type GoalEntry = typeof goalEntries.$inferSelect;
+export type SearchRow = typeof searchIndex.$inferSelect;

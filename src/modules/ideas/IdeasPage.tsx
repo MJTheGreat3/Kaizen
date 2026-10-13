@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { desc, eq, isNull } from "drizzle-orm";
-import { Lightbulb, MagnifyingGlass, PushPin, PushPinSlash, Shuffle, Trash } from "@phosphor-icons/react";
+import { useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
+import { Flag, Lightbulb, ListPlus, MagnifyingGlass, PushPin, PushPinSlash, Shuffle, Trash } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/controls";
@@ -11,10 +13,13 @@ import { ColorPicker, EmptyState, RowMenu, Textarea } from "@/components/ui/kit"
 import { db, schema } from "@/core/db/client";
 import type { Idea } from "@/core/db/schema";
 import { Page, PageHeader } from "@/core/shell/PageHeader";
+import { parseTask } from "@/core/nl/parse";
+import { useOpenRequest, useOpenTarget } from "@/core/shell/openRequest";
 import { ease, rise } from "@/lib/motion";
 import { PALETTE } from "@/lib/palette";
 import { formatDateTime } from "@/lib/utils";
-import { modules } from "@/modules/registry";
+import { useAddTask } from "@/modules/lists/data";
+import { modules, pathOf } from "@/modules/registry";
 
 const mod = modules.find((m) => m.id === "ideas")!;
 const HUE = mod.hue;
@@ -69,7 +74,22 @@ function RichText({ text }: { text: string }) {
 function IdeaCard({ idea, onOpen, highlight }: { idea: Idea; onOpen: (i: Idea) => void; highlight?: boolean }) {
   const update = useIdeaMutation((patch: Partial<Idea>) => db.update(t).set(patch).where(eq(t.id, idea.id)));
   const remove = useIdeaMutation(() => db.update(t).set({ deletedAt: Date.now() }).where(eq(t.id, idea.id)));
+  const addTask = useAddTask();
+  const navigate = useNavigate();
   const tint = idea.color ?? null;
+  const [firstLine, ...rest] = idea.body.split("\n");
+  const restText = rest.join("\n").trim() || null;
+
+  async function toTask() {
+    const parsed = parseTask(firstLine, new Date(), "todo");
+    await addTask.mutateAsync({ ...parsed, title: parsed.title || firstLine.trim(), tags: [...new Set([...parsed.tags, ...idea.tags])], notes: restText });
+    toast.success("Added to To-do", { action: { label: "Open", onClick: () => void navigate({ to: pathOf("lists") }) } });
+  }
+
+  function toGoal() {
+    useOpenRequest.getState().request({ module: "goals", id: "new", draft: { title: firstLine.replace(/#[\p{L}\p{N}_-]+/gu, "").trim(), notes: restText ?? undefined } });
+    void navigate({ to: pathOf("goals") });
+  }
 
   return (
     <motion.article
@@ -97,6 +117,8 @@ function IdeaCard({ idea, onOpen, highlight }: { idea: Idea; onOpen: (i: Idea) =
               idea.pinned
                 ? { label: "Unpin", icon: PushPinSlash, onSelect: () => update.mutate({ pinned: false }) }
                 : { label: "Pin", icon: PushPin, onSelect: () => update.mutate({ pinned: true }) },
+              { label: "Make it a task", icon: ListPlus, onSelect: () => void toTask() },
+              { label: "Make it a goal", icon: Flag, onSelect: toGoal },
               { label: "Delete", icon: Trash, danger: true, onSelect: () => remove.mutate(undefined) },
             ]}
           />
@@ -157,6 +179,8 @@ export function IdeasPage() {
     return (data ?? []).filter((i) => !q || i.body.toLowerCase().includes(q));
   }, [data, query]);
   const surfacedIdea = data?.find((i) => i.id === surfaced) ?? null;
+
+  useOpenTarget(["ideas"], !!data, ({ id }) => setEditing(data?.find((i) => i.id === id) ?? null));
 
   async function capture() {
     if (!draft.trim()) return;
