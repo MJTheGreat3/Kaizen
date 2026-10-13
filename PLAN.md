@@ -484,7 +484,7 @@ kaizen/
 |---|---|
 | 0. Foundation (done) | Tauri 2 project (desktop + Android), design system, navigation shell, SQLite + migrations, encryption, settings, backup/export, `activity_events` table, search index skeleton |
 | 1. Daily core (done) | To-do / watch / read with NL parsing, notification service, habits, idea scrapbook, important dates, college timetable with attendance, debt recorder, Today dashboard |
-| 2. Sync | Encrypted sync core with QR pairing; Google Drive transport first, then direct LAN / Tailscale; the phone is usable daily from here on |
+| 2. Sync (done) | Encrypted sync core with QR pairing; Google Drive transport first, then direct LAN / Tailscale; the phone is usable daily from here on |
 | 3. Focus and activity | Forest-style focus timer (Android strict mode), activity heatmap with filters, streaks, universal search + command palette |
 | 4. Practice | Codeforces + LeetCode connectors, CP analytics, contest reminders, revisit queue |
 | 5. Fitness and sports | Gym logging, templates, PRs, charts, sports sessions, body metrics; NBA and football team and player following |
@@ -602,7 +602,7 @@ Deferred:
 - Present/Absent buttons inside the notification itself (tapping opens the app).
 - Receipt photos for debts, picking people from phone contacts, TMDB/Open Library metadata.
 
-### 6.4 Phase 2 progress (2026-10-13)
+### 6.4 Phase 2 outcome (2026-10-13)
 
 Built and tested (Rust unit and integration tests, browser preview of the UI):
 - **Sync core**: migration v3 replaces the row-level `sync_changes` log with per-cell clocks (`sync_clock`), stamped by generated triggers; a local edit always gets a timestamp above the value it replaces, so a device with a slow clock still wins with newer edits. Existing rows are stamped from `updated_at`, so data entered before pairing merges.
@@ -617,10 +617,15 @@ Verified on the devices (laptop + phone, 2026-10-13): QR pairing, Google sign-in
 - v4 migration: the clock triggers used `INSERT OR REPLACE`, which SQLite ignores inside an upsert (`INSERT ... ON CONFLICT DO UPDATE`), so the second unlock failed on a `sync_clock` unique constraint; triggers now upsert.
 - Android blocks network access for background apps, and the browser hands the sign-in code back while it is still in front; the token exchange now retries until Kaizen is back in the foreground.
 
-Still to do:
-- Clean up old bundles in Drive (snapshot once every device has applied them).
-- Automatic laptop discovery (mDNS) and laptop addresses inside the QR code; for now the address is typed.
-- Background sync on Android (`WorkManager`); for now sync runs while the app is open.
+Finished afterwards:
+- **Compaction**: past 20 bundles, a device replaces its own with one snapshot of every cell it wrote (`seq` from 1), so Drive stays small and late joiners still catch up.
+- **Finding the laptop**: laptops publish their addresses in the synced `devices` table (migration v5) and in the pairing code; the phone tries them every round. Chosen over mDNS, which needs a multicast lock on Android and fails on client-isolated networks anyway.
+- **Android background sync**: a WorkManager job (`SyncWorker.kt`, every ~15 min, network required) calls into Rust over JNI and syncs through Drive and the laptop. Opt-in, and only with fingerprint unlock on, since it opens the database with the on-device key. Verified on the phone with the app closed.
+- **Touch ID** on the Mac gates quick unlock (LocalAuthentication, with the login password as fallback). Biometric prompts appear only when the unlock button is pressed.
+
+Known limits:
+- Notifications are rescheduled only when the app is opened, not after a background sync.
+- The QR scanner (ML Kit) sends Google anonymous usage statistics; it could be swapped for a ZXing-based scanner.
 
 ## 7. Open questions
 
