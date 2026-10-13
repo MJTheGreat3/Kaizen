@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { ArrowCounterClockwise, Check, Copy, Eye, EyeSlash, Fingerprint, FolderOpen, Key } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -9,6 +9,9 @@ import { Skeleton, Switch } from "@/components/ui/controls";
 import { AppError, ipc } from "@/lib/ipc";
 import { biometricAvailable, biometricPrompt, pickFolder } from "@/lib/native";
 import { cn, formatBytes, formatDateTime } from "@/lib/utils";
+import { BrandMark, Sky } from "@/components/visual";
+import { ease, rise, stagger } from "@/lib/motion";
+import { formatClock, formatDayMonth, formatWeekday, greeting, useNow } from "@/lib/time";
 import { isMobile, useSession } from "./session";
 
 const MIN_PASSPHRASE = 8;
@@ -21,29 +24,69 @@ function message(e: unknown): string {
   return String(e);
 }
 
-function Shell({ title, description, children }: { title: string; description: ReactNode; children: ReactNode }) {
-  const reduce = useReducedMotion();
+/** Clock and date over the time-of-day sky. */
+function SkyClock({ compact }: { compact?: boolean }) {
+  const now = useNow(1000);
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 pt-safe pb-safe">
-      <motion.main
-        initial={reduce ? false : { opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-[400px] py-10"
+    <div className="text-white">
+      <p className="text-[15px] font-medium text-white/85">{greeting(now)}</p>
+      <p
+        className={cn(
+          "mt-1 font-semibold tabular-nums leading-none tracking-[-0.045em]",
+          compact ? "text-[56px]" : "text-[88px]",
+        )}
       >
-        <div className="mb-8 flex items-center gap-3">
-          <div
-            aria-hidden
-            className="grid size-11 place-items-center rounded-xl bg-accent text-[17px] font-semibold text-accent-foreground shadow-soft"
-          >
-            改
+        {formatClock(now)}
+      </p>
+      <p className={cn("mt-3 font-medium text-white/85", compact ? "text-[16px]" : "text-[19px]")}>
+        {formatWeekday(now)}, {formatDayMonth(now)}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Lock-screen layout: the sky panel (left on desktop, top on the phone) and
+ * the form beside or below it.
+ */
+function Shell({ title, description, children }: { title: string; description: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex min-h-[100dvh] flex-col bg-background md:flex-row md:p-3">
+      <motion.div
+        initial={{ opacity: 0, scale: 1.02 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.8, ease }}
+        className="md:flex-1"
+      >
+        <Sky className="h-[36dvh] min-h-[250px] rounded-b-[32px] md:h-full md:min-h-0 md:rounded-[28px]">
+          <div className="flex h-full flex-col justify-between p-6 pt-[calc(env(safe-area-inset-top)+1.25rem)] md:p-10">
+            <span className="flex items-center gap-2.5 text-white">
+              <BrandMark className="bg-white/20 text-white shadow-none ring-1 ring-white/30 backdrop-blur" />
+              <span className="text-[16px] font-semibold tracking-[-0.02em]">Kaizen</span>
+            </span>
+            <span className="md:hidden">
+              <SkyClock compact />
+            </span>
+            <span className="hidden md:block">
+              <SkyClock />
+            </span>
           </div>
-          <span className="text-[15px] font-semibold tracking-tight">Kaizen</span>
-        </div>
-        <h1 className="text-[26px] font-semibold leading-tight tracking-tight">{title}</h1>
-        <div className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{description}</div>
-        <div className="mt-8">{children}</div>
-      </motion.main>
+        </Sky>
+      </motion.div>
+
+      <div className="flex flex-1 items-start justify-center px-5 pb-safe md:max-w-[560px] md:items-center md:px-12">
+        <motion.main variants={stagger} initial="hidden" animate="show" className="w-full max-w-[380px] py-8 md:py-10">
+          <motion.h1 variants={rise} className="text-[28px] font-semibold leading-tight tracking-[-0.025em]">
+            {title}
+          </motion.h1>
+          <motion.div variants={rise} className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
+            {description}
+          </motion.div>
+          <motion.div variants={rise} className="mt-8">
+            {children}
+          </motion.div>
+        </motion.main>
+      </div>
     </div>
   );
 }
@@ -301,7 +344,7 @@ export function UnlockScreen({ deviceUnlock }: { deviceUnlock: boolean }) {
   }
 
   return (
-    <Shell title="Welcome back" description="Kaizen is locked.">
+    <Shell title="Unlock Kaizen" description="Your data stays encrypted until you unlock.">
       <div className="grid gap-5">
         {deviceUnlock ? (
           <>

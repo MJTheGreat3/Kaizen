@@ -4,6 +4,7 @@ import { AppShell } from "@/core/shell/AppShell";
 import { Placeholder } from "@/modules/Placeholder";
 import { modules } from "@/modules/registry";
 import { SettingsPage } from "@/modules/settings/SettingsPage";
+import { TodayPage } from "@/modules/today/TodayPage";
 
 const rootRoute = createRootRoute({ component: AppShell });
 
@@ -11,7 +12,7 @@ const moduleRoutes = modules.map((module) =>
   createRoute({
     getParentRoute: () => rootRoute,
     path: module.path,
-    component: () => <Placeholder module={module} />,
+    component: module.id === "today" ? TodayPage : () => <Placeholder module={module} />,
   }),
 );
 

@@ -1,11 +1,14 @@
 import type { Icon } from "@phosphor-icons/react";
 import {
   Barbell,
+  Basketball,
   CalendarDots,
   Code,
   GridFour,
+  HandCoins,
   Lightbulb,
   ListChecks,
+  MusicNotes,
   Scribble,
   SunHorizon,
   Target,
@@ -27,6 +30,8 @@ export interface ModuleDef {
   planned: string[];
   /** Roadmap phase from PLAN.md. */
   phase: number;
+  /** Module colour: icon tiles, page wash and active navigation. */
+  hue: string;
   /** Shown in the Android bottom bar (max 4; the rest live under "More"). */
   mobilePrimary?: boolean;
 }
@@ -34,6 +39,7 @@ export interface ModuleDef {
 export const modules: ModuleDef[] = [
   {
     id: "today",
+    hue: "#f0a03c",
     path: "/",
     title: "Today",
     icon: SunHorizon,
@@ -41,14 +47,15 @@ export const modules: ModuleDef[] = [
     summary: "Everything that matters today, in one place.",
     planned: [
       "Today's classes, tasks and habits",
-      "Upcoming contests and important dates",
-      "This month's spending and a random idea",
+      "Upcoming contests, matches and important dates",
+      "Debts due and a random idea",
     ],
     phase: 1,
     mobilePrimary: true,
   },
   {
     id: "lists",
+    hue: "#5b6ee1",
     path: "/lists",
     title: "Lists",
     icon: ListChecks,
@@ -64,6 +71,7 @@ export const modules: ModuleDef[] = [
   },
   {
     id: "habits",
+    hue: "#8e6bd8",
     path: "/habits",
     title: "Habits",
     icon: Target,
@@ -74,6 +82,7 @@ export const modules: ModuleDef[] = [
   },
   {
     id: "calendar",
+    hue: "#d9608f",
     path: "/calendar",
     title: "Calendar",
     icon: CalendarDots,
@@ -88,6 +97,7 @@ export const modules: ModuleDef[] = [
   },
   {
     id: "focus",
+    hue: "#2fa5a0",
     path: "/focus",
     title: "Focus",
     icon: Tree,
@@ -98,7 +108,23 @@ export const modules: ModuleDef[] = [
     mobilePrimary: true,
   },
   {
+    id: "debts",
+    hue: "#c2843d",
+    path: "/debts",
+    title: "Debts",
+    icon: HandCoins,
+    group: "daily",
+    summary: "Who owes you, whom you owe, when and why.",
+    planned: [
+      "Record an IOU in seconds: \"Rahul owes 250 for pizza\"",
+      "Net balance per person, partial repayments",
+      "Bill splitting and due-date reminders",
+    ],
+    phase: 1,
+  },
+  {
     id: "activity",
+    hue: "#e05a5a",
     path: "/activity",
     title: "Activity",
     icon: GridFour,
@@ -110,6 +136,7 @@ export const modules: ModuleDef[] = [
   },
   {
     id: "practice",
+    hue: "#3fa66b",
     path: "/practice",
     title: "Practice",
     icon: Code,
@@ -120,6 +147,7 @@ export const modules: ModuleDef[] = [
   },
   {
     id: "fitness",
+    hue: "#e8673a",
     path: "/fitness",
     title: "Fitness",
     icon: Barbell,
@@ -129,17 +157,34 @@ export const modules: ModuleDef[] = [
     phase: 5,
   },
   {
+    id: "sports",
+    hue: "#3d8bd9",
+    path: "/sports",
+    title: "Sports",
+    icon: Basketball,
+    group: "track",
+    summary: "Follow NBA and football teams and players.",
+    planned: [
+      "Search and follow any team or player",
+      "Fixtures, live scores, results and standings",
+      "Player stats and match reminders",
+    ],
+    phase: 5,
+  },
+  {
     id: "finance",
+    hue: "#a3b13b",
     path: "/finance",
     title: "Finance",
     icon: Wallet,
     group: "track",
     summary: "Monthly statements, categories and insights.",
     planned: ["CSV statement import per bank", "Auto-categorisation that learns", "Budgets and recurring payments"],
-    phase: 6,
+    phase: 9,
   },
   {
     id: "ideas",
+    hue: "#d4b62c",
     path: "/ideas",
     title: "Ideas",
     icon: Lightbulb,
@@ -149,19 +194,35 @@ export const modules: ModuleDef[] = [
     phase: 1,
   },
   {
+    id: "music",
+    hue: "#c94fd6",
+    path: "/music",
+    title: "Music",
+    icon: MusicNotes,
+    group: "create",
+    summary: "Your Spotify, with listening stats.",
+    planned: [
+      "Play playlists and songs on any Spotify device",
+      "Top artists, tracks and albums",
+      "Your own listening history, kept locally",
+    ],
+    phase: 7,
+  },
+  {
     id: "canvas",
+    hue: "#7487a3",
     path: "/canvas",
     title: "Canvas",
     icon: Scribble,
     group: "create",
     summary: "An infinite whiteboard.",
     planned: ["Freehand drawing and shapes", "Pen support on the phone", "Export to PNG and SVG"],
-    phase: 7,
+    phase: 6,
   },
 ];
 
 export const groupLabels: Record<ModuleGroup, string> = {
   daily: "Daily",
   track: "Track",
-  create: "Create",
+  create: "Create and play",
 };

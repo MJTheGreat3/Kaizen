@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { motion } from "motion/react";
 import { toast } from "sonner";
 import {
   CheckCircle,
@@ -8,6 +9,7 @@ import {
   DownloadSimple,
   FileText,
   FolderOpen,
+  GearSix,
   Moon,
   Sun,
   Trash,
@@ -35,16 +37,17 @@ import { setTheme, useTheme } from "@/core/theme";
 import { ipc, type BackupInfo } from "@/lib/ipc";
 import { biometricAvailable, biometricPrompt, pickFolder } from "@/lib/native";
 import { formatBytes, formatDateTime } from "@/lib/utils";
+import { rise } from "@/lib/motion";
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
-    <section className="grid gap-3">
+    <motion.section variants={rise} className="grid gap-3">
       <div>
         <h2 className="text-[17px] font-semibold tracking-tight">{title}</h2>
         {description ? <p className="mt-0.5 text-[14px] text-muted-foreground">{description}</p> : null}
       </div>
-      <div className="divide-y divide-border rounded-xl border border-border bg-surface shadow-soft">{children}</div>
-    </section>
+      <div className="divide-y divide-border rounded-2xl border border-border bg-surface shadow-soft">{children}</div>
+    </motion.section>
   );
 }
 
@@ -441,8 +444,8 @@ function DiagnosticsSection() {
 
 export function SettingsPage() {
   return (
-    <Page>
-      <PageHeader title="Settings" />
+    <Page hue="#7d8696">
+      <PageHeader title="Settings" description="Appearance, security, backups and your data." icon={GearSix} hue="#7d8696" />
       <div className="mt-8 grid gap-10">
         <AppearanceSection />
         <SecuritySection />

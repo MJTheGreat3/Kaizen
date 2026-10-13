@@ -6,6 +6,7 @@ import { CloudArrowUp, GearSix, Lock, MagnifyingGlass, MoonStars } from "@phosph
 import { toast } from "sonner";
 
 import { Kbd } from "@/components/ui/controls";
+import { ModuleTile } from "@/components/visual";
 import { modules } from "@/modules/registry";
 import { cycleTheme } from "@/core/theme";
 import { useSession } from "@/core/security/session";
@@ -13,7 +14,7 @@ import { runBackupNow } from "@/core/backup/useScheduledBackup";
 import { usePalette } from "./palette";
 
 const itemClass =
-  "flex h-11 cursor-pointer items-center gap-3 rounded-lg px-3 text-[14px] text-foreground data-[selected=true]:bg-surface-muted [&_svg]:size-[18px] [&_svg]:text-muted-foreground";
+  "flex h-11 cursor-pointer items-center gap-3 rounded-[10px] px-2.5 text-[14px] text-foreground transition-colors data-[selected=true]:bg-surface-muted [&>svg]:size-[18px] [&>svg]:text-muted-foreground";
 
 export function CommandPalette() {
   const { open, setOpen } = usePalette();
@@ -70,8 +71,9 @@ export function CommandPalette() {
                     onSelect={() => run(() => navigate({ to: m.path }))}
                     className={itemClass}
                   >
-                    <m.icon />
-                    {m.title}
+                    <ModuleTile icon={m.icon} hue={m.hue} size="sm" />
+                    <span className="flex-1">{m.title}</span>
+                    <span className="hidden text-[12px] text-muted-foreground sm:inline">{m.summary}</span>
                   </Command.Item>
                 ))}
                 <Command.Item value="go settings" onSelect={() => run(() => navigate({ to: "/settings" }))} className={itemClass}>

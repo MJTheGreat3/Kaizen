@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { RouterProvider } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "sonner";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
 
 import { useScheduledBackup } from "@/core/backup/useScheduledBackup";
 import { LoadingScreen, RecoveryKeyScreen, SetupScreen, UnlockScreen } from "@/core/security/LockScreens";
@@ -9,6 +10,7 @@ import { useSession } from "@/core/security/session";
 import { useAutoLock } from "@/core/security/useAutoLock";
 import { useTheme } from "@/core/theme";
 import { log } from "@/lib/log";
+import { ease } from "@/lib/motion";
 import { router } from "./router";
 
 export function App() {
@@ -32,19 +34,31 @@ export function App() {
 
   return (
     <>
-      {/* Keeps scrolled content from showing through the transparent status bar (edge-to-edge on Android). */}
-      <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-40 h-[env(safe-area-inset-top)] bg-background" />
-      {phase.kind === "loading" ? (
-        <LoadingScreen />
-      ) : phase.kind === "setup" ? (
-        <SetupScreen />
-      ) : phase.kind === "recovery" ? (
-        <RecoveryKeyScreen recoveryKey={phase.recoveryKey} />
-      ) : phase.kind === "locked" ? (
-        <UnlockScreen deviceUnlock={phase.deviceUnlock} />
-      ) : (
-        <RouterProvider router={router} />
-      )}
+      <MotionConfig reducedMotion="user">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={phase.kind === "unlocked" ? "app" : phase.kind}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 0.985, transition: { duration: 0.22, ease } }}
+            transition={{ duration: 0.35, ease }}
+          >
+            {phase.kind === "loading" ? (
+              <LoadingScreen />
+            ) : phase.kind === "setup" ? (
+              <SetupScreen />
+            ) : phase.kind === "recovery" ? (
+              <RecoveryKeyScreen recoveryKey={phase.recoveryKey} />
+            ) : phase.kind === "locked" ? (
+              <UnlockScreen deviceUnlock={phase.deviceUnlock} />
+            ) : (
+              <RouterProvider router={router} />
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </MotionConfig>
+      {/* Film grain over everything for a little depth. */}
+      <div aria-hidden className="grain-surface pointer-events-none fixed inset-0 z-[60] opacity-[var(--grain-opacity)]" />
       <Toaster
         theme={theme}
         position="bottom-right"
