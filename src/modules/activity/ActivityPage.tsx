@@ -108,7 +108,8 @@ function Heatmap({
   });
 
   return (
-    <div ref={scroller} className="overflow-x-auto pb-1">
+    // The padding leaves room for the selection ring and hover zoom at the edges.
+    <div ref={scroller} className="-m-2 overflow-x-auto p-2">
       <div className="inline-grid min-w-full gap-1" style={{ gridTemplateColumns: `24px repeat(${cols.length}, minmax(12px, 1fr))` }}>
         <span />
         {monthLabels.map((m, i) => (
@@ -375,7 +376,8 @@ export function ActivityPage() {
     });
     const anyActive = new Set(perType.filter((p) => !hidden.includes(p.t.id)).flatMap((p) => [...p.active]));
     const overall = streak(anyActive, { period: "day", min: 1, perWeek: 1, restDays: [], freezesPerMonth: 0 }, today);
-    return { types, shown, withData, levelsByType, perType, overall, overallRate: activeRate(anyActive, from, today), anyActive };
+    const daysWithAny = new Set([...levelsByType.values()].flatMap((l) => [...l.keys()])).size;
+    return { types, shown, withData, daysWithAny, levelsByType, perType, overall, overallRate: activeRate(anyActive, from, today), anyActive };
   }, [activity.data, hidden, tag, from, today]);
 
   const toggle = (id: string) => setHidden((h) => (h.includes(id) ? h.filter((x) => x !== id) : [...h, id]));
@@ -462,7 +464,7 @@ export function ActivityPage() {
 
               <div className="flex flex-wrap items-center justify-between gap-3 text-[12px] text-muted-foreground">
                 <span>
-                  {view.anyActive.size ? `${[...view.anyActive].filter((d) => d >= from).length} active days` : "No activity yet"} · tap a day for details
+                  {view.daysWithAny ? `${view.daysWithAny} days with activity` : "No activity yet"} · tap a day for details
                 </span>
                 <span className="flex items-center gap-1.5">
                   Less
