@@ -1,6 +1,7 @@
 package com.matt.kaizen
 
 import android.content.Context
+import android.util.Log
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
@@ -17,7 +18,8 @@ import java.util.concurrent.TimeUnit
  */
 class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
   override fun doWork(): Result {
-    nativeSync(applicationContext.dataDir.absolutePath)
+    val code = nativeSync(applicationContext.dataDir.absolutePath)
+    Log.i("KaizenSync", "background sync finished with code $code")
     // Failures are logged; the next periodic run tries again.
     return Result.success()
   }
