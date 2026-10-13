@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { ArrowCounterClockwise, Check, Copy, Eye, EyeSlash, Fingerprint, FolderOpen, Key } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -302,6 +302,12 @@ export function RecoveryKeyScreen({ recoveryKey }: { recoveryKey: string }) {
 // Unlock
 // ---------------------------------------------------------------------------
 
+/**
+ * The biometric prompt opens by itself only on the first unlock screen after
+ * the app starts. After a lock (manual or automatic) it waits for the button.
+ */
+let launchPromptUsed = false;
+
 export function UnlockScreen({ deviceUnlock }: { deviceUnlock: boolean }) {
   const info = useSession((s) => s.info);
   const onUnlocked = useSession((s) => s.onUnlocked);
@@ -311,6 +317,13 @@ export function UnlockScreen({ deviceUnlock }: { deviceUnlock: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const touchId = !mobile && !!info?.touchId;
+
+  useEffect(() => {
+    if (launchPromptUsed || !info) return;
+    launchPromptUsed = true;
+    if (deviceUnlock && (mobile || touchId)) void quickUnlock();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceUnlock, info]);
 
   async function quickUnlock() {
     setError(null);
