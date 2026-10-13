@@ -26,7 +26,8 @@ pub(crate) struct AppState {
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init());
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init());
 
     #[cfg(mobile)]
     let builder = builder.plugin(tauri_plugin_biometric::init());

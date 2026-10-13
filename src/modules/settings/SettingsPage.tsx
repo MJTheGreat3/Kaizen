@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import {
+  Bell,
+  BellRinging,
   CheckCircle,
   CloudArrowUp,
   Desktop,
@@ -28,6 +30,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, Input } from "@/components/ui/input";
+import { DateTimeInput } from "@/components/ui/kit";
+import { notificationsAllowed, requestNotifications, syncNotifications } from "@/core/notifications/scheduler";
 import { usePref } from "@/core/db/prefs";
 import { runSelfTest, type SelfTestStep } from "@/core/db/selftest";
 import { runBackupNow } from "@/core/backup/useScheduledBackup";
@@ -160,6 +164,71 @@ function SecuritySection() {
           <option value={60}>1 hour</option>
           <option value={0}>Never</option>
         </NativeSelect>
+      </Row>
+    </Section>
+  );
+}
+
+function NotifyToggle({ prefKey, label, description }: { prefKey: "notify.classes" | "notify.attendance" | "notify.habits" | "notify.tasks" | "notify.dates" | "notify.debts"; label: string; description: string }) {
+  const [value, setValue] = usePref(prefKey);
+  return (
+    <Row label={label} description={description} inline>
+      <Switch checked={value} onCheckedChange={(v) => setValue(v)} aria-label={label} />
+    </Row>
+  );
+}
+
+function NotificationsSection() {
+  const info = useSession((s) => s.info);
+  const client = useQueryClient();
+  const allowed = useQuery({ queryKey: ["notify-allowed"], queryFn: notificationsAllowed });
+  const [digest, setDigest] = usePref("notify.digest");
+  const platform = info?.platform === "android" ? "android" : "desktop";
+
+  const enable = useMutation({
+    mutationFn: requestNotifications,
+    onSuccess: async (granted) => {
+      client.setQueryData(["notify-allowed"], granted);
+      if (granted) {
+        await syncNotifications(platform);
+        toast.success("Reminders are on");
+      } else toast.error("Notifications are blocked", { description: "Allow them for Kaizen in system settings." });
+    },
+  });
+
+  async function test() {
+    const n = await import("@tauri-apps/plugin-notification");
+    n.sendNotification({ title: "Kaizen", body: "Notifications are working." });
+  }
+
+  return (
+    <Section title="Notifications" description={platform === "android" ? "Scheduled on the phone, so they arrive even when Kaizen is closed." : "Delivered while Kaizen is running."}>
+      <Row label="Allow notifications" description={allowed.data ? "Allowed on this device." : "Kaizen needs permission to remind you."}>
+        {allowed.data ? (
+          <Button variant="secondary" size="sm" onClick={test}>
+            <BellRinging />
+            Send a test
+          </Button>
+        ) : (
+          <Button size="sm" loading={enable.isPending} onClick={() => enable.mutate()}>
+            <Bell />
+            Turn on
+          </Button>
+        )}
+      </Row>
+      <NotifyToggle prefKey="notify.classes" label="Before each class" description="Uses the reminder time in semester settings." />
+      <NotifyToggle prefKey="notify.attendance" label="Attendance check" description="When a class ends, if it isn't marked." />
+      <NotifyToggle prefKey="notify.tasks" label="Task reminders" description="For tasks with a reminder set." />
+      <NotifyToggle prefKey="notify.habits" label="Habit reminders" description="Only if the habit isn't done yet." />
+      <NotifyToggle prefKey="notify.dates" label="Important dates" description="At the times chosen for each date." />
+      <NotifyToggle prefKey="notify.debts" label="Debts due" description="On the due date." />
+      <Row label="Morning summary" description="Classes, tasks and habits for the day.">
+        <DateTimeInput type="time" aria-label="Morning summary time" className="h-9 w-32" value={digest} onChange={(e) => setDigest(e.target.value)} />
+        {digest ? (
+          <Button variant="ghost" size="sm" onClick={() => setDigest("")}>
+            Off
+          </Button>
+        ) : null}
       </Row>
     </Section>
   );
@@ -449,6 +518,7 @@ export function SettingsPage() {
       <div className="mt-8 grid gap-10">
         <AppearanceSection />
         <SecuritySection />
+        <NotificationsSection />
         <BackupsSection />
         <DataSection />
         <DiagnosticsSection />

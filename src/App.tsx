@@ -8,6 +8,7 @@ import { useScheduledBackup } from "@/core/backup/useScheduledBackup";
 import { LoadingScreen, RecoveryKeyScreen, SetupScreen, UnlockScreen } from "@/core/security/LockScreens";
 import { useSession } from "@/core/security/session";
 import { useAutoLock } from "@/core/security/useAutoLock";
+import { useNotificationSync } from "@/core/notifications/scheduler";
 import { useTheme } from "@/core/theme";
 import { log } from "@/lib/log";
 import { ease } from "@/lib/motion";
@@ -15,6 +16,7 @@ import { router } from "./router";
 
 export function App() {
   const phase = useSession((s) => s.phase);
+  const info = useSession((s) => s.info);
   const refresh = useSession((s) => s.refresh);
   const client = useQueryClient();
   const theme = useTheme();
@@ -31,6 +33,7 @@ export function App() {
 
   useAutoLock(unlocked);
   useScheduledBackup(unlocked);
+  useNotificationSync(unlocked, info?.platform === "android" ? "android" : "desktop");
 
   return (
     <>

@@ -1,165 +1,378 @@
-import type { ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { motion } from "motion/react";
-import { ArrowUpRight, CalendarBlank, HandCoins, Hourglass, Lightbulb, ListChecks, Target } from "@phosphor-icons/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "motion/react";
+import { isNull } from "drizzle-orm";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Bell,
+  CalendarBlank,
+  HandCoins,
+  Hourglass,
+  Lightbulb,
+  ListChecks,
+  Plus,
+  Shuffle,
+  Target,
+} from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/controls";
+import { CheckCircle, Chip } from "@/components/ui/kit";
+import { ProgressRing } from "@/components/ui/ring";
 import { ModuleTile, Sky, Wash } from "@/components/visual";
+import { db, schema } from "@/core/db/client";
+import type { Idea } from "@/core/db/schema";
+import { notificationsAllowed, requestNotifications, syncNotifications } from "@/core/notifications/scheduler";
+import { parseTask } from "@/core/nl/parse";
+import { useSession } from "@/core/security/session";
+import { formatMinutes, relativeDay, timeToMinutes, todayKey } from "@/lib/dates";
 import { rise, stagger } from "@/lib/motion";
+import { formatPaise } from "@/lib/money";
 import { formatClock, formatDayMonth, formatWeekday, greeting, useNow } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { dayOff, occurrencesOn } from "@/modules/calendar/attendance";
+import { ClassList } from "@/modules/calendar/ClassList";
+import { loadCalendar, loadDates, upcomingDates } from "@/modules/calendar/data";
+import { countdown, DATE_STYLE } from "@/modules/calendar/labels";
+import { totals } from "@/modules/debts/balances";
+import { loadDebts } from "@/modules/debts/data";
+import { loadHabits, logHabit } from "@/modules/habits/data";
+import { isDone, isScheduled } from "@/modules/habits/streaks";
+import { loadTasks, setTaskDone, useAddTask } from "@/modules/lists/data";
 import { modules } from "@/modules/registry";
+
+/** Module routes are built from the registry, so their paths are plain strings. */
+const CALENDAR_PATH: string = "/calendar";
 
 const hueOf = (id: string) => modules.find((m) => m.id === id)?.hue ?? "var(--accent)";
 
-function Card({
-  to,
-  title,
-  icon,
-  hue,
-  className,
-  children,
-}: {
-  to: string;
-  title: string;
-  icon: Icon;
-  hue: string;
-  className?: string;
-  children: ReactNode;
-}) {
+async function loadToday() {
+  const [tasks, habits, calendar, dates, debts, ideas] = await Promise.all([
+    loadTasks("todo"),
+    loadHabits(14),
+    loadCalendar(),
+    loadDates(),
+    loadDebts(),
+    db.select().from(schema.ideas).where(isNull(schema.ideas.deletedAt)),
+  ]);
+  return { tasks, habits, calendar, dates, debts, ideas };
+}
+
+function Card({ to, title, icon, hue, className, children, action }: { to: string; title: string; icon: Icon; hue: string; className?: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <motion.div variants={rise} className={className}>
-      <Link
-        to={to}
-        className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface p-5 shadow-soft transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 hover:shadow-float active:translate-y-0"
-      >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -left-10 -top-16 size-48 rounded-full opacity-60 blur-2xl transition-opacity duration-300 group-hover:opacity-90"
-          style={{ background: `color-mix(in srgb, ${hue} 16%, transparent)` }}
-        />
-        <div className="relative flex items-center justify-between">
-          <span className="flex items-center gap-2.5">
-            <ModuleTile icon={icon} hue={hue} size="sm" />
-            <span className="text-[14px] font-semibold tracking-tight">{title}</span>
-          </span>
-          <ArrowUpRight
-            size={16}
-            className="text-muted-foreground opacity-0 transition-[opacity,transform] duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100"
-          />
-        </div>
-        <div className="relative mt-4 flex flex-1 flex-col">{children}</div>
-      </Link>
-    </motion.div>
+    <motion.section variants={rise} className={cn("relative flex flex-col overflow-hidden rounded-2xl border border-border bg-surface p-5 shadow-soft", className)}>
+      <div aria-hidden className="pointer-events-none absolute -left-10 -top-16 size-48 rounded-full opacity-60 blur-2xl" style={{ background: `color-mix(in srgb, ${hue} 14%, transparent)` }} />
+      <div className="relative flex items-center justify-between gap-2">
+        <Link to={to} className="group flex items-center gap-2.5">
+          <ModuleTile icon={icon} hue={hue} size="sm" />
+          <span className="text-[14px] font-semibold tracking-tight">{title}</span>
+          <ArrowUpRight size={14} className="text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+        </Link>
+        {action}
+      </div>
+      <div className="relative mt-4 flex flex-1 flex-col">{children}</div>
+    </motion.section>
   );
 }
 
-function Empty({ children }: { children: ReactNode }) {
-  return <p className="mt-auto text-[14px] leading-relaxed text-muted-foreground">{children}</p>;
+function Muted({ children }: { children: ReactNode }) {
+  return <p className="text-[14px] leading-relaxed text-muted-foreground">{children}</p>;
 }
 
-/** Hours of the college day; classes will sit on this line in Phase 1. */
-function DayLine() {
-  const hours = [8, 10, 12, 14, 16, 18];
-  return (
-    <div className="mb-5 mt-1 flex flex-1 flex-col" aria-hidden>
-      <div className="relative min-h-28 flex-1 overflow-hidden rounded-xl bg-surface-muted">
-        {hours.slice(1, -1).map((h, i) => (
-          <span
-            key={h}
-            className="absolute top-0 h-full w-px bg-border"
-            style={{ left: `${((i + 1) / (hours.length - 1)) * 100}%` }}
-          />
-        ))}
-        <span className="absolute inset-0 grid place-items-center text-[13px] font-medium text-muted-foreground">
-          No classes yet
-        </span>
-      </div>
-      <div className="mt-1.5 flex justify-between font-mono text-[11px] text-muted-foreground">
-        {hours.map((h) => (
-          <span key={h}>{String(h).padStart(2, "0")}</span>
-        ))}
-      </div>
-    </div>
-  );
+/** Stable "idea of the day", so it doesn't change on every refresh. */
+function ideaOfTheDay(ideas: Idea[], day: string, shuffle: number): Idea | null {
+  if (!ideas.length) return null;
+  let h = shuffle;
+  for (const c of day) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return ideas[h % ideas.length];
 }
 
-function Ring({ hue }: { hue: string }) {
+function QuickTask() {
+  const add = useAddTask();
+  const [text, setText] = useState("");
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!text.trim()) return;
+    const parsed = parseTask(text, new Date(), "todo");
+    await add.mutateAsync({ ...parsed, dueDate: parsed.dueDate ?? todayKey() });
+    setText("");
+  }
   return (
-    <svg viewBox="0 0 44 44" className="mb-4 size-16 -rotate-90" aria-hidden>
-      <circle cx="22" cy="22" r="18" fill="none" stroke="var(--surface-muted)" strokeWidth="6" />
-      {/* Faint dashed ring until there are habits to fill it. */}
-      <circle
-        cx="22"
-        cy="22"
-        r="18"
-        fill="none"
-        stroke={hue}
-        strokeOpacity="0.35"
-        strokeWidth="1.5"
-        strokeDasharray="2 4"
-      />
-    </svg>
+    <form onSubmit={submit} className="mt-3 flex items-center gap-2 rounded-xl bg-surface-muted px-3">
+      <Plus size={16} className="text-muted-foreground" />
+      <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Add a task for today" enterKeyHint="done" className="h-10 flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted-foreground" />
+    </form>
   );
 }
 
 export function TodayPage() {
-  const now = useNow(1000);
+  const now = useNow(30_000);
+  const today = todayKey(now);
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const info = useSession((s) => s.info);
+  const client = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ["today"], queryFn: loadToday });
+  const allowed = useQuery({ queryKey: ["notify-allowed"], queryFn: notificationsAllowed });
+  const [shuffle, setShuffle] = useState(0);
+  const refresh = () => {
+    client.invalidateQueries({ queryKey: ["today"] });
+    client.invalidateQueries({ queryKey: ["tasks"] });
+    client.invalidateQueries({ queryKey: ["habits"] });
+  };
+  const toggleTask = useMutation({
+    mutationFn: ({ id, done }: { id: string; done: boolean }) => setTaskDone(data!.tasks.find((t) => t.id === id)!, done),
+    onSuccess: refresh,
+  });
+  const toggleHabit = useMutation({
+    mutationFn: ({ id, value }: { id: string; value: number }) => logHabit(data!.habits.habits.find((h) => h.id === id)!, today, value),
+    onSuccess: refresh,
+  });
+  const enable = useMutation({
+    mutationFn: requestNotifications,
+    onSuccess: async (granted) => {
+      client.setQueryData(["notify-allowed"], granted);
+      if (granted) await syncNotifications(info?.platform === "android" ? "android" : "desktop");
+    },
+  });
+
+  const cal = data?.calendar;
+  const semester = cal?.semester ?? null;
+  const classes = semester ? occurrencesOn(semester, cal!.slots, cal!.exceptions, today) : [];
+  const off = semester ? dayOff(cal!.exceptions, today) : null;
+  const marks = new Map((cal?.marks ?? []).map((m) => [m.classKey, m.status]));
+  const tasks = (data?.tasks ?? [])
+    .filter((t) => t.status !== "done" && t.dueDate && t.dueDate <= today)
+    .sort((a, b) => (a.dueDate !== b.dueDate ? (a.dueDate! < b.dueDate! ? -1 : 1) : (a.dueTime ?? "99") < (b.dueTime ?? "99") ? -1 : 1));
+  const doneToday = (data?.tasks ?? []).filter((t) => t.status === "done" && t.completedAt && todayKey(new Date(t.completedAt)) === today);
+  const habits = (data?.habits.habits ?? []).filter((h) => h.schedule.type === "weekly" || isScheduled(h, today));
+  const habitsDone = habits.filter((h) => isDone(h, data!.habits.values.get(h.id)?.get(today))).length;
+  const upcoming = data ? upcomingDates(data.dates, today, 14).slice(0, 4) : [];
+  const debtTotals = data ? totals(data.debts.balance) : null;
+  const topDebts = data
+    ? data.debts.people
+        .map((p) => ({ p, b: data.debts.balance.get(p.id) ?? 0 }))
+        .filter((x) => x.b !== 0)
+        .sort((a, b) => Math.abs(b.b) - Math.abs(a.b))
+        .slice(0, 3)
+    : [];
+  const idea = data ? ideaOfTheDay(data.ideas, today, shuffle) : null;
+  const liveClasses = classes.filter((o) => !o.cancelled);
+  const left = habits.length - habitsDone;
+  const summary = [
+    liveClasses.length ? `${liveClasses.length} ${liveClasses.length === 1 ? "class" : "classes"}` : null,
+    tasks.length ? `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}` : null,
+    left ? `${left} ${left === 1 ? "habit" : "habits"} to go` : null,
+  ].filter(Boolean);
 
   return (
     <div className="relative">
       <Wash hue={hueOf("today")} />
-      <motion.div
-        variants={stagger}
-        initial="hidden"
-        animate="show"
-        className="relative mx-auto grid w-full max-w-[1080px] gap-4 px-4 py-5 md:px-10 md:py-10"
-      >
+      <motion.div variants={stagger} initial="hidden" animate="show" className="relative mx-auto grid w-full max-w-[1080px] gap-4 px-4 py-5 md:px-10 md:py-10">
         <motion.div variants={rise}>
-          <Sky className="min-h-[220px] rounded-3xl shadow-float md:min-h-[260px]">
-            <div className="flex h-full min-h-[220px] flex-col justify-between p-6 text-white md:min-h-[260px] md:p-8">
-              <p className="text-[15px] font-medium text-white/85">{greeting(now)}</p>
-              <div className="flex flex-wrap items-end justify-between gap-4">
-                <div>
-                  <p className="text-[40px] font-semibold leading-none tracking-[-0.035em] md:text-[56px]">
-                    {formatWeekday(now)}
-                  </p>
-                  <p className="mt-2 text-[17px] font-medium text-white/85 md:text-[19px]">{formatDayMonth(now)}</p>
-                </div>
-                <p className="text-[24px] font-semibold tabular-nums tracking-[-0.02em] text-white/90 md:text-[30px]">
-                  {formatClock(now)}
+          <Sky className="min-h-[220px] rounded-3xl shadow-float md:min-h-[250px]">
+            <div className="flex h-full min-h-[220px] flex-col justify-between p-6 text-white md:min-h-[250px] md:p-8">
+              <div className="flex items-start justify-between gap-4">
+                <p className="text-[15px] font-medium text-white/85">{greeting(now)}</p>
+                <p className="text-[24px] font-semibold tabular-nums tracking-[-0.02em] text-white/90 md:text-[30px]">{formatClock(now)}</p>
+              </div>
+              <div>
+                <p className="text-[40px] font-semibold leading-none tracking-[-0.035em] md:text-[56px]">{formatWeekday(now)}</p>
+                <p className="mt-2 text-[16px] font-medium text-white/85 md:text-[18px]">
+                  {formatDayMonth(now)}
+                  {data ? <span className="text-white/70">{summary.length ? `, ${summary.join(", ")}` : ", nothing pressing"}</span> : null}
                 </p>
               </div>
             </div>
           </Sky>
         </motion.div>
 
-        <div className="grid gap-4 md:grid-cols-6">
-          <Card to="/calendar" title="Classes today" icon={CalendarBlank} hue={hueOf("calendar")} className="md:col-span-4 md:row-span-2">
-            <DayLine />
-            <Empty>Add your weekly timetable and today's classes appear here, ready to mark attendance in one tap.</Empty>
-          </Card>
-          <Card to="/habits" title="Habits" icon={Target} hue={hueOf("habits")} className="md:col-span-2">
-            <Ring hue={hueOf("habits")} />
-            <Empty>Your daily habits and streaks.</Empty>
-          </Card>
-          <Card to="/practice" title="Up next" icon={Hourglass} hue={hueOf("practice")} className="md:col-span-2">
-            <Empty>Contests, matches and important dates coming up.</Empty>
-          </Card>
-          <Card to="/lists" title="Tasks" icon={ListChecks} hue={hueOf("lists")} className="md:col-span-3">
-            <Empty>Today's tasks, written the way you think: "submit OS assignment friday 5pm".</Empty>
-          </Card>
-          <Card to="/debts" title="Debts" icon={HandCoins} hue={hueOf("debts")} className="md:col-span-3">
-            <Empty>Who owes you, whom you owe, and anything due soon.</Empty>
-          </Card>
-          <Card to="/ideas" title="From your scrapbook" icon={Lightbulb} hue={hueOf("ideas")} className="md:col-span-6">
-            <Empty>A random idea from your scrapbook resurfaces here each day.</Empty>
-          </Card>
-        </div>
+        {allowed.data === false ? (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-surface p-4 shadow-soft">
+            <span className="grid size-10 place-items-center rounded-xl bg-accent-soft text-accent-soft-foreground">
+              <Bell size={20} weight="duotone" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-semibold">Turn on reminders</p>
+              <p className="text-[13px] text-muted-foreground">Class alerts, attendance checks, tasks, habits and dates.</p>
+            </div>
+            <Button size="sm" loading={enable.isPending} onClick={() => enable.mutate()}>
+              Turn on
+            </Button>
+          </motion.div>
+        ) : null}
 
-        <motion.p variants={rise} className={cn("pt-2 text-center text-[13px] text-muted-foreground")}>
-          Phase 1 fills this page with your day.
-        </motion.p>
+        {isLoading || !data ? (
+          <div className="grid gap-4 md:grid-cols-6">
+            <Skeleton className="h-72 rounded-2xl md:col-span-4" />
+            <Skeleton className="h-72 rounded-2xl md:col-span-2" />
+          </div>
+        ) : (
+          <motion.div variants={stagger} initial="hidden" animate="show" className="grid gap-4 md:grid-cols-6">
+            <Card to="/calendar" title="Classes today" icon={CalendarBlank} hue={hueOf("calendar")} className="md:col-span-4 md:row-span-2">
+              {!semester ? (
+                <div className="flex flex-1 flex-col items-start justify-center gap-3">
+                  <Muted>Set up your semester and weekly timetable to see classes here and mark attendance in one tap.</Muted>
+                  <Button asChild size="sm" variant="secondary">
+                    <Link to={CALENDAR_PATH}>
+                      Set up timetable <ArrowRight />
+                    </Link>
+                  </Button>
+                </div>
+              ) : off ? (
+                <Muted>{off.title ?? "Holiday"}. No classes today.</Muted>
+              ) : !classes.length ? (
+                <Muted>No classes today.</Muted>
+              ) : (
+                <ClassList occurrences={classes} subjects={cal!.subjects} marks={marks} semester={semester} now={{ day: today, minutes }} compact />
+              )}
+            </Card>
+
+            <Card
+              to="/habits"
+              title="Habits"
+              icon={Target}
+              hue={hueOf("habits")}
+              className="md:col-span-2"
+              action={
+                habits.length ? (
+                  <ProgressRing value={habitsDone / habits.length} hue={hueOf("habits")} size={30} stroke={4}>
+                    <span className="text-[9px] font-bold tabular-nums">{habitsDone}</span>
+                  </ProgressRing>
+                ) : null
+              }
+            >
+              {!habits.length ? (
+                <Muted>No habits for today.</Muted>
+              ) : (
+                <ul className="grid gap-1">
+                  {habits.map((h) => {
+                    const value = data.habits.values.get(h.id)?.get(today) ?? 0;
+                    const done = isDone(h, value);
+                    return (
+                      <li key={h.id} className="flex items-center gap-3 py-1.5">
+                        <CheckCircle
+                          checked={done}
+                          hue={h.color}
+                          label={`${h.name}${h.kind === "count" ? ` (${value} of ${h.target})` : ""}`}
+                          onChange={() => toggleHabit.mutate({ id: h.id, value: h.kind === "check" ? (done ? 0 : 1) : done ? 0 : Math.min(h.target, value + 1) })}
+                        />
+                        <span className={cn("min-w-0 flex-1 truncate text-[14px]", done && "text-muted-foreground line-through")}>{h.name}</span>
+                        {h.kind === "count" ? (
+                          <span className="text-[12px] tabular-nums text-muted-foreground">
+                            {value}/{h.target}
+                          </span>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Card>
+
+            <Card to="/calendar" title="Up next" icon={Hourglass} hue={hueOf("practice")} className="md:col-span-2">
+              {!upcoming.length ? (
+                <Muted>Nothing in the next two weeks. Contests and matches will appear here too.</Muted>
+              ) : (
+                <ul className="grid gap-2.5">
+                  {upcoming.map(({ item, date }) => {
+                    const st = DATE_STYLE[item.kind] ?? DATE_STYLE.other;
+                    return (
+                      <li key={item.id} className="flex items-center gap-3">
+                        <st.icon size={18} weight="duotone" style={{ color: st.hue }} />
+                        <span className="min-w-0 flex-1 truncate text-[14px]">{item.title}</span>
+                        <span className="shrink-0 text-[12px] font-medium text-muted-foreground">{countdown(date, today)}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Card>
+
+            <Card to="/lists" title="Tasks" icon={ListChecks} hue={hueOf("lists")} className="md:col-span-3">
+              {!tasks.length ? (
+                <Muted>{doneToday.length ? `All clear. ${doneToday.length} done today.` : "Nothing due today."}</Muted>
+              ) : (
+                <ul className="grid gap-1">
+                  <AnimatePresence initial={false}>
+                    {tasks.slice(0, 6).map((t) => (
+                      <motion.li key={t.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, x: -10 }} className="flex items-center gap-3 py-1.5">
+                        <CheckCircle checked={false} hue={hueOf("lists")} label={`Complete ${t.title}`} onChange={() => toggleTask.mutate({ id: t.id, done: true })} />
+                        <span className="min-w-0 flex-1 truncate text-[14px]">{t.title}</span>
+                        {t.dueDate! < today ? (
+                          <Chip tone="danger">{relativeDay(t.dueDate!, today)}</Chip>
+                        ) : t.dueTime ? (
+                          <span className="text-[12px] tabular-nums text-muted-foreground">{formatMinutes(timeToMinutes(t.dueTime))}</span>
+                        ) : null}
+                      </motion.li>
+                    ))}
+                  </AnimatePresence>
+                  {tasks.length > 6 ? <li className="pt-1 text-[13px] text-muted-foreground">and {tasks.length - 6} more</li> : null}
+                </ul>
+              )}
+              <QuickTask />
+            </Card>
+
+            <Card to="/debts" title="Debts" icon={HandCoins} hue={hueOf("debts")} className="md:col-span-3">
+              {!debtTotals || (!debtTotals.owedToMe && !debtTotals.iOwe) ? (
+                <Muted>All square with everyone.</Muted>
+              ) : (
+                <>
+                  <div className="flex gap-6">
+                    <div>
+                      <p className="text-[12px] text-muted-foreground">Owed to you</p>
+                      <p className="text-[18px] font-semibold tabular-nums text-[#3fa66b]">{formatPaise(debtTotals.owedToMe)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[12px] text-muted-foreground">You owe</p>
+                      <p className="text-[18px] font-semibold tabular-nums text-[#e05a5a]">{formatPaise(debtTotals.iOwe)}</p>
+                    </div>
+                  </div>
+                  <ul className="mt-3 grid gap-1.5">
+                    {topDebts.map(({ p, b }) => (
+                      <li key={p.id} className="flex items-center justify-between text-[14px]">
+                        <span className="truncate">{p.name}</span>
+                        <span className="font-medium tabular-nums" style={{ color: b > 0 ? "#3fa66b" : "#e05a5a" }}>
+                          {formatPaise(Math.abs(b))}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </Card>
+
+            <Card
+              to="/ideas"
+              title="From your scrapbook"
+              icon={Lightbulb}
+              hue={hueOf("ideas")}
+              className="md:col-span-6"
+              action={
+                data.ideas.length > 1 ? (
+                  <Button variant="ghost" size="sm" onClick={() => setShuffle((s) => s + 1)}>
+                    <Shuffle />
+                    Another
+                  </Button>
+                ) : null
+              }
+            >
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={idea?.id ?? "none"}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className={cn("whitespace-pre-wrap text-[15px] leading-relaxed", !idea && "text-muted-foreground")}
+                >
+                  {idea ? idea.body : "Ideas you jot down resurface here, one a day."}
+                </motion.p>
+              </AnimatePresence>
+            </Card>
+          </motion.div>
+        )}
       </motion.div>
     </div>
   );

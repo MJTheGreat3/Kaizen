@@ -15,6 +15,15 @@ export interface Prefs {
   "backup.frequency": "off" | "daily" | "weekly";
   "backup.keep": number;
   "backup.lastAt": number;
+  /** Notification categories on this device. */
+  "notify.classes": boolean;
+  "notify.attendance": boolean;
+  "notify.habits": boolean;
+  "notify.tasks": boolean;
+  "notify.dates": boolean;
+  "notify.debts": boolean;
+  /** Morning summary time (`HH:MM`), or empty for none. */
+  "notify.digest": string;
 }
 
 export const defaultPrefs: Prefs = {
@@ -23,6 +32,13 @@ export const defaultPrefs: Prefs = {
   "backup.frequency": "daily",
   "backup.keep": 10,
   "backup.lastAt": 0,
+  "notify.classes": true,
+  "notify.attendance": true,
+  "notify.habits": true,
+  "notify.tasks": true,
+  "notify.dates": true,
+  "notify.debts": true,
+  "notify.digest": "07:30",
 };
 
 const PREFIX = "pref.";
@@ -57,4 +73,19 @@ export function usePref<K extends keyof Prefs>(key: K) {
     onSuccess: (_, value) => client.setQueryData(["pref", key], value),
   });
   return [query.data ?? defaultPrefs[key], mutation.mutateAsync, query.isLoading] as const;
+}
+
+/** All preferences at once (defaults filled in). */
+export async function getAllPrefs(): Promise<Prefs> {
+  const rows = await db.select().from(schema.localMeta);
+  const out = { ...defaultPrefs } as Record<string, unknown>;
+  for (const row of rows) {
+    if (!row.key.startsWith(PREFIX)) continue;
+    try {
+      out[row.key.slice(PREFIX.length)] = JSON.parse(row.value);
+    } catch {
+      // Ignore malformed values; the default stays.
+    }
+  }
+  return out as unknown as Prefs;
 }

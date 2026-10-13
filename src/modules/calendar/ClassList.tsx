@@ -84,7 +84,7 @@ export function ClassList({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease, delay: i * 0.04 }}
             className={cn(
-              "relative flex items-center gap-3 overflow-hidden rounded-xl border border-border bg-surface py-3 pl-4 pr-2",
+              "relative flex flex-wrap items-center gap-x-3 gap-y-2 overflow-hidden rounded-xl border border-border bg-surface py-3 pl-4 pr-2 sm:flex-nowrap",
               o.cancelled && "opacity-60",
             )}
           >
@@ -109,7 +109,10 @@ export function ClassList({
               </p>
             </div>
             {!o.cancelled && started ? (
-              <MarkButtons status={status} subjectName={subject.name} onMark={(s) => mark.mutate({ occ: o, semesterId: semester.id, status: s })} />
+              // Own line on phones so subject names have room.
+              <div className="order-last flex w-full justify-end sm:order-none sm:w-auto">
+                <MarkButtons status={status} subjectName={subject.name} onMark={(s) => mark.mutate({ occ: o, semesterId: semester.id, status: s })} />
+              </div>
             ) : null}
             <RowMenu
               items={
