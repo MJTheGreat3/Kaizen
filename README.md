@@ -21,7 +21,7 @@ Kaizen brings everything I want to track into one app, with all data stored on m
 ## Principles
 
 - **Local-first**: encrypted SQLite on each device, works fully offline
-- **No cloud**: laptop and phone sync directly over the local network
+- **Private sync**: laptop and phone sync end-to-end encrypted through a hidden Google Drive folder, or directly over LAN / Tailscale
 - **Single user**: no accounts, no servers
 
 ## Stack
@@ -30,7 +30,7 @@ Tauri 2 (Rust) · React · TypeScript · Tailwind CSS · SQLite + SQLCipher
 
 ## Status
 
-Phases 0 and 1 are done: encrypted storage, unlock and backups, plus Lists, Debts, Ideas, Habits, Calendar (timetable, attendance, important dates), notifications and the Today dashboard. Next is LAN sync (Phase 2). See [PLAN.md](PLAN.md) for the design and roadmap.
+Phases 0 and 1 are done: encrypted storage, unlock and backups, plus Lists, Debts, Ideas, Habits, Calendar (timetable, attendance, important dates), notifications and the Today dashboard. Next is sync (Phase 2): Google Drive first, then LAN / Tailscale. See [PLAN.md](PLAN.md) for the design and roadmap.
 
 ## Development
 

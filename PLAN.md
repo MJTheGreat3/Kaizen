@@ -7,7 +7,7 @@ Status: planning (updated 2026-10-13)
 **Decisions so far**
 - Phone: **Android** (no iOS build planned).
 - Bank statements: **CSV** import.
-- Sync: **LAN peer-to-peer** between laptop and phone.
+- Sync: **end-to-end encrypted**, through a hidden Google Drive folder (works on college Wi-Fi) plus direct LAN / Tailscale (see section 4.4).
 - Frontend framework: **React** (see section 4.2).
 - LLM: rule-based parsing everywhere; LLM runs on the laptop only and the phone uses it over LAN (see section 4.6).
 
@@ -368,14 +368,31 @@ Dropped: journal and mood log, learning / course tracker, cross-module insights.
 | B. Encrypted file in my own cloud folder | Write encrypted change logs to iCloud Drive / Google Drive / Dropbox folder | Works anywhere, no server to run | Mobile folder access is fiddly; conflict handling needed |
 | C. Tiny self-hosted relay | Small sync server on a home machine/VPS sees only encrypted blobs | Works anywhere, simplest client logic | Something to host |
 
-**Decision: A (LAN sync).** The data layer stays transport-agnostic so **C** can be added later without changes.
+**Decision: B and A on one shared core.** College Wi-Fi isolates clients (no mDNS, no device-to-device connections), so LAN sync alone would rarely work day to day. Sync is split into a transport-agnostic core and two transports:
 
-**LAN sync details**
-- Discovery: mDNS / DNS-SD (Android `NsdManager`, desktop via the Rust `mdns-sd` crate).
-- Pairing: one-time QR code shown on the laptop and scanned by the phone, exchanging device IDs and a shared key. Unpaired devices on the network are ignored.
-- Transport: encrypted connection (Noise protocol or TLS with pinned keys) between paired devices only.
-- When it runs: on app open, on a manual "Sync now", and periodically while both devices are awake on the same Wi-Fi. Android restricts background networking, so background sync uses `WorkManager` and may be delayed; foreground sync is instant.
-- Optional: a phone hotspot or USB connection also counts as LAN, so syncing works away from home.
+| Transport | Role | Needs both devices online? |
+|---|---|---|
+| Google Drive (hidden app folder) | Primary: works on any network, including college Wi-Fi and mobile data | No: acts as a mailbox |
+| Direct connection (LAN or Tailscale) | Bonus: instant sync at home, on a phone hotspot or over a tailnet | Yes |
+
+**Sync core**
+- Each device packs its unsent `sync_changes` rows into a bundle, compresses it and encrypts it (XChaCha20-Poly1305) with a sync key shared at pairing. Transports only ever move opaque encrypted bundles.
+- Each bundle carries the sender's device ID and a sequence number; receivers track the last sequence applied per device, so bundles are idempotent and can arrive in any order or more than once.
+- Merge is last-writer-wins per field (see conflict handling below); deletes are soft deletes and travel like any other change.
+- Pairing: a one-time QR code shown on the laptop and scanned by the phone, carrying the device IDs and the sync key (plus the laptop's addresses for direct sync). Unpaired devices are ignored.
+- Sync screen: paired devices, last sync per transport, "Sync now", history and errors, unpair.
+
+**Google Drive transport**
+- A separate Google account dedicated to Kaizen. Scope `drive.appdata` only: Kaizen sees its own hidden folder and nothing else in that Drive, and Google only sees encrypted bundles.
+- Layout: one folder per device; a device writes only its own bundles and reads the others'. Old bundles are compacted into a snapshot once every paired device has applied them.
+- Sign-in: own Google Cloud project and OAuth client, PKCE. Desktop uses a loopback redirect; Android needs an in-app browser flow with a redirect back into the app (the main implementation risk). Refresh tokens are kept in the encrypted database.
+- The OAuth consent screen must be set to "In production": in "Testing", refresh tokens expire after 7 days. Restricted to the app-data scope, no Google review is needed.
+- Runs on app open, after local changes (debounced), on "Sync now" and periodically while open; Android background sync via `WorkManager` later.
+
+**Direct transport (LAN / Tailscale)**
+- Discovery via mDNS / DNS-SD (desktop `mdns-sd` crate, Android `NsdManager`) when the network allows it, plus manually entered addresses (a Tailscale IP or hostname, or a hotspot IP).
+- Encrypted connection between paired devices only (Noise, or TLS with pinned keys), exchanging the same bundles as Drive.
+- Tailscale notes: on Android it occupies the VPN slot and costs some battery; when the network blocks direct UDP it falls back to Tailscale's relays (slower but works).
 
 **Conflict handling**: each row carries an ID (UUIDv7), `updated_at`, `device_id` and a soft-delete flag; changes are recorded in a change log and merged last-writer-wins per field. Rich documents (whiteboards, long notes) use a CRDT (Yjs or Automerge) so edits from both devices merge cleanly. A library such as cr-sqlite or a sync engine like PowerSync/ElectricSQL can replace the hand-rolled version if it proves too complex.
 
@@ -399,7 +416,7 @@ On-device models on the phone are large: roughly 0.7–1 GB for a 1–1.5B param
 Plan:
 1. **Rule-based parser everywhere** (chrono-node + `#tag` / `!priority` / `@list` syntax). Instant, offline, zero download. Handles most input.
 2. **LLM on the laptop only**, via Ollama, with a 3B–8B model (about 2–5 GB, on the laptop's disk, not the phone's).
-3. **Phone uses the laptop's LLM over LAN**, reusing the paired, encrypted sync connection. When the laptop is not reachable, the phone uses the rule-based result and queues the item for re-parsing at the next sync if it was ambiguous.
+3. **Phone uses the laptop's LLM over LAN**, reusing the paired, encrypted direct sync connection (LAN or Tailscale). When the laptop is not reachable, the phone uses the rule-based result and queues the item for re-parsing at the next sync if it was ambiguous.
 4. Never bundled in the APK. If on-phone LLM is ever wanted, it is an optional in-app download (or Gemini Nano through Android AICore on supported devices, which needs no download).
 5. Claude API remains a possible opt-in later, per action.
 
@@ -467,7 +484,7 @@ kaizen/
 |---|---|
 | 0. Foundation (done) | Tauri 2 project (desktop + Android), design system, navigation shell, SQLite + migrations, encryption, settings, backup/export, `activity_events` table, search index skeleton |
 | 1. Daily core (done) | To-do / watch / read with NL parsing, notification service, habits, idea scrapbook, important dates, college timetable with attendance, debt recorder, Today dashboard |
-| 2. Sync | LAN sync with QR pairing, so the phone is usable daily from here on |
+| 2. Sync | Encrypted sync core with QR pairing; Google Drive transport first, then direct LAN / Tailscale; the phone is usable daily from here on |
 | 3. Focus and activity | Forest-style focus timer (Android strict mode), activity heatmap with filters, streaks, universal search + command palette |
 | 4. Practice | Codeforces + LeetCode connectors, CP analytics, contest reminders, revisit queue |
 | 5. Fitness and sports | Gym logging, templates, PRs, charts, sports sessions, body metrics; NBA and football team and player following |
@@ -561,7 +578,7 @@ Decisions made while building:
 
 Follow-ups:
 - Android quick-unlock key is kept in app-private storage behind the biometric prompt; wrap it with an Android Keystore key (small Kotlin plugin).
-- Android backups currently live in app-private storage and are removed if the app is uninstalled; add export to a user-visible folder, and LAN sync (Phase 2) adds a second copy.
+- Android backups currently live in app-private storage and are removed if the app is uninstalled; add export to a user-visible folder, and sync (Phase 2) adds a second copy on the laptop.
 - Split the frontend bundle per module (currently about 800 KB of JS).
 - Windows and Linux builds are untested; macOS dev builds are unsigned, so the keychain may ask for access again after a rebuild.
 
@@ -587,7 +604,7 @@ Deferred:
 
 ## 7. Open questions
 
-Answered: Android 16, CSV statements, LAN sync, React, LLM on laptop only, package `com.matt.kaizen`, Spotify Premium (yes), attendance minimum 80%, sports teams and players followed from inside the app, debts in ₹ only, bank is PNB, timetable entered manually (weekly) with extra classes, cancellations, holidays and vacations, labs/tutorials counted separately as an option, medical/duty leave counts as present, extra modules chosen (section 3), Finance built last.
+Answered: Android 16, CSV statements, sync via Google Drive (dedicated account) plus LAN / Tailscale (college Wi-Fi blocks LAN), React, LLM on laptop only, package `com.matt.kaizen`, Spotify Premium (yes), attendance minimum 80%, sports teams and players followed from inside the app, debts in ₹ only, bank is PNB, timetable entered manually (weekly) with extra classes, cancellations, holidays and vacations, labs/tutorials counted separately as an option, medical/duty leave counts as present, extra modules chosen (section 3), Finance built last.
 
 Still open:
 1. Which download formats does PNB offer for statements (CSV, XLS/XLSX, PDF)? A sample statement (with numbers blanked) will help build the profile. Needed by Phase 9.
