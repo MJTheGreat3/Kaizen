@@ -87,7 +87,7 @@ Status: planning (updated 2026-10-13)
 - First import of a bank's CSV opens a mapping screen: pick which columns are date, description, debit, credit, balance, and the date format. Saved as a per-bank profile, so later imports are one click.
 - Handles common quirks: header rows above the table, separate debit/credit columns vs a single signed amount, `Dr`/`Cr` suffixes, Indian number formatting (`1,23,456.78`).
 - Duplicate detection on (date, amount, description, balance) so overlapping statements can be re-imported safely.
-- PDF/XLSX support can be added later if a bank only offers those.
+- First bank profile: **Punjab National Bank (PNB)**. If PNB's statement download only offers XLS/XLSX or PDF rather than CSV, add an XLS/XLSX reader (e.g. the `calamine` crate) for it; PDF only as a last resort.
 
 **Insights**
 - Monthly income vs expense, savings rate, category breakdown, month-over-month change.
@@ -171,7 +171,7 @@ Colours and the type list are configurable; custom habits can be shown as their 
 ### 2.10 Universal search and command palette
 
 - `Ctrl/Cmd+K` on desktop, search bar plus a swipe-down gesture on Android.
-- Searches everything: tasks, watch/read items, ideas, journal, whiteboard text, CP problems (title, tags, my notes), workouts and exercises, transactions (merchant, notes, amount), habits, important dates, timetable subjects.
+- Searches everything: tasks, watch/read items, ideas, debts, whiteboard text, CP problems (title, tags, my notes), workouts and exercises, transactions (merchant, notes, amount), habits, important dates, timetable subjects.
 - Typo-tolerant prefix and fuzzy matching; results grouped by module with highlighted matches.
 - Filter syntax: `in:finance swiggy`, `tag:college`, `before:2026-09-01`, `amount:>500`.
 - Same palette also runs commands: "new task", "start focus", "log workout", "go to finance".
@@ -187,15 +187,34 @@ Colours and the type list are configurable; custom habits can be shown as their 
 - Reminders at chosen offsets (e.g. 7 days, 1 day and same morning).
 - Countdown cards on the Today dashboard ("Endsem in 12 days").
 
-**College timetable**
+**College timetable with attendance**
+
+The timetable and attendance are one feature: every scheduled class is also an attendance record, so the timetable is what makes attendance tracking effortless.
+
+*Timetable*
 - Weekly grid of slots: subject, type (lecture / lab / tutorial), time, room, professor, colour.
-- Semester start and end dates, holidays and one-off changes (cancelled or extra classes) as exceptions.
+- Semester start and end dates. The timetable is a **weekly** repeating schedule.
+- **Changes to the schedule**, all shown on the timetable and respected by reminders and attendance:
+  - *Extra class*: schedule a one-off class for any subject, date and time (e.g. a Saturday make-up lecture).
+  - *Cancel a class*: cancel one occurrence (it is marked cancelled and does not count towards attendance); optionally reschedule it to another slot.
+  - *Holidays*: single days off (festivals, college holidays); no classes are generated for them.
+  - *Vacation periods*: date ranges (mid-sem break, winter vacation) with no classes.
 - Support for alternating weeks (odd/even) and batch-specific labs.
-- Entry: manual grid editor, or import from CSV.
+- Entry: manual weekly grid editor (tap an empty slot to add a class, drag to move or resize, copy a day to another day). CSV import can come later if needed.
 - Notification before each class (configurable, e.g. 10 min before, with room number).
 - Today dashboard shows current and next class; Android home-screen widget shows the day's classes.
-- **Attendance tracking**: mark present/absent/cancelled per class (from the notification or the app). Shows attendance % per subject, the minimum-attendance target (e.g. 75%), and "you can skip N more" / "you must attend the next N".
-- Exams and assignment deadlines can be linked to a subject and appear in both the timetable and the to-do list.
+
+*Attendance*
+- Each class occurrence generated from the timetable gets a status: present, absent, cancelled, or excused (medical / duty leave). Excused classes count as present.
+- **Mark in one tap**: a notification when each class ends asks "Attended Data Structures?" with Present / Absent actions. Unanswered classes can default to present (setting) or stay unmarked for review.
+- Bulk marking: "mark the whole day present/absent", or mark from the timetable grid.
+- Per-subject and overall attendance %.
+- **Counting option** (per semester, overridable per subject): count lectures, labs and tutorials together as one figure, or count labs and/or tutorials as separate components, each with its own % and its own 80% target and bunk calculation.
+- Minimum-attendance target of **80%** (college policy), adjustable per subject, with a **bunk calculator**: "You can skip 3 more" / "Attend the next 5 to reach 80%", projected to the semester end using remaining scheduled classes.
+- Warnings when a subject drops close to its target, through the notification system.
+- Attendance history per subject (calendar view) and a semester report.
+- Class attendance feeds the `classes` activity type on the heatmap (2.9).
+- Exams and assignment deadlines can be linked to a subject and appear in the timetable, the to-do list and the important dates countdowns.
 
 ### 2.12 Focus timer (Forest-style)
 
@@ -211,19 +230,78 @@ Inspired by the Forest app: a growing plant represents the focus session, and le
 - Focus minutes feed the activity heatmap (2.9) and can automatically count toward habits (e.g. "2 h deep work daily").
 - Ongoing notification with remaining time and pause/give-up actions; "Do not disturb" toggled automatically on Android (with permission).
 
+### 2.13 Music (Spotify connector)
+
+Connect my Spotify account to play music from Kaizen and see listening stats.
+
+**Playback**
+- Browse my playlists, liked songs and recently played; search songs, albums and artists.
+- Play, pause, skip, seek, shuffle, repeat, volume, add to queue, choose the device.
+- Mini player in the app shell (sidebar footer on desktop, above the bottom bar on Android) and on the Focus screen, so music and focus sessions go together.
+- How playback works: Kaizen acts as a **remote control** through Spotify Connect (Web API player endpoints). Audio plays in the Spotify app on the phone or laptop (or any Connect device). Kaizen does not stream audio itself: the Web Playback SDK needs Widevine DRM, which embedded webviews like Tauri's do not provide, and Spotify does not support it outside real browsers.
+- Optional later: Spotify's Android App Remote SDK (Kotlin plugin) for tighter control of the Spotify app on the phone.
+
+**Stats**
+- Top artists and top tracks for the last 4 weeks, 6 months and about a year (from Spotify's top-items endpoints).
+- Favourite song, most played artist and album, listening time per day/week, listening by hour of day, new artists discovered.
+- Spotify only returns the last 50 recently played tracks, so Kaizen polls recently played regularly (every 30-60 min while running, plus on open) and keeps its **own local listening history**. Albums listened to, play counts and listening time are computed from that history, which grows richer over time.
+- Monthly / yearly "wrapped"-style summary page.
+- Listening minutes can appear on the heatmap as a `music` activity type (off by default).
+
+**Connection and limits (Spotify developer rules as of 2026)**
+- I register my own app in the Spotify developer dashboard and paste its Client ID into Kaizen. Development Mode is enough for personal use (up to 5 users), but **the app owner needs Spotify Premium**, and playback control also needs Premium.
+- OAuth Authorization Code with PKCE (no client secret in the app). Redirect: a loopback URL (`http://127.0.0.1:<port>/callback`) on desktop and a custom scheme (`kaizen://spotify/callback`, Tauri deep-link plugin) on Android.
+- Refresh token stored in the encrypted database; the account is connected once per device (tokens are device-local and not synced).
+- Some catalogue endpoints were removed or limited for Development Mode apps in 2026 (e.g. batch track/album lookups, browse, artist top tracks; search returns at most 10 results per call), so features rely only on top items, recently played, playlists, library, search and player endpoints.
+
+### 2.14 Sports following (NBA and football)
+
+Follow favourite NBA and football (soccer) teams and players.
+
+- **Follow from inside the app**: search any NBA or football team or player, tap Follow, and it is added to my list. Unfollow, reorder, and pin favourites at any time. Nothing is preset; the app starts empty with a "Find teams and players" search.
+- Following a player also shows their team's next game; following a team offers its key players to follow.
+- Separate tabs for NBA and Football, plus a combined "My teams" feed of upcoming games and recent results.
+
+- **Teams**: upcoming fixtures with kickoff/tip-off in local time, live scores, results, league table / standings, form (last 5).
+- **Players**: season stats (NBA: points, rebounds, assists, minutes, shooting splits; football: goals, assists, appearances, minutes, cards), recent game logs, injury status where available.
+- **Notifications**: match starting soon, final score, optionally goals / end of quarters for favourites; quiet hours respected.
+- Fixtures can appear on the calendar alongside classes and important dates, and in the Today dashboard ("Lakers vs Celtics, 6:00 am").
+- Multiple competitions: Premier League, La Liga, Champions League, etc. for football; NBA regular season and playoffs.
+- Results cached locally so recent scores and stats work offline.
+
+**Data sources** (free tiers, each behind its own adapter so one can be swapped if it breaks or changes terms):
+- Football: football-data.org (official free API key; fixtures, results, standings and scorers for the top competitions), with API-Football as an option for richer player stats.
+- NBA: balldontlie (API key; teams, players, games; some stats endpoints need a paid tier) and ESPN's public site JSON (unofficial, no key) for scores, schedules and box scores.
+- Free tiers have rate limits, so fetches are batched and cached; live scores poll only while a favourite's game is in progress.
+
+### 2.15 Debt recorder (IOUs)
+
+Instantly record who owes me money and whom I owe.
+
+- **Quick entry** in seconds, with natural language through the shared parser: "Rahul owes 250 for pizza yesterday", "I owe Priya 1200 cab to airport", "paid Rahul back 100".
+- Each entry: person, direction (they owe me / I owe them), amount in ₹ (rupees only), date, reason, optional due date, notes and receipt photo.
+- **People view**: net balance per person ("Rahul owes you ₹650 across 3 entries"), full history with each person, and overall totals (owed to me / I owe / net).
+- Partial repayments and settle-up: record payments against a balance; settled entries move to history.
+- Bill splitting helper: enter a total and people, split equally or by amounts, and create the IOUs in one go.
+- Reminders: due-date notifications, plus a "nudge" that prepares a polite message to share via WhatsApp/SMS through the share sheet (nothing is sent automatically).
+- Link with Finance (2.4): when an imported bank transaction matches a repayment (e.g. a UPI credit from that person for that amount), suggest marking the debt settled.
+- Contacts are stored in Kaizen only (no phone contact sync required); optionally pick names from the phone's contacts on Android.
+
 ---
 
-## 3. Suggested extra modules
+## 3. Extra modules
 
-Ordered by how much value I think they add:
+Chosen:
 
-1. **Today / Dashboard**: one home screen combining today's classes, tasks, habits, workout plan, upcoming contests and important dates, spending this month and a random idea.
-2. **Global quick capture**: system-wide hotkey on desktop, share-sheet and widget on Android; natural language decides which module receives the item.
-3. **Journal and mood log**: short daily entry plus mood/energy score, correlated with habits, sleep and workouts.
-4. **Weekly / monthly review**: auto-generated report of what I did (problems solved, workouts, focus hours, money spent, habits kept, attendance) with space for reflection.
-5. **Sleep and health metrics**: manual or via Health Connect.
-6. **Learning / course tracker**: courses, lectures, notes, flashcards (spaced repetition).
-7. **Cross-module insights**: e.g. "On days you work out you solve 40% more problems".
+1. **Today / Dashboard**: one home screen combining today's classes (with attendance to mark), tasks, habits, workout plan, upcoming contests and matches, important dates, debts due, and a random idea. No spending on it.
+2. **Global quick capture**: system-wide hotkey on desktop, share sheet and home-screen widget on Android; natural language decides which module receives the item (task, idea, debt, extra class, etc.).
+3. **Weekly / monthly review**: auto-generated report of what I did (problems solved, workouts, focus hours, habits kept, attendance, music listened, money spent once Finance exists) with space for reflection.
+
+Maybe later:
+
+4. **Sleep and health metrics**: manual or via Health Connect.
+
+Dropped: journal and mood log, learning / course tracker, cross-module insights.
 
 ---
 
@@ -310,6 +388,9 @@ Ordered by how much value I think they add:
 | TMDB / Open Library | Metadata for to-watch / to-read | Optional, free API keys |
 | LLM (Ollama on laptop; Claude API maybe later) | NL parsing fallback, finance categorisation, summaries | Laptop-hosted, phone uses it over LAN (see 4.6) |
 | Health Connect (Android) | Steps, sleep, workouts | Later phase |
+| Spotify Web API | Playback control (Spotify Connect), playlists, top items, recently played | Own Client ID in Development Mode; owner needs Premium; PKCE OAuth |
+| football-data.org / API-Football | Fixtures, results, standings, player stats | Free API keys, rate limited |
+| balldontlie / ESPN public JSON | NBA games, scores, players, box scores | balldontlie needs a key; ESPN JSON is unofficial |
 
 ### 4.6 LLM strategy
 
@@ -340,7 +421,10 @@ kaizen/
       ideas/
       activity/        # Heatmap + streaks
       focus/           # Forest-style focus timer
-      calendar/        # Important dates + college timetable + attendance
+      calendar/        # Important dates + college timetable with attendance
+      music/           # Spotify player and listening stats
+      sports/          # NBA and football following
+      debts/           # IOU recorder
     core/
       db/              # Schema, migrations, queries
       search/          # FTS5 index + command palette
@@ -367,8 +451,12 @@ kaizen/
 - `activity_events` (id, type, date, quantity, unit, source_table, source_id), `activity_types` (key, name, colour, active_day_rule), `streak_freezes`
 - `focus_sessions` (id, start, end, planned_minutes, status: completed|withered|given_up, tag, task_id, species), `forest_unlocks`
 - `important_dates` (id, title, kind, date, recurrence, reminder_offsets, notes)
-- `semesters`, `subjects` (name, code, professor, colour, attendance_target), `timetable_slots` (subject_id, weekday, start, end, room, kind, week_parity), `timetable_exceptions`, `attendance` (slot_id, date, status)
+- `semesters`, `subjects` (name, code, professor, colour, attendance_target), `timetable_slots` (subject_id, weekday, start, end, room, kind, week_parity), `timetable_exceptions`
 - `search_index` (FTS5 virtual table: module, ref_id, title, body, tags)
+- `class_occurrences` (slot_id, date, start, end, status: scheduled|present|absent|cancelled|excused, marked_at) generated from `timetable_slots` + `timetable_exceptions`
+- `music_accounts` (device-local tokens), `music_plays` (track_id, played_at, duration_ms, context), `music_tracks`, `music_artists`, `music_albums` (cached metadata), `music_top_snapshots` (time_range, kind, ranked ids, taken_at)
+- `sports_follows` (sport: nba|football, kind: team|player, external_ids per provider, name), `sports_matches` (cached fixtures/results), `sports_player_stats` (cached season and game stats)
+- `people` (name, phone, notes), `debts` (person_id, direction: owed_to_me|i_owe, amount_paise, occurred_on, reason, due_on, status), `debt_payments` (debt_id or person_id, amount_paise, paid_on, note, linked_transaction_id)
 - `sync_changes`, `devices`, `settings`
 
 ---
@@ -378,14 +466,17 @@ kaizen/
 | Phase | Scope |
 |---|---|
 | 0. Foundation (done) | Tauri 2 project (desktop + Android), design system, navigation shell, SQLite + migrations, encryption, settings, backup/export, `activity_events` table, search index skeleton |
-| 1. Daily core | To-do / watch / read with NL parsing, notification service, habits, idea scrapbook, important dates, college timetable + attendance, Today dashboard |
+| 1. Daily core | To-do / watch / read with NL parsing, notification service, habits, idea scrapbook, important dates, college timetable with attendance, debt recorder, Today dashboard |
 | 2. Sync | LAN sync with QR pairing, so the phone is usable daily from here on |
 | 3. Focus and activity | Forest-style focus timer (Android strict mode), activity heatmap with filters, streaks, universal search + command palette |
 | 4. Practice | Codeforces + LeetCode connectors, CP analytics, contest reminders, revisit queue |
-| 5. Fitness | Gym logging, templates, PRs, charts, sports sessions, body metrics |
-| 6. Finance | CSV statement import with bank profiles, categorisation, insights, budgets |
-| 7. Canvas | Whiteboard (Excalidraw), linking ideas to boards |
-| 8. Polish and extras | Android widgets, quick capture, share sheet, journal, weekly review, Health Connect, LLM features |
+| 5. Fitness and sports | Gym logging, templates, PRs, charts, sports sessions, body metrics; NBA and football team and player following |
+| 6. Canvas | Whiteboard (Excalidraw), linking ideas to boards |
+| 7. Music | Spotify connection, remote-control player and mini player, local listening history, stats and summaries |
+| 8. Polish and extras | Android widgets, global quick capture, share sheet, weekly / monthly review, LLM features; maybe Health Connect sleep and health metrics |
+| 9. Finance (last) | PNB statement import, categorisation, insights, budgets; debt settle-up matching; spending added to the weekly review |
+
+Finance comes last on purpose: testing it means using the PNB banking app on the phone, which needs Developer options (USB debugging) switched off, so it is done once the rest no longer needs on-device debugging.
 
 ### 6.1 Phase 0 in detail (Foundation)
 
@@ -478,12 +569,10 @@ Follow-ups:
 
 ## 7. Open questions
 
-Answered: Android 16, CSV statements, LAN sync, React, LLM on laptop only, package `com.matt.kaizen`.
+Answered: Android 16, CSV statements, LAN sync, React, LLM on laptop only, package `com.matt.kaizen`, Spotify Premium (yes), attendance minimum 80%, sports teams and players followed from inside the app, debts in ₹ only, bank is PNB, timetable entered manually (weekly) with extra classes, cancellations, holidays and vacations, labs/tutorials counted separately as an option, medical/duty leave counts as present, extra modules chosen (section 3), Finance built last.
 
 Still open:
-1. Which banks (to build the first CSV mapping profiles)? Needed by Phase 6.
-2. Which extra modules from section 3 are worth including?
-3. Timetable: does the college publish it in a format that can be imported (CSV/Excel), or manual entry only? Needed by Phase 1.
+1. Which download formats does PNB offer for statements (CSV, XLS/XLSX, PDF)? A sample statement (with numbers blanked) will help build the profile. Needed by Phase 9.
 
 **Project identity**
 - App name: Kaizen (continuous small improvement). Identifier / Android package: `com.matt.kaizen`.

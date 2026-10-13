@@ -11,7 +11,10 @@ Kaizen brings everything I want to track into one app, with all data stored on m
 - **Habits and goals**: streaks, reminders, goals that track progress from other modules
 - **Activity heatmap**: colour-coded per activity, with filters and streaks
 - **Focus timer**: Forest-style, a tree grows while you stay focused
-- **College timetable and important dates**: class reminders, attendance tracking, countdowns
+- **College timetable with attendance**: class reminders, one-tap attendance, bunk calculator; plus important dates and countdowns
+- **Music**: Spotify playlists and playback control, top artists and tracks, local listening history
+- **Sports following**: favourite NBA and football teams and players, fixtures, live scores, stats
+- **Debt recorder**: who owes me and whom I owe, with when and why, partial repayments and bill splitting
 - **Whiteboard and idea scrapbook**: free-form canvas and zero-friction capture
 - **Universal search**: across everything, with a command palette
 
