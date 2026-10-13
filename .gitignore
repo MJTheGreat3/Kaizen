@@ -1,0 +1,28 @@
+# OS / editors
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Tool output
+graphify-out/
+.playwright-cli/
+
+# Node / frontend
+node_modules/
+dist/
+*.log
+.env
+.env.*
+
+# Rust / Tauri
+target/
+src-tauri/gen/schemas/
+
+# Android
+*.keystore
+*.jks
+local.properties
