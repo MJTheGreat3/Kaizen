@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { ArrowCounterClockwise, Check, Copy, Eye, EyeSlash, Fingerprint, FolderOpen, Key } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -310,7 +310,6 @@ export function UnlockScreen({ deviceUnlock }: { deviceUnlock: boolean }) {
   const [passphrase, setPassphrase] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const autoPrompted = useRef(false);
   const touchId = !mobile && !!info?.touchId;
 
   async function quickUnlock() {
@@ -326,16 +325,6 @@ export function UnlockScreen({ deviceUnlock }: { deviceUnlock: boolean }) {
       setBusy(false);
     }
   }
-
-  // On the phone, show the fingerprint prompt straight away. On the Mac,
-  // Touch ID waits for the button.
-  useEffect(() => {
-    if (mobile && deviceUnlock && !autoPrompted.current) {
-      autoPrompted.current = true;
-      void quickUnlock();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mobile, deviceUnlock]);
 
   if (mode === "recover") return <RecoverScreen onBack={() => setMode("unlock")} />;
 
