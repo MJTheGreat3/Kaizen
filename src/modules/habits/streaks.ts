@@ -110,3 +110,17 @@ export function completionRate(habit: HabitLike, values: DayValues, today: DateK
   }
   return scheduled ? done / scheduled : 0;
 }
+
+export const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+export function scheduleLabel(s: HabitSchedule): string {
+  if (s.type === "daily") return "Every day";
+  if (s.type === "weekly") return `${s.times}× a week`;
+  if (s.days.length === 5 && !s.days.includes(6) && !s.days.includes(7)) return "Weekdays";
+  return s.days
+    .slice()
+    .sort()
+    .map((d) => WEEKDAYS[d - 1])
+    .join(", ");
+}
+
