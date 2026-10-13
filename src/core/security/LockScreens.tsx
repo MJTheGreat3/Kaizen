@@ -327,14 +327,15 @@ export function UnlockScreen({ deviceUnlock }: { deviceUnlock: boolean }) {
     }
   }
 
-  // With a fingerprint or Touch ID, show the prompt straight away.
+  // On the phone, show the fingerprint prompt straight away. On the Mac,
+  // Touch ID waits for the button.
   useEffect(() => {
-    if ((mobile || touchId) && deviceUnlock && !autoPrompted.current) {
+    if (mobile && deviceUnlock && !autoPrompted.current) {
       autoPrompted.current = true;
       void quickUnlock();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mobile, touchId, deviceUnlock]);
+  }, [mobile, deviceUnlock]);
 
   if (mode === "recover") return <RecoverScreen onBack={() => setMode("unlock")} />;
 
