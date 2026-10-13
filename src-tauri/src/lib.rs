@@ -84,6 +84,7 @@ pub fn run() {
             commands::sync_folder,
             commands::sync_lan,
             commands::sync_lan_info,
+            commands::sync_background_set,
             commands::sync_drive,
             commands::sync_drive_connect,
             commands::sync_drive_disconnect,

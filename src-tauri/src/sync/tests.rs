@@ -66,7 +66,7 @@ impl Device {
 
 fn paired() -> (Device, Device, FolderMailbox, tempfile::TempDir) {
     let (a, b) = (Device::new(), Device::new());
-    let code = a.conn(|c| create_group(c).unwrap());
+    let code = a.conn(|c| create_group(c, &[]).unwrap());
     b.conn(|c| join_group(c, &code).unwrap());
     let dir = tempfile::tempdir().unwrap();
     let mailbox = FolderMailbox {
@@ -205,7 +205,7 @@ fn waits_for_missing_bundles() {
 fn ignores_devices_in_other_groups() {
     let (a, _b, mailbox, _dir) = paired();
     let stranger = Device::new();
-    stranger.conn(|c| create_group(c).unwrap());
+    stranger.conn(|c| create_group(c, &[]).unwrap());
     stranger.add_task("secret", "Not yours");
     stranger.sync(&mailbox);
     a.sync(&mailbox);
@@ -242,9 +242,61 @@ fn syncs_phone_and_laptop_over_http() {
 
     // A device from another group is turned away.
     let stranger = Device::new();
-    stranger.conn(|c| create_group(c).unwrap());
+    stranger.conn(|c| create_group(c, &[]).unwrap());
     let other_key = stranger.conn(|c| group_key(c).unwrap().unwrap());
     let wrong = lan::HttpMailbox::new(&format!("127.0.0.1:{port}"), &other_key);
     assert!(sync_mailbox(&stranger.session, &wrong).is_err());
     assert!(!lan::HttpMailbox::new("127.0.0.1:1", &key).reachable());
+}
+
+#[test]
+fn compacts_old_bundles_and_late_devices_still_catch_up() {
+    let (a, b, mailbox, dir) = paired();
+    for i in 0..(COMPACT_AFTER + 3) {
+        a.add_task(&format!("t{i}"), &format!("Task {i}"));
+        a.exec("UPDATE tasks SET notes = 'edited' WHERE id = 't0'", []);
+        a.sync(&mailbox);
+    }
+    let group = a.conn(|c| bundle::group_id(&group_key(c).unwrap().unwrap()));
+    let files = std::fs::read_dir(dir.path().join(&group).join(a.id()))
+        .unwrap()
+        .count();
+    assert!(files < COMPACT_AFTER, "{files} files left");
+
+    // B pairs only now and still gets everything, including later edits.
+    b.sync(&mailbox);
+    assert_eq!(
+        b.count("SELECT count(*) FROM tasks"),
+        (COMPACT_AFTER + 3) as i64
+    );
+    assert_eq!(b.task("t0").1.as_deref(), Some("edited"));
+}
+
+#[test]
+fn phone_learns_laptop_addresses_from_pairing_and_sync() {
+    let (laptop, phone) = (Device::new(), Device::new());
+    let code = laptop.conn(|c| {
+        register_device(c, "macos", &["192.168.1.20".into()]).unwrap();
+        create_group(c, &["192.168.1.20".into()]).unwrap()
+    });
+    phone.conn(|c| {
+        register_device(c, "android", &[]).unwrap();
+        join_group(c, &code).unwrap();
+    });
+    assert_eq!(
+        phone.conn(|c| lan_candidates(c).unwrap()),
+        vec!["192.168.1.20"]
+    );
+
+    // The laptop moves to another network (and Tailscale); the phone hears via sync.
+    laptop.conn(|c| refresh_addresses(c, &["10.0.0.5".into(), "100.101.7.42".into()]).unwrap());
+    let dir = tempfile::tempdir().unwrap();
+    let mailbox = FolderMailbox {
+        root: dir.path().to_path_buf(),
+    };
+    sync_all(&laptop, &phone, &mailbox);
+    assert_eq!(
+        phone.conn(|c| lan_candidates(c).unwrap()),
+        vec!["192.168.1.20", "10.0.0.5", "100.101.7.42"]
+    );
 }

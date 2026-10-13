@@ -90,6 +90,9 @@ export interface SyncStatus {
   driveAvailable: boolean;
   /** Connected Google account; empty string when its email is unknown. */
   driveAccount: string | null;
+  /** Android background sync is on / can be turned on. */
+  background: boolean;
+  backgroundAvailable: boolean;
   peers: SyncPeer[];
   log: SyncLogEntry[];
 }
@@ -142,6 +145,7 @@ export const ipc = {
   syncFolder: (path: string) => call<SyncReport>("sync_folder", { path }),
   syncLan: (host: string | null) => call<SyncReport>("sync_lan", { host }),
   syncLanInfo: () => call<LanInfo>("sync_lan_info"),
+  syncBackgroundSet: (enabled: boolean) => call<void>("sync_background_set", { enabled }),
 
   logsTail: (lines: number) => call<string>("logs_tail", { lines }),
   logFrontend: (level: "debug" | "info" | "warn" | "error", message: string) =>

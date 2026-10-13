@@ -84,7 +84,11 @@ function SecuritySection() {
       }
       await ipc.vaultSetDeviceUnlock(enabled);
     },
-    onSuccess: () => client.invalidateQueries({ queryKey: ["vault-status"] }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["vault-status"] });
+      // Background sync depends on it.
+      client.invalidateQueries({ queryKey: ["sync-status"] });
+    },
     onError: (e) => toast.error(errorText(e)),
   });
 

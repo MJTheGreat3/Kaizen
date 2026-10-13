@@ -507,7 +507,13 @@ fn v4(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub const LATEST: i64 = 4;
+/// Laptops publish the addresses phones can reach them at for direct sync.
+fn v5(conn: &Connection) -> Result<()> {
+    conn.execute_batch("ALTER TABLE devices ADD COLUMN addresses TEXT NOT NULL DEFAULT '[]';")?;
+    install_clock_triggers(conn, "devices")
+}
+
+pub const LATEST: i64 = 5;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -539,6 +545,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             2 => tx.execute_batch(&v2())?,
             3 => v3(&tx)?,
             4 => v4(&tx)?,
+            5 => v5(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;

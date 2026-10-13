@@ -15,6 +15,8 @@ pub trait Mailbox {
     fn list(&self, group: &str, device: &str) -> Result<Vec<String>>;
     fn get(&self, group: &str, device: &str, file: &str) -> Result<Vec<u8>>;
     fn put(&self, group: &str, device: &str, file: &str, bytes: &[u8]) -> Result<()>;
+    /// Removes one of this device's own bundles (after compaction).
+    fn delete(&self, group: &str, device: &str, file: &str) -> Result<()>;
 }
 
 /// A local folder, e.g. one kept in step by Syncthing, or for tests.
@@ -67,6 +69,14 @@ impl Mailbox for FolderMailbox {
         let tmp = dir.join(format!("{file}.tmp"));
         std::fs::write(&tmp, bytes)?;
         std::fs::rename(tmp, dir.join(file))?;
+        Ok(())
+    }
+
+    fn delete(&self, group: &str, device: &str, file: &str) -> Result<()> {
+        let path = self.root.join(group).join(device).join(file);
+        if path.exists() {
+            std::fs::remove_file(path)?;
+        }
         Ok(())
     }
 }

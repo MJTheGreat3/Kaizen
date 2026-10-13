@@ -49,8 +49,8 @@ async function run(): Promise<SyncReport | null> {
   const jobs: Array<() => Promise<SyncReport>> = [];
   // Direct first: it is fastest when the laptop is reachable. The laptop
   // syncs with the folder it serves; the phone with the laptop.
-  if (lan.serving) jobs.push(() => ipc.syncLan(null));
-  else if (lanHost) jobs.push(() => ipc.syncLan(lanHost));
+  // The phone also finds the laptop on its own (pairing code, synced addresses).
+  jobs.push(() => ipc.syncLan(lan.serving ? null : lanHost || null));
   if (status.driveAccount !== null) jobs.push(ipc.syncDrive);
   if (folder) jobs.push(() => ipc.syncFolder(folder));
   if (!jobs.length) return null;

@@ -37,21 +37,36 @@ pub fn group_id(key: &SyncKey) -> String {
 }
 
 /// Pairing code carried by the QR code (or typed): `KZ1-` + base32 key.
-pub fn pairing_code(key: &SyncKey) -> String {
-    format!(
+/// Optionally followed by `~` and the inviting laptop's addresses for direct
+/// sync: `KZ1-<key>~192.168.1.20,100.101.7.42`.
+pub fn pairing_code(key: &SyncKey, hosts: &[String]) -> String {
+    let mut code = format!(
         "{CODE_PREFIX}{}",
         base32::encode(base32::Alphabet::Rfc4648 { padding: false }, key.as_ref())
-    )
+    );
+    if !hosts.is_empty() {
+        code.push('~');
+        code.push_str(&hosts.join(","));
+    }
+    code
 }
 
-pub fn parse_pairing_code(code: &str) -> Result<SyncKey> {
+/// The key and any laptop addresses in a pairing code.
+pub fn parse_pairing_code(code: &str) -> Result<(SyncKey, Vec<String>)> {
     let invalid = || Error::Invalid("not a Kaizen pairing code".into());
-    let cleaned: String = code
-        .trim()
-        .chars()
-        .filter(|c| !c.is_whitespace())
-        .collect::<String>()
-        .to_uppercase();
+    let compact: String = code.trim().chars().filter(|c| !c.is_whitespace()).collect();
+    let (key_part, hosts_part) = compact.split_once('~').unwrap_or((&compact, ""));
+    let hosts = hosts_part
+        .split(',')
+        .filter(|h| {
+            !h.is_empty()
+                && h.len() <= 253
+                && h.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || ".-:".contains(c))
+        })
+        .map(str::to_string)
+        .collect();
+    let cleaned = key_part.to_uppercase();
     let body = cleaned.strip_prefix(CODE_PREFIX).ok_or_else(invalid)?;
     let bytes = Zeroizing::new(
         base32::decode(base32::Alphabet::Rfc4648 { padding: false }, body).ok_or_else(invalid)?,
@@ -61,7 +76,7 @@ pub fn parse_pairing_code(code: &str) -> Result<SyncKey> {
         return Err(invalid());
     }
     key.copy_from_slice(&bytes);
-    Ok(key)
+    Ok((key, hosts))
 }
 
 fn aad(group: &str) -> Vec<u8> {
@@ -138,8 +153,12 @@ mod tests {
         assert_eq!(open(&key, &sealed).unwrap(), changes);
         assert!(matches!(open(&new_key(), &sealed), Err(Error::Crypto)));
 
-        let code = pairing_code(&key);
-        assert_eq!(*parse_pairing_code(&code.to_lowercase()).unwrap(), *key);
+        let code = pairing_code(&key, &[]);
+        assert_eq!(*parse_pairing_code(&code.to_lowercase()).unwrap().0, *key);
+        let with_hosts = pairing_code(&key, &["192.168.1.20".into(), "100.101.7.42".into()]);
+        let (parsed, hosts) = parse_pairing_code(&with_hosts).unwrap();
+        assert_eq!(*parsed, *key);
+        assert_eq!(hosts, vec!["192.168.1.20", "100.101.7.42"]);
         assert!(parse_pairing_code("KZ1-ABC").is_err());
         assert_eq!(parse_file_name(&file_name(&changes)), Some((1, 9)));
     }

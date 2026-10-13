@@ -1,6 +1,7 @@
 //! Sync between paired devices (Phase 2). See `engine` for how changes
 //! merge, `bundle` for encryption and `mailbox` for transports.
 
+pub mod background;
 pub mod bundle;
 pub mod drive;
 pub mod engine;
@@ -19,6 +20,10 @@ use engine::NotApplied;
 use mailbox::Mailbox;
 
 const KEY_META: &str = "sync.key";
+
+/// One sync at a time in this process, whoever starts it (the app or the
+/// Android background worker).
+pub static RUNNING: Mutex<()> = Mutex::new(());
 
 pub fn group_key(conn: &Connection) -> Result<Option<SyncKey>> {
     let hex: Option<zeroize::Zeroizing<String>> = conn
@@ -55,7 +60,7 @@ fn set_group_key(conn: &Connection, key: Option<&SyncKey>) -> Result<()> {
 
 /// Starts a group with this device in it and returns the pairing code. An
 /// existing group is kept.
-pub fn create_group(conn: &Connection) -> Result<String> {
+pub fn create_group(conn: &Connection, hosts: &[String]) -> Result<String> {
     let key = match group_key(conn)? {
         Some(key) => key,
         None => {
@@ -65,12 +70,15 @@ pub fn create_group(conn: &Connection) -> Result<String> {
             key
         }
     };
-    Ok(bundle::pairing_code(&key))
+    Ok(bundle::pairing_code(&key, hosts))
 }
 
+const HINTS_META: &str = "sync.lan.hints";
+
 pub fn join_group(conn: &Connection, code: &str) -> Result<()> {
-    let key = bundle::parse_pairing_code(code)?;
+    let (key, hosts) = bundle::parse_pairing_code(code)?;
     set_group_key(conn, Some(&key))?;
+    set_meta(conn, HINTS_META, &serde_json::to_string(&hosts)?)?;
     tracing::info!(group = %bundle::group_id(&key), "joined sync group");
     Ok(())
 }
@@ -158,6 +166,43 @@ pub fn sync_mailbox(session: &Mutex<Option<Session>>, mailbox: &dyn Mailbox) -> 
     result
 }
 
+/// A device keeps at most this many bundles in a mailbox before replacing
+/// them with one snapshot.
+const COMPACT_AFTER: usize = 20;
+
+/// Replaces this device's bundles with one snapshot of every cell it wrote
+/// (current values), covering `seq` from 1. Anyone behind, including a
+/// device that joins later, gets the same result from the snapshot alone,
+/// since merging keeps only the latest value per cell anyway.
+fn compact(
+    session: &Mutex<Option<Session>>,
+    mailbox: &dyn Mailbox,
+    key: &SyncKey,
+    me: &str,
+    old: Vec<String>,
+) -> Result<()> {
+    let Some(snapshot) = with_conn(session, |conn| engine::export(conn, 0))? else {
+        return Ok(());
+    };
+    let group = bundle::group_id(key);
+    let name = bundle::file_name(&snapshot);
+    mailbox.put(&group, me, &name, &bundle::seal(key, &snapshot)?)?;
+    let mut removed = 0;
+    for file in old.into_iter().filter(|f| *f != name) {
+        let covered = bundle::parse_file_name(&file).is_some_and(|(_, to)| to <= snapshot.to_seq);
+        if covered {
+            mailbox.delete(&group, me, &file)?;
+            removed += 1;
+        }
+    }
+    tracing::info!(
+        transport = mailbox.name(),
+        removed,
+        "compacted sync bundles"
+    );
+    Ok(())
+}
+
 fn run_mailbox(session: &Mutex<Option<Session>>, mailbox: &dyn Mailbox) -> Result<Report> {
     let mut report = Report::default();
     let (key, me, sent_meta, outgoing) = with_conn(session, |conn| {
@@ -171,16 +216,22 @@ fn run_mailbox(session: &Mutex<Option<Session>>, mailbox: &dyn Mailbox) -> Resul
     let group = bundle::group_id(&key);
 
     if let Some(changes) = outgoing {
-        mailbox.put(
-            &group,
-            &me,
-            &bundle::file_name(&changes),
-            &bundle::seal(&key, &changes)?,
-        )?;
+        let earlier = mailbox.list(&group, &me)?;
+        let name = bundle::file_name(&changes);
+        mailbox.put(&group, &me, &name, &bundle::seal(&key, &changes)?)?;
         with_conn(session, |conn| {
             set_meta(conn, &sent_meta, &changes.to_seq.to_string())
         })?;
         report.sent = changes.rows.len();
+        if earlier.len() + 1 > COMPACT_AFTER {
+            compact(
+                session,
+                mailbox,
+                &key,
+                &me,
+                earlier.into_iter().chain([name]).collect(),
+            )?;
+        }
     }
 
     for device in mailbox.devices(&group)? {
@@ -226,7 +277,9 @@ fn run_mailbox(session: &Mutex<Option<Session>>, mailbox: &dyn Mailbox) -> Resul
 }
 
 /// Records this device in the synced `devices` table so others can name it.
-pub fn register_device(conn: &Connection, platform: &str) -> Result<()> {
+/// Records this device in the synced `devices` table so others can name it
+/// and, for a laptop, reach it directly at `addresses`.
+pub fn register_device(conn: &Connection, platform: &str, addresses: &[String]) -> Result<()> {
     let me = engine::device_id(conn)?;
     let now = chrono::Utc::now().timestamp_millis();
     let name = match platform {
@@ -234,12 +287,51 @@ pub fn register_device(conn: &Connection, platform: &str) -> Result<()> {
         _ => "Laptop",
     };
     conn.execute(
-        "INSERT INTO devices (id, name, platform, last_seen_at, created_at, updated_at, device_id)
-         VALUES (?1, ?2, ?3, ?4, ?4, ?4, ?1)
-         ON CONFLICT (id) DO UPDATE SET last_seen_at = excluded.last_seen_at, updated_at = excluded.updated_at",
-        params![me, name, platform, now],
+        "INSERT INTO devices (id, name, platform, last_seen_at, addresses, created_at, updated_at, device_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?4, ?4, ?1)
+         ON CONFLICT (id) DO UPDATE SET last_seen_at = excluded.last_seen_at, addresses = excluded.addresses,
+           updated_at = excluded.updated_at",
+        params![me, name, platform, now, serde_json::to_string(addresses)?],
     )?;
     Ok(())
+}
+
+/// Updates this device's published addresses if they changed.
+pub fn refresh_addresses(conn: &Connection, addresses: &[String]) -> Result<()> {
+    let me = engine::device_id(conn)?;
+    let encoded = serde_json::to_string(addresses)?;
+    conn.execute(
+        "UPDATE devices SET addresses = ?1, updated_at = ?2 WHERE id = ?3 AND addresses IS NOT ?1",
+        params![encoded, chrono::Utc::now().timestamp_millis(), me],
+    )?;
+    Ok(())
+}
+
+/// Addresses to try for direct sync: those from the pairing code, then the
+/// ones other (desktop) devices published, most recently seen first.
+pub fn lan_candidates(conn: &Connection) -> Result<Vec<String>> {
+    let me = engine::device_id(conn)?;
+    let mut out: Vec<String> = conn
+        .query_row(
+            "SELECT value FROM local_meta WHERE key = ?1",
+            [HINTS_META],
+            |r| r.get::<_, String>(0),
+        )
+        .optional()?
+        .and_then(|v| serde_json::from_str(&v).ok())
+        .unwrap_or_default();
+    let mut stmt = conn.prepare(
+        "SELECT addresses FROM devices
+         WHERE id != ?1 AND deleted_at IS NULL AND platform NOT IN ('android', 'ios')
+         ORDER BY last_seen_at DESC",
+    )?;
+    for row in stmt.query_map([&me], |r| r.get::<_, String>(0))? {
+        let addresses: Vec<String> = serde_json::from_str(&row?).unwrap_or_default();
+        out.extend(addresses);
+    }
+    let mut seen = std::collections::HashSet::new();
+    out.retain(|a| seen.insert(a.clone()));
+    Ok(out)
 }
 
 /// Gives this database a new device id. Needed after restoring a backup:
@@ -284,6 +376,10 @@ pub struct Status {
     pub drive_available: bool,
     /// Connected Google account (`""` if its email is unknown).
     pub drive_account: Option<String>,
+    /// Android background sync is on.
+    pub background: bool,
+    /// Android background sync can be turned on (fingerprint unlock is set up).
+    pub background_available: bool,
     pub peers: Vec<Peer>,
     pub log: Vec<LogEntry>,
 }
@@ -325,6 +421,8 @@ pub fn status(conn: &Connection) -> Result<Status> {
         group_id,
         drive_available: drive::configured(),
         drive_account: drive::account(conn)?,
+        background: false,
+        background_available: false,
         peers,
         log,
     })

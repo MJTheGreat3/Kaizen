@@ -2108,6 +2108,7 @@ dependencies = [
  "flate2",
  "hex",
  "if-addrs",
+ "jni",
  "keyring",
  "rand 0.8.8",
  "rusqlite",

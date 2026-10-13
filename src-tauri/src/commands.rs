@@ -58,7 +58,7 @@ fn open_session(state: &AppState, key: DataKey, recovery_key: Option<String>) ->
         sync::rotate_device_id(db.conn())?;
         std::fs::remove_file(restored)?;
     }
-    sync::register_device(db.conn(), std::env::consts::OS)?;
+    sync::register_device(db.conn(), std::env::consts::OS, &own_addresses())?;
     let device_id = db.device_id()?;
     *state.session.lock().unwrap() = Some(Session { db, key });
     tracing::info!("unlocked");
@@ -143,6 +143,8 @@ pub async fn vault_set_device_unlock(state: State<'_, AppState>, enabled: bool) 
         std::fs::write(marker, b"1")?;
     } else {
         vault::clear_device_key(&state.data_dir)?;
+        // Background sync relies on the device key.
+        sync::background::set_enabled(&state.data_dir, false)?;
         if marker.exists() {
             std::fs::remove_file(marker)?;
         }
@@ -259,13 +261,29 @@ pub fn log_frontend(level: String, message: String) {
 
 #[tauri::command]
 pub async fn sync_status(state: State<'_, AppState>) -> Result<Status> {
-    with_session(&state, |s| sync::status(s.db.conn()))
+    let mut status = with_session(&state, |s| sync::status(s.db.conn()))?;
+    status.background = sync::background::enabled(&state.data_dir);
+    status.background_available =
+        cfg!(target_os = "android") && device_unlock_enabled(&state.data_dir);
+    Ok(status)
+}
+
+/// Turns Android background sync on or off. It needs fingerprint unlock,
+/// whose on-device key lets the background job open the database.
+#[tauri::command]
+pub async fn sync_background_set(state: State<'_, AppState>, enabled: bool) -> Result<()> {
+    if enabled && !device_unlock_enabled(&state.data_dir) {
+        return Err(Error::Invalid("turn on fingerprint unlock first".into()));
+    }
+    sync::background::set_enabled(&state.data_dir, enabled)
 }
 
 /// Starts a sync group (or reuses this device's) and returns its pairing code.
 #[tauri::command]
 pub async fn sync_pair_code(state: State<'_, AppState>) -> Result<String> {
-    with_session(&state, |s| sync::create_group(s.db.conn()))
+    with_session(&state, |s| {
+        sync::create_group(s.db.conn(), &own_addresses())
+    })
 }
 
 #[tauri::command]
@@ -285,9 +303,6 @@ fn announce(app: &tauri::AppHandle, report: &Report) {
     }
 }
 
-/// One sync at a time, whichever transport starts it.
-static SYNC_RUNNING: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T> + Send + 'static) -> Result<T> {
     tauri::async_runtime::spawn_blocking(f)
         .await
@@ -300,7 +315,7 @@ async fn run_mailbox(
 ) -> Result<Report> {
     let handle = app.clone();
     let report = blocking(move || {
-        let _running = SYNC_RUNNING.lock().unwrap_or_else(|e| e.into_inner());
+        let _running = sync::RUNNING.lock().unwrap_or_else(|e| e.into_inner());
         let state = handle.state::<AppState>();
         let mailbox = connect(&state)?;
         sync::sync_mailbox(&state.session, mailbox.as_ref())
@@ -331,32 +346,56 @@ pub async fn sync_drive(app: tauri::AppHandle) -> Result<Report> {
     .await
 }
 
-/// Direct sync with the laptop. On the laptop (`host` empty) this syncs with
-/// the folder it serves; on the phone it syncs with the laptop at `host`.
-/// An unreachable laptop is not an error: the report just has no peers.
+/// Addresses this device can be reached at for direct sync (laptops only).
+fn own_addresses() -> Vec<String> {
+    #[cfg(desktop)]
+    return sync::lan::local_addresses();
+    #[cfg(mobile)]
+    Vec::new()
+}
+
+/// Direct sync with the laptop. On the laptop this syncs with the folder it
+/// serves (and refreshes the addresses it publishes). On the phone it tries
+/// `host` if given, then the addresses from pairing and the laptop's
+/// published ones. An unreachable laptop is not an error: the report just
+/// has no peers.
 #[tauri::command]
 pub async fn sync_lan(app: tauri::AppHandle, host: Option<String>) -> Result<Report> {
-    let host = host.filter(|h| !h.trim().is_empty());
-    if let Some(host) = &host {
+    if cfg!(desktop) {
         let state = app.state::<AppState>();
-        let key = with_session(&state, |s| sync::group_key(s.db.conn()))?
-            .ok_or_else(|| Error::Invalid("this device is not paired".into()))?;
-        let mailbox = sync::lan::HttpMailbox::new(host, &key);
-        if !blocking(move || Ok(mailbox.reachable())).await? {
-            return Ok(Report::default());
-        }
-    }
-    run_mailbox(app, move |state| {
-        Ok(match host {
-            Some(host) => {
-                let key = with_session(state, |s| sync::group_key(s.db.conn()))?
-                    .ok_or_else(|| Error::Invalid("this device is not paired".into()))?;
-                Box::new(sync::lan::HttpMailbox::new(&host, &key))
-            }
-            None => Box::new(sync::lan::LocalStore(FolderMailbox {
+        with_session(&state, |s| {
+            sync::refresh_addresses(s.db.conn(), &own_addresses())
+        })?;
+        return run_mailbox(app, |state| {
+            Ok(Box::new(sync::lan::LocalStore(FolderMailbox {
                 root: sync::lan::store_dir(&state.data_dir),
-            })),
+            })))
         })
+        .await;
+    }
+    let state = app.state::<AppState>();
+    let (key, mut hosts) = with_session(&state, |s| {
+        let key = sync::group_key(s.db.conn())?
+            .ok_or_else(|| Error::Invalid("this device is not paired".into()))?;
+        Ok((key, sync::lan_candidates(s.db.conn())?))
+    })?;
+    if let Some(host) = host.filter(|h| !h.trim().is_empty()) {
+        hosts.insert(0, host);
+    }
+    let found = blocking(move || {
+        Ok(hosts
+            .into_iter()
+            .find(|h| sync::lan::HttpMailbox::new(h, &key).reachable()))
+    })
+    .await?;
+    let Some(host) = found else {
+        return Ok(Report::default());
+    };
+    tracing::info!(%host, "laptop reachable for direct sync");
+    run_mailbox(app, move |state| {
+        let key = with_session(state, |s| sync::group_key(s.db.conn()))?
+            .ok_or_else(|| Error::Invalid("this device is not paired".into()))?;
+        Ok(Box::new(sync::lan::HttpMailbox::new(&host, &key)))
     })
     .await
 }

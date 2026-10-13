@@ -64,10 +64,14 @@ impl Mailbox for LocalStore {
     fn put(&self, group: &str, device: &str, file: &str, bytes: &[u8]) -> Result<()> {
         self.0.put(group, device, file, bytes)
     }
+    fn delete(&self, group: &str, device: &str, file: &str) -> Result<()> {
+        self.0.delete(group, device, file)
+    }
 }
 
 /// Serves the store folder until the process exits. `auth` returns the
 /// expected `(group, token)` while unlocked and paired.
+#[cfg_attr(mobile, allow(dead_code))]
 pub fn serve(store: PathBuf, auth: impl Fn() -> Option<(String, String)> + Send + 'static) {
     let server = match tiny_http::Server::http(("0.0.0.0", PORT)) {
         Ok(server) => server,
@@ -169,6 +173,10 @@ fn handle(
                 return Err((413, "too large".into()));
             }
             folder.put(&group, device, file, &body).map_err(internal)?;
+            Ok((Vec::new(), false))
+        }
+        (tiny_http::Method::Delete, [device, file]) if file.ends_with(".kzb") => {
+            folder.delete(&group, device, file).map_err(internal)?;
             Ok((Vec::new(), false))
         }
         _ => Err((404, "not found".into())),
@@ -284,6 +292,22 @@ impl Mailbox for HttpMailbox {
         if !resp.status().is_success() {
             return Err(Error::Http(format!(
                 "upload to laptop failed ({})",
+                resp.status().as_u16()
+            )));
+        }
+        Ok(())
+    }
+
+    fn delete(&self, group: &str, device: &str, file: &str) -> Result<()> {
+        let resp = self
+            .agent
+            .delete(&format!("{}/v1/{group}/{device}/{file}", self.base))
+            .header(AUTH_HEADER, &self.token)
+            .call()
+            .map_err(|e| Error::Http(e.to_string()))?;
+        if !resp.status().is_success() {
+            return Err(Error::Http(format!(
+                "delete on laptop failed ({})",
                 resp.status().as_u16()
             )));
         }

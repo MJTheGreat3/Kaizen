@@ -18,7 +18,7 @@ import {
 } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/controls";
+import { Skeleton, Switch } from "@/components/ui/controls";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/kit";
@@ -278,8 +278,9 @@ function LanRow({ mobile }: { mobile: boolean }) {
         description={
           addresses.length ? (
             <>
-              On the same Wi-Fi, a hotspot or Tailscale, your phone can sync straight with this laptop. Enter one of these
-              on the phone: <span className="font-mono text-foreground">{addresses.join(", ")}</span>
+              On the same Wi-Fi, a hotspot or Tailscale, your phone syncs straight with this laptop and finds it on its
+              own. If it can&apos;t, enter one of these on the phone:{" "}
+              <span className="font-mono text-foreground">{addresses.join(", ")}</span>
             </>
           ) : (
             "Connect to a network to sync straight with your phone."
@@ -294,8 +295,8 @@ function LanRow({ mobile }: { mobile: boolean }) {
       <div className="grid gap-0.5">
         <span className="text-[15px] font-medium">Direct sync with the laptop</span>
         <span className="text-[13px] leading-relaxed text-muted-foreground">
-          Optional and instant when both are on the same Wi-Fi, a hotspot or Tailscale. The laptop shows its addresses
-          under Settings → Sync.
+          Instant when both are on the same Wi-Fi, a hotspot or Tailscale. Kaizen finds the laptop on its own; enter an
+          address only if it can&apos;t (the laptop shows them under Settings → Sync).
         </span>
       </div>
       <div className="flex gap-2">
@@ -322,6 +323,33 @@ function LanRow({ mobile }: { mobile: boolean }) {
         </Button>
       </div>
     </div>
+  );
+}
+
+function BackgroundRow({ status }: { status: SyncStatus }) {
+  const client = useQueryClient();
+  const toggle = useMutation({
+    mutationFn: ipc.syncBackgroundSet,
+    onSuccess: () => client.invalidateQueries({ queryKey: ["sync-status"] }),
+    onError: (e) => toast.error(errorText(e)),
+  });
+  return (
+    <Row
+      inline
+      label="Sync in the background"
+      description={
+        status.backgroundAvailable
+          ? "About every 15 minutes, even when Kaizen is closed. Uses the fingerprint-unlock key kept on this phone."
+          : "Needs fingerprint unlock (Settings → Security), whose key lets Kaizen open your data in the background."
+      }
+    >
+      <Switch
+        aria-label="Sync in the background"
+        checked={status.background}
+        disabled={!status.backgroundAvailable || toggle.isPending}
+        onCheckedChange={(v) => toggle.mutate(v)}
+      />
+    </Row>
   );
 }
 
@@ -445,7 +473,7 @@ export function SyncSection() {
           </div>
           <DriveRow status={data} mobile={mobile} />
           <LanRow mobile={mobile} />
-          {!mobile ? <FolderRow /> : null}
+          {mobile ? <BackgroundRow status={data} /> : <FolderRow />}
           <Row
             label="Sync now"
             description={
@@ -455,9 +483,9 @@ export function SyncSection() {
                   {lastError}
                 </span>
               ) : data.log[0] ? (
-                `Last synced ${ago(data.log[0].at)}. Runs automatically while Kaizen is open.`
+                `Last synced ${ago(data.log[0].at)}. Runs automatically${data.background ? "" : " while Kaizen is open"}.`
               ) : (
-                "Runs automatically while Kaizen is open."
+                `Runs automatically${data.background ? "" : " while Kaizen is open"}.`
               )
             }
           >

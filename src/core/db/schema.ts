@@ -25,6 +25,8 @@ const id = () =>
     .primaryKey()
     .$defaultFn(() => uuidv7());
 
+const json = <T>(name: string) => text(name, { mode: "json" }).$type<T>();
+
 /** Device-local key/value store, never synced. */
 export const localMeta = sqliteTable("local_meta", {
   key: text("key").primaryKey(),
@@ -63,6 +65,8 @@ export const devices = sqliteTable("devices", {
   name: text("name").notNull(),
   platform: text("platform").notNull(),
   lastSeenAt: integer("last_seen_at"),
+  /** Where a laptop can be reached for direct sync. */
+  addresses: json<string[]>("addresses").notNull().default([]),
   ...base,
 });
 
@@ -120,8 +124,6 @@ export const attachments = sqliteTable("attachments", {
 // ---------------------------------------------------------------------------
 // Phase 1 (migration v2)
 // ---------------------------------------------------------------------------
-
-const json = <T>(name: string) => text(name, { mode: "json" }).$type<T>();
 
 export type TaskList = "todo" | "watch" | "read";
 export type TaskStatus = "open" | "in_progress" | "done";

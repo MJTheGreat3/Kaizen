@@ -456,6 +456,29 @@ impl Mailbox for DriveMailbox {
             .send(&body[..])
             .map_err(http_err)?;
         json_response(resp)?;
+        // The listing no longer matches what is in Drive.
+        self.listing.borrow_mut().take();
+        Ok(())
+    }
+
+    fn delete(&self, group: &str, device: &str, file: &str) -> Result<()> {
+        let Some(found) = self.files(group)?.into_iter().find(|f| {
+            f.name == file && f.props.get("kz_device").map(String::as_str) == Some(device)
+        }) else {
+            return Ok(());
+        };
+        let resp = self
+            .agent
+            .delete(&format!("{FILES_URL}/{}", found.id))
+            .header("Authorization", &self.auth())
+            .call()
+            .map_err(http_err)?;
+        if !resp.status().is_success() && resp.status().as_u16() != 404 {
+            return Err(Error::Http(format!(
+                "delete failed ({})",
+                resp.status().as_u16()
+            )));
+        }
         Ok(())
     }
 }
