@@ -29,6 +29,8 @@ pub enum Error {
     Tauri(#[from] tauri::Error),
     #[error("{0}")]
     Http(String),
+    #[error("cancelled")]
+    Cancelled,
 }
 
 impl Error {
@@ -47,6 +49,7 @@ impl Error {
             Error::Keychain(_) => "keychain",
             Error::Tauri(_) => "tauri",
             Error::Http(_) => "http",
+            Error::Cancelled => "cancelled",
         }
     }
 }

@@ -229,10 +229,14 @@ export function RecoveryKeyScreen({ recoveryKey }: { recoveryKey: string }) {
     setTimeout(() => setCopied(false), 1800);
   }
 
+  const touchId = !mobile && !!info?.touchId;
+
   async function finish() {
     setBusy(true);
     try {
-      if (mobile && canUseBiometric && fingerprint) await ipc.vaultSetDeviceUnlock(true);
+      if (((mobile && canUseBiometric) || touchId) && fingerprint) await ipc.vaultSetDeviceUnlock(true);
+    } catch {
+      // Cancelled; it can be turned on later in Settings.
     } finally {
       setBusy(false);
       acknowledge();
@@ -262,13 +266,17 @@ export function RecoveryKeyScreen({ recoveryKey }: { recoveryKey: string }) {
           </div>
         </div>
 
-        {mobile && canUseBiometric ? (
+        {(mobile && canUseBiometric) || touchId ? (
           <label className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface px-4 py-3">
             <span className="flex items-center gap-3 text-[15px]">
               <Fingerprint size={22} className="text-accent" />
-              Unlock with fingerprint
+              {touchId ? "Unlock with Touch ID" : "Unlock with fingerprint"}
             </span>
-            <Switch checked={fingerprint} onCheckedChange={setFingerprint} aria-label="Unlock with fingerprint" />
+            <Switch
+              checked={fingerprint}
+              onCheckedChange={setFingerprint}
+              aria-label={touchId ? "Unlock with Touch ID" : "Unlock with fingerprint"}
+            />
           </label>
         ) : null}
 
@@ -303,6 +311,7 @@ export function UnlockScreen({ deviceUnlock }: { deviceUnlock: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const autoPrompted = useRef(false);
+  const touchId = !mobile && !!info?.touchId;
 
   async function quickUnlock() {
     setError(null);
@@ -311,20 +320,21 @@ export function UnlockScreen({ deviceUnlock }: { deviceUnlock: boolean }) {
     try {
       onUnlocked(await ipc.vaultUnlockDevice());
     } catch (err) {
-      setError(message(err));
+      // Touch ID dismissed: the passphrase field is right there.
+      if (!(err instanceof AppError && err.code === "cancelled")) setError(message(err));
     } finally {
       setBusy(false);
     }
   }
 
-  // On the phone, show the fingerprint prompt straight away.
+  // With a fingerprint or Touch ID, show the prompt straight away.
   useEffect(() => {
-    if (mobile && deviceUnlock && !autoPrompted.current) {
+    if ((mobile || touchId) && deviceUnlock && !autoPrompted.current) {
       autoPrompted.current = true;
       void quickUnlock();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mobile, deviceUnlock]);
+  }, [mobile, touchId, deviceUnlock]);
 
   if (mode === "recover") return <RecoverScreen onBack={() => setMode("unlock")} />;
 
@@ -349,8 +359,8 @@ export function UnlockScreen({ deviceUnlock }: { deviceUnlock: boolean }) {
         {deviceUnlock ? (
           <>
             <Button size="lg" onClick={quickUnlock} loading={busy && !passphrase}>
-              {mobile ? <Fingerprint /> : <Key />}
-              {mobile ? "Unlock with fingerprint" : "Unlock"}
+              {mobile || touchId ? <Fingerprint /> : <Key />}
+              {mobile ? "Unlock with fingerprint" : touchId ? "Unlock with Touch ID" : "Unlock"}
             </Button>
             <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
               <span className="h-px flex-1 bg-border" />

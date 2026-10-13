@@ -4,6 +4,8 @@ mod db;
 mod error;
 mod logging;
 mod sync;
+#[cfg(target_os = "macos")]
+mod touchid;
 mod vault;
 
 use std::path::PathBuf;

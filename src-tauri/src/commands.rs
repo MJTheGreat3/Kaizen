@@ -26,6 +26,8 @@ pub struct AppInfo {
     data_dir: String,
     log_dir: String,
     default_backup_dir: String,
+    /// Touch ID is set up (macOS); quick unlock then asks for it.
+    touch_id: bool,
 }
 
 #[derive(Serialize)]
@@ -90,7 +92,27 @@ pub fn app_info(app: tauri::AppHandle, state: State<'_, AppState>) -> AppInfo {
         default_backup_dir: backup::default_dir(&state.data_dir)
             .to_string_lossy()
             .into_owned(),
+        touch_id: touch_id_available(),
     }
+}
+
+fn touch_id_available() -> bool {
+    #[cfg(target_os = "macos")]
+    return crate::touchid::available();
+    #[cfg(not(target_os = "macos"))]
+    false
+}
+
+/// On macOS, asks for Touch ID (or the login password) before the quick
+/// unlock key is used or stored. Elsewhere this is a no-op: Android shows
+/// its biometric prompt from the frontend.
+async fn confirm_owner(reason: &'static str) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    if !blocking(move || Ok(crate::touchid::prompt(reason))).await? {
+        return Err(Error::Cancelled);
+    }
+    let _ = reason;
+    Ok(())
 }
 
 #[tauri::command]
@@ -131,6 +153,7 @@ pub async fn vault_unlock_device(state: State<'_, AppState>) -> Result<Unlocked>
     if !device_unlock_enabled(&state.data_dir) {
         return Err(Error::DeviceUnlockUnavailable);
     }
+    confirm_owner("unlock your data").await?;
     let key = vault::load_device_key(&state.data_dir)?.ok_or(Error::DeviceUnlockUnavailable)?;
     open_session(&state, key, None)
 }
@@ -139,6 +162,7 @@ pub async fn vault_unlock_device(state: State<'_, AppState>) -> Result<Unlocked>
 pub async fn vault_set_device_unlock(state: State<'_, AppState>, enabled: bool) -> Result<()> {
     let marker = state.data_dir.join(DEVICE_UNLOCK_MARKER);
     if enabled {
+        confirm_owner("turn on quick unlock").await?;
         with_session(&state, |s| vault::save_device_key(&state.data_dir, &s.key))?;
         std::fs::write(marker, b"1")?;
     } else {

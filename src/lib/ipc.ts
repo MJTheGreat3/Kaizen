@@ -16,7 +16,8 @@ export type ErrorCode =
   | "crypto"
   | "keychain"
   | "tauri"
-  | "http";
+  | "http"
+  | "cancelled";
 
 export class AppError extends Error {
   constructor(
@@ -47,6 +48,8 @@ export interface AppInfo {
   dataDir: string;
   logDir: string;
   defaultBackupDir: string;
+  /** Touch ID is set up (macOS). */
+  touchId: boolean;
 }
 
 export interface VaultStatus {

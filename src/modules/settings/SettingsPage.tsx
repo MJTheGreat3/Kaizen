@@ -37,7 +37,7 @@ import { runBackupNow } from "@/core/backup/useScheduledBackup";
 import { isMobile, useSession } from "@/core/security/session";
 import { Page, PageHeader } from "@/core/shell/PageHeader";
 import { setTheme, useTheme } from "@/core/theme";
-import { ipc, type BackupInfo } from "@/lib/ipc";
+import { AppError, ipc, type BackupInfo } from "@/lib/ipc";
 import { biometricAvailable, biometricPrompt, pickFolder } from "@/lib/native";
 import { formatBytes, formatDateTime } from "@/lib/utils";
 import { Row, Section } from "./layout";
@@ -89,13 +89,18 @@ function SecuritySection() {
       // Background sync depends on it.
       client.invalidateQueries({ queryKey: ["sync-status"] });
     },
-    onError: (e) => toast.error(errorText(e)),
+    onError: (e) => {
+      if (!(e instanceof AppError && e.code === "cancelled")) toast.error(errorText(e));
+    },
   });
 
-  const deviceLabel = mobile ? "Unlock with fingerprint" : "Remember on this computer";
+  const touchId = !mobile && !!info?.touchId;
+  const deviceLabel = mobile ? "Unlock with fingerprint" : touchId ? "Unlock with Touch ID" : "Remember on this computer";
   const deviceDescription = mobile
     ? "Use your fingerprint instead of the passphrase."
-    : "Unlock with one click. The key is kept in your system keychain.";
+    : touchId
+      ? "Use Touch ID (or your Mac password) instead of the passphrase. The key is kept in your keychain."
+      : "Unlock with one click. The key is kept in your system keychain.";
 
   return (
     <Section title="Security" description="Your data is encrypted with your passphrase.">

@@ -2103,6 +2103,7 @@ dependencies = [
  "base32",
  "base64 0.23.1",
  "blake2",
+ "block2",
  "chacha20poly1305",
  "chrono",
  "flate2",
@@ -2110,6 +2111,9 @@ dependencies = [
  "if-addrs",
  "jni",
  "keyring",
+ "objc2",
+ "objc2-foundation",
+ "objc2-local-authentication",
  "rand 0.8.8",
  "rusqlite",
  "serde",
@@ -2608,6 +2612,17 @@ dependencies = [
  "bitflags 2.13.2",
  "objc2",
  "objc2-core-foundation",
+]
+
+[[package]]
+name = "objc2-local-authentication"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e48e0b8b339e0d9d2ed4416b7f93f9d4daadff7d4dd797f89867cde11aeac607"
+dependencies = [
+ "block2",
+ "objc2",
+ "objc2-foundation",
 ]
 
 [[package]]
