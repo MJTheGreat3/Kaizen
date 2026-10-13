@@ -1,9 +1,10 @@
 /**
  * Writes to the shared `activity_events` table that the heatmap and streaks
  * (Phase 3) read. Each event points back at the row that caused it, so
- * undoing an action removes its event.
+ * undoing an action removes its event. Events are soft-deleted and their id
+ * comes from the source, so the same action on two devices syncs as one.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { db, schema } from "@/core/db/client";
 import type { DateKey } from "@/lib/dates";
@@ -17,19 +18,24 @@ export async function recordActivity(
   sourceId: string,
   quantity = 1,
 ) {
-  await clearActivity(sourceTable, sourceId);
-  await db.insert(schema.activityEvents).values({
-    typeId,
-    date,
-    occurredAt: Date.now(),
-    quantity,
-    sourceTable,
-    sourceId,
-  });
+  const e = schema.activityEvents;
+  const id = `ae:${sourceTable}:${sourceId}`;
+  // Older events for the same source may have random ids.
+  await db
+    .update(e)
+    .set({ deletedAt: Date.now() })
+    .where(and(eq(e.sourceTable, sourceTable), eq(e.sourceId, sourceId), isNull(e.deletedAt)));
+  const values = { typeId, date, occurredAt: Date.now(), quantity, deletedAt: null };
+  await db
+    .insert(e)
+    .values({ id, sourceTable, sourceId, ...values })
+    .onConflictDoUpdate({ target: e.id, set: { ...values, updatedAt: Date.now() } });
 }
 
 export async function clearActivity(sourceTable: string, sourceId: string) {
+  const e = schema.activityEvents;
   await db
-    .delete(schema.activityEvents)
-    .where(and(eq(schema.activityEvents.sourceTable, sourceTable), eq(schema.activityEvents.sourceId, sourceId)));
+    .update(e)
+    .set({ deletedAt: Date.now() })
+    .where(and(eq(e.sourceTable, sourceTable), eq(e.sourceId, sourceId), isNull(e.deletedAt)));
 }

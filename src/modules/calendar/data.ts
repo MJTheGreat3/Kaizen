@@ -168,22 +168,21 @@ export function useCancelClass() {
 // ---------------------------------------------------------------------------
 
 async function unmark(classKey: string) {
-  await db.delete(schema.attendance).where(eq(schema.attendance.classKey, classKey));
+  const a = schema.attendance;
+  await db.update(a).set({ deletedAt: Date.now() }).where(and(eq(a.classKey, classKey), isNull(a.deletedAt)));
   await clearActivity("attendance", classKey);
 }
 
+/** Marks one class. There is one row per class (soft-deleted when unmarked). */
 export async function markClass(occ: Occurrence, semesterId: string, status: AttendanceStatus | null) {
-  await unmark(occ.key);
-  if (!status) return;
-  await db.insert(schema.attendance).values({
-    semesterId,
-    subjectId: occ.subjectId,
-    classKey: occ.key,
-    date: occ.date,
-    classKind: occ.kind,
-    status,
-  });
-  if (status !== "absent") await recordActivity("classes", occ.date, "attendance", occ.key);
+  if (!status) return unmark(occ.key);
+  const a = schema.attendance;
+  const values = { semesterId, subjectId: occ.subjectId, date: occ.date, classKind: occ.kind, status, deletedAt: null };
+  const existing = await db.select({ id: a.id }).from(a).where(eq(a.classKey, occ.key)).get();
+  if (existing) await db.update(a).set(values).where(eq(a.id, existing.id));
+  else await db.insert(a).values({ id: `att:${occ.key}`, classKey: occ.key, ...values });
+  if (status === "absent") await clearActivity("attendance", occ.key);
+  else await recordActivity("classes", occ.date, "attendance", occ.key);
 }
 
 export function useMarkClass() {

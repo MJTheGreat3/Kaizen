@@ -602,6 +602,23 @@ Deferred:
 - Present/Absent buttons inside the notification itself (tapping opens the app).
 - Receipt photos for debts, picking people from phone contacts, TMDB/Open Library metadata.
 
+### 6.4 Phase 2 progress (2026-10-13)
+
+Built and tested (Rust unit and integration tests, browser preview of the UI):
+- **Sync core**: migration v3 replaces the row-level `sync_changes` log with per-cell clocks (`sync_clock`), stamped by generated triggers; a local edit always gets a timestamp above the value it replaces, so a device with a slow clock still wins with newer edits. Existing rows are stamped from `updated_at`, so data entered before pairing merges.
+- Merge is last-writer-wins per cell; rows with a natural key (habit logs, attendance) created on both devices merge into one. Attendance, habit logs and activity events now use soft deletes and ids derived from their natural key, since hard deletes are not synced.
+- Bundles: each device's own changes for a `seq` range, deflated and sealed with XChaCha20-Poly1305 under the group key; receivers apply ranges in order and wait if one is missing.
+- Pairing: QR code / `KZ1-…` code carrying the group key; scanned with the barcode-scanner plugin on Android.
+- Transports: Google Drive (`drive.appdata`, OAuth PKCE with a loopback redirect on desktop and Android, client from build-time env vars), direct LAN / Tailscale (laptop serves its mailbox on port 47913 with a key-derived token; the phone uses a typed address), and a shared folder (desktop).
+- Auto-sync while unlocked: shortly after unlock, 15 s after changes, on returning to the app and every 5 minutes; incoming changes reload all screens and reschedule notifications. Settings → Sync shows devices, Drive account, direct-sync addresses, history and unpair.
+- Restoring a backup gives the device a new id so its re-used sequence numbers are not skipped by others.
+
+Still to do:
+- On-device test with the real Google OAuth client (needs the Google Cloud setup in the README).
+- Clean up old bundles in Drive (snapshot once every device has applied them).
+- Automatic laptop discovery (mDNS) and laptop addresses inside the QR code; for now the address is typed.
+- Background sync on Android (`WorkManager`); for now sync runs while the app is open.
+
 ## 7. Open questions
 
 Answered: Android 16, CSV statements, sync via Google Drive (dedicated account) plus LAN / Tailscale (college Wi-Fi blocks LAN), React, LLM on laptop only, package `com.matt.kaizen`, Spotify Premium (yes), attendance minimum 80%, sports teams and players followed from inside the app, debts in ₹ only, bank is PNB, timetable entered manually (weekly) with extra classes, cancellations, holidays and vacations, labs/tutorials counted separately as an option, medical/duty leave counts as present, extra modules chosen (section 3), Finance built last.

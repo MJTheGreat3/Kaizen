@@ -57,13 +57,13 @@ export async function runSelfTest(): Promise<SelfTestStep[]> {
     [
       "Changes recorded for sync",
       async () => {
-        const changes = await db
-          .select({ op: schema.syncChanges.op })
-          .from(schema.syncChanges)
-          .where(and(eq(schema.syncChanges.tableName, "settings"), eq(schema.syncChanges.rowId, KEY)));
-        const ops = changes.map((c) => c.op);
-        if (!ops.includes("insert") || !ops.includes("update")) throw new Error(`got [${ops.join(", ")}]`);
-        return `${ops.length} entries`;
+        const cells = await db
+          .select({ col: schema.syncClock.col })
+          .from(schema.syncClock)
+          .where(and(eq(schema.syncClock.tableName, "settings"), eq(schema.syncClock.rowId, KEY)));
+        const cols = cells.map((c) => c.col);
+        if (!cols.includes("value") || !cols.includes("deleted_at")) throw new Error(`got [${cols.join(", ")}]`);
+        return `${cols.length} cells`;
       },
     ],
   ];
@@ -73,7 +73,7 @@ export async function runSelfTest(): Promise<SelfTestStep[]> {
 
   await step("Clean up", async () => {
     await db.delete(schema.settings).where(eq(schema.settings.id, KEY));
-    await db.delete(schema.syncChanges).where(eq(schema.syncChanges.rowId, KEY));
+    await db.delete(schema.syncClock).where(eq(schema.syncClock.rowId, KEY));
   });
 
   return steps;

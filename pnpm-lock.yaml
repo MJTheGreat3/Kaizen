@@ -29,6 +29,9 @@ importers:
       '@tauri-apps/api':
         specifier: ^2
         version: 2.12.3
+      '@tauri-apps/plugin-barcode-scanner':
+        specifier: ~2.5.2
+        version: 2.5.2
       '@tauri-apps/plugin-biometric':
         specifier: ^2.4.2
         version: 2.4.2
@@ -80,6 +83,9 @@ importers:
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
+      uqr:
+        specifier: ^0.1.3
+        version: 0.1.3
       uuidv7:
         specifier: ^1.2.1
         version: 1.2.1
@@ -1781,6 +1787,9 @@ packages:
     engines: {node: '>= 10'}
     hasBin: true
 
+  '@tauri-apps/plugin-barcode-scanner@2.5.2':
+    resolution: {integrity: sha512-eOTIwy28iRJvr+yqhnSdBEXbbS8d7wSpKwkNX7ZfGFJweIc7NyI1SY02Nb8e2Gi7x/G32GbYuV0Mdi6ibUEVJg==}
+
   '@tauri-apps/plugin-biometric@2.4.2':
     resolution: {integrity: sha512-sOR3oOILpElPXqcBN7tMh1g93J2FsJ0d/CAxmpnuTkojFEIRAJth1/NMQSBodLfoHKY9Eg6i9JO+IEKPssqTMg==}
 
@@ -2827,6 +2836,9 @@ packages:
     hasBin: true
     peerDependencies:
       browserslist: '>= 4.21.0'
+
+  uqr@0.1.3:
+    resolution: {integrity: sha512-0rjE8iEJe4YmT9TOhwsZtqCMRLc5DXZUI2UEYUUg63ikBkqqE5EYWaI0etFe/5KUcmcYwLih2RND1kq+hrUJXA==}
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
@@ -4395,6 +4407,10 @@ snapshots:
       '@tauri-apps/cli-win32-ia32-msvc': 2.12.2
       '@tauri-apps/cli-win32-x64-msvc': 2.12.2
 
+  '@tauri-apps/plugin-barcode-scanner@2.5.2':
+    dependencies:
+      '@tauri-apps/api': 2.12.3
+
   '@tauri-apps/plugin-biometric@2.4.2':
     dependencies:
       '@tauri-apps/api': 2.12.3
@@ -5330,6 +5346,8 @@ snapshots:
       browserslist: 4.29.3
       escalade: 3.2.0
       picocolors: 1.1.1
+
+  uqr@0.1.3: {}
 
   uri-js@4.4.1:
     dependencies:

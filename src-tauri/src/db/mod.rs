@@ -174,7 +174,7 @@ pub enum QueryMethod {
     Get,
 }
 
-fn json_to_sql(value: &JsonValue) -> Result<SqlValue> {
+pub(crate) fn json_to_sql(value: &JsonValue) -> Result<SqlValue> {
     Ok(match value {
         JsonValue::Null => SqlValue::Null,
         JsonValue::Bool(b) => SqlValue::Integer(*b as i64),
@@ -195,7 +195,7 @@ fn json_to_sql(value: &JsonValue) -> Result<SqlValue> {
     })
 }
 
-fn sql_to_json(value: ValueRef<'_>) -> JsonValue {
+pub(crate) fn sql_to_json(value: ValueRef<'_>) -> JsonValue {
     match value {
         ValueRef::Null => JsonValue::Null,
         ValueRef::Integer(i) => JsonValue::from(i),
@@ -239,20 +239,25 @@ mod tests {
         )
         .unwrap();
 
-        let changes = db
+        let cells = db
             .query(
-                "SELECT op, device_id FROM sync_changes WHERE table_name = 'settings' ORDER BY seq",
+                "SELECT col, ts, device_id FROM sync_clock WHERE table_name = 'settings' AND row_id = 'theme' ORDER BY col",
                 &[],
                 QueryMethod::All,
             )
             .unwrap();
+        let cols: Vec<_> = cells.iter().map(|c| c[0].clone()).collect();
         assert_eq!(
-            changes,
+            cols,
             vec![
-                vec![json!("insert"), json!(device)],
-                vec![json!("update"), json!(device)]
+                json!("created_at"),
+                json!("deleted_at"),
+                json!("device_id"),
+                json!("updated_at"),
+                json!("value")
             ]
         );
+        assert!(cells.iter().all(|c| c[2] == json!(device)));
 
         // FTS5 with the trigram tokenizer is available.
         db.query(
@@ -306,7 +311,9 @@ mod dump {
     #[test]
     #[ignore]
     fn dump_schema() {
-        let Ok(out) = std::env::var("KAIZEN_SCHEMA_OUT") else { return };
+        let Ok(out) = std::env::var("KAIZEN_SCHEMA_OUT") else {
+            return;
+        };
         let dir = tempfile::tempdir().unwrap();
         let key = zeroize::Zeroizing::new([3u8; 32]);
         let db = Database::open(&dir.path().join(DB_FILE), &key, None).unwrap();
@@ -319,6 +326,8 @@ mod dump {
             sql.push_str(&row.unwrap());
             sql.push_str(";\n");
         }
+        // Clock triggers need a device id before any row is inserted.
+        sql.push_str("INSERT INTO local_meta VALUES ('device_id', '01mock-device-0000');\n");
         let mut stmt = db.conn().prepare("SELECT * FROM activity_types").unwrap();
         let cols = stmt.column_count();
         let mut rows = stmt.query([]).unwrap();
@@ -328,11 +337,16 @@ mod dump {
                     rusqlite::types::ValueRef::Null => "NULL".into(),
                     rusqlite::types::ValueRef::Integer(n) => n.to_string(),
                     rusqlite::types::ValueRef::Real(f) => f.to_string(),
-                    rusqlite::types::ValueRef::Text(t) => format!("'{}'", String::from_utf8_lossy(t).replace('\'', "''")),
+                    rusqlite::types::ValueRef::Text(t) => {
+                        format!("'{}'", String::from_utf8_lossy(t).replace('\'', "''"))
+                    }
                     rusqlite::types::ValueRef::Blob(_) => "NULL".into(),
                 })
                 .collect();
-            sql.push_str(&format!("INSERT INTO activity_types VALUES ({});\n", vals.join(", ")));
+            sql.push_str(&format!(
+                "INSERT INTO activity_types VALUES ({});\n",
+                vals.join(", ")
+            ));
         }
         std::fs::write(out, sql).unwrap();
     }

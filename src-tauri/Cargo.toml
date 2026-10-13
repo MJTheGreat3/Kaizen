@@ -37,6 +37,12 @@ base32 = "0.5.1"
 tauri-plugin-dialog = "2.8.2"
 zeroize = "1.9.1"
 tauri-plugin-notification = "2.6.0"
+flate2 = "1.1.10"
+blake2 = "0.10"
+ureq = { version = "3", features = ["json"] }
+sha2 = "0.10"
+base64 = "0.23.1"
+tiny_http = "0.12"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
@@ -49,9 +55,11 @@ strip = true
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-biometric = "2.4.2"
+tauri-plugin-barcode-scanner = "2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+if-addrs = "0.15"
 
 [dev-dependencies]
 tempfile = "3.27.0"

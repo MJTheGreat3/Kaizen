@@ -24,6 +24,10 @@ export interface Prefs {
   "notify.debts": boolean;
   /** Morning summary time (`HH:MM`), or empty for none. */
   "notify.digest": string;
+  /** Shared folder to sync through (desktop), or empty. */
+  "sync.folder": string;
+  /** Laptop address for direct sync (phone): IP or name, optional `:port`. */
+  "sync.lanHost": string;
 }
 
 export const defaultPrefs: Prefs = {
@@ -39,6 +43,8 @@ export const defaultPrefs: Prefs = {
   "notify.dates": true,
   "notify.debts": true,
   "notify.digest": "07:30",
+  "sync.folder": "",
+  "sync.lanHost": "",
 };
 
 const PREFIX = "pref.";

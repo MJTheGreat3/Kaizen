@@ -53,6 +53,25 @@ export RANLIB_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/darwin-x
 rustup target add aarch64-linux-android
 ```
 
+### Google Drive sync (one-time setup)
+
+Sync goes through the hidden app folder of a Google account you choose, so the build needs your own Google OAuth client. It is free and needs no billing account. Using the Google account that will hold the sync data:
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), create a project (e.g. "Kaizen").
+2. **APIs & Services → Library**: enable the **Google Drive API**.
+3. **Google Auth Platform → Branding** (or "Get started"): app name `Kaizen`, your email as support and contact email, audience **External**.
+4. **Data access → Add or remove scopes**: add `.../auth/drive.appdata`, `openid` and `.../auth/userinfo.email`.
+5. **Audience**: under Publishing status, click **Publish app** so it is **In production**. In "Testing", Google signs you out every 7 days.
+6. **Clients → Create client**: application type **Desktop app**, name `Kaizen`. Copy the client ID and secret.
+7. Add them to `~/.zshrc`, open a new terminal and rebuild (desktop and Android):
+
+```sh
+export KAIZEN_GOOGLE_CLIENT_ID="…apps.googleusercontent.com"
+export KAIZEN_GOOGLE_CLIENT_SECRET="…"
+```
+
+Then in Kaizen: on the laptop, **Settings → Sync → Show code**; on the phone, **Settings → Sync → Join** and scan it. Connect the same Google account on both. When signing in, Google warns that it "hasn't verified this app": that is expected for your own app; choose **Advanced → Go to Kaizen**. On the phone, come back to Kaizen after signing in.
+
 ### Commands
 
 | Task | Command |
@@ -75,5 +94,6 @@ src-tauri/            Rust backend
   src/db/             SQLCipher connection and migrations (schema source of truth)
   src/vault.rs        key derivation, wrapping and device unlock
   src/backup.rs       backup, restore and erase
+  src/sync/           sync: per-cell clocks and merging, encrypted bundles, Drive and folder transports
   gen/android/        Android project
 ```

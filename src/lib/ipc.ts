@@ -15,7 +15,8 @@ export type ErrorCode =
   | "json"
   | "crypto"
   | "keychain"
-  | "tauri";
+  | "tauri"
+  | "http";
 
 export class AppError extends Error {
   constructor(
@@ -67,6 +68,45 @@ export interface BackupInfo {
   sizeBytes: number;
 }
 
+export interface SyncPeer {
+  deviceId: string;
+  name: string;
+  platform: string;
+  lastReceivedAt: number | null;
+}
+
+export interface SyncLogEntry {
+  at: number;
+  transport: "drive" | "folder" | "lan" | string;
+  sent: number;
+  received: number;
+  error: string | null;
+}
+
+export interface SyncStatus {
+  deviceId: string;
+  /** Set once this device has started or joined a sync group. */
+  groupId: string | null;
+  driveAvailable: boolean;
+  /** Connected Google account; empty string when its email is unknown. */
+  driveAccount: string | null;
+  peers: SyncPeer[];
+  log: SyncLogEntry[];
+}
+
+export interface SyncReport {
+  sent: number;
+  received: number;
+  peers: number;
+  waiting: boolean;
+}
+
+export interface LanInfo {
+  serving: boolean;
+  port: number;
+  addresses: string[];
+}
+
 export type QueryMethod = "run" | "all" | "values" | "get";
 
 export const ipc = {
@@ -91,6 +131,17 @@ export const ipc = {
 
   dataWipe: () => call<void>("data_wipe"),
   dataExportJson: (dir?: string | null) => call<string>("data_export_json", { dir: dir || null }),
+
+  syncStatus: () => call<SyncStatus>("sync_status"),
+  syncPairCode: () => call<string>("sync_pair_code"),
+  syncJoin: (code: string) => call<void>("sync_join", { code }),
+  syncLeave: () => call<void>("sync_leave"),
+  syncDrive: () => call<SyncReport>("sync_drive"),
+  syncDriveConnect: () => call<string>("sync_drive_connect"),
+  syncDriveDisconnect: () => call<void>("sync_drive_disconnect"),
+  syncFolder: (path: string) => call<SyncReport>("sync_folder", { path }),
+  syncLan: (host: string | null) => call<SyncReport>("sync_lan", { host }),
+  syncLanInfo: () => call<LanInfo>("sync_lan_info"),
 
   logsTail: (lines: number) => call<string>("logs_tail", { lines }),
   logFrontend: (level: "debug" | "info" | "warn" | "error", message: string) =>

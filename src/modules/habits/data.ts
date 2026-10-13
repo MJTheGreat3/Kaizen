@@ -46,7 +46,7 @@ function useHabitMutation<A>(fn: (a: A) => Promise<unknown>) {
   });
 }
 
-/** Sets a habit's value for a day; 0 removes the log. */
+/** Sets a habit's value for a day; 0 removes the log (soft delete). */
 export async function logHabit(habit: Habit, date: DateKey, value: number) {
   const existing: HabitLog | undefined = await db
     .select()
@@ -54,11 +54,11 @@ export async function logHabit(habit: Habit, date: DateKey, value: number) {
     .where(and(eq(l.habitId, habit.id), eq(l.date, date)))
     .get();
   if (value <= 0) {
-    if (existing) await db.delete(l).where(eq(l.id, existing.id));
+    if (existing && !existing.deletedAt) await db.update(l).set({ deletedAt: Date.now() }).where(eq(l.id, existing.id));
   } else if (existing) {
-    await db.update(l).set({ value }).where(eq(l.id, existing.id));
+    await db.update(l).set({ value, deletedAt: null }).where(eq(l.id, existing.id));
   } else {
-    await db.insert(l).values({ habitId: habit.id, date, value });
+    await db.insert(l).values({ id: `hl:${habit.id}:${date}`, habitId: habit.id, date, value });
   }
   const key = `${habit.id}:${date}`;
   if (isDone(habit, value)) await recordActivity("habits", date, "habit_logs", key);

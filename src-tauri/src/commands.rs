@@ -2,15 +2,21 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use serde_json::Value as JsonValue;
-use tauri::State;
+use tauri::{Emitter, Manager, State};
 
 use crate::backup::{self, BackupInfo};
 use crate::db::{DB_FILE, Database, QueryMethod};
 use crate::error::{Error, Result};
+use crate::sync::{
+    self, Report, Status, drive,
+    mailbox::{FolderMailbox, Mailbox},
+};
 use crate::vault::{self, DataKey};
 use crate::{AppState, Session, logging};
 
 const DEVICE_UNLOCK_MARKER: &str = "device-unlock.enabled";
+/// Left by a restore: the restored database must take a new device id.
+const RESTORED_MARKER: &str = "restored.pending";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,6 +53,12 @@ fn open_session(state: &AppState, key: DataKey, recovery_key: Option<String>) ->
         &key,
         Some(&backup::default_dir(&state.data_dir)),
     )?;
+    let restored = state.data_dir.join(RESTORED_MARKER);
+    if restored.exists() {
+        sync::rotate_device_id(db.conn())?;
+        std::fs::remove_file(restored)?;
+    }
+    sync::register_device(db.conn(), std::env::consts::OS)?;
     let device_id = db.device_id()?;
     *state.session.lock().unwrap() = Some(Session { db, key });
     tracing::info!("unlocked");
@@ -188,6 +200,7 @@ pub async fn backup_restore(state: State<'_, AppState>, path: String) -> Result<
     let mut session = state.session.lock().unwrap();
     session.take();
     backup::restore(&state.data_dir, Path::new(&path))?;
+    std::fs::write(state.data_dir.join(RESTORED_MARKER), b"1")?;
     let marker = state.data_dir.join(DEVICE_UNLOCK_MARKER);
     if marker.exists() {
         std::fs::remove_file(marker)?;
@@ -238,4 +251,159 @@ pub fn log_frontend(level: String, message: String) {
         "debug" => tracing::debug!(target: "frontend", "{message}"),
         _ => tracing::info!(target: "frontend", "{message}"),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Sync
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn sync_status(state: State<'_, AppState>) -> Result<Status> {
+    with_session(&state, |s| sync::status(s.db.conn()))
+}
+
+/// Starts a sync group (or reuses this device's) and returns its pairing code.
+#[tauri::command]
+pub async fn sync_pair_code(state: State<'_, AppState>) -> Result<String> {
+    with_session(&state, |s| sync::create_group(s.db.conn()))
+}
+
+#[tauri::command]
+pub async fn sync_join(state: State<'_, AppState>, code: String) -> Result<()> {
+    with_session(&state, |s| sync::join_group(s.db.conn(), &code))
+}
+
+#[tauri::command]
+pub async fn sync_leave(state: State<'_, AppState>) -> Result<()> {
+    with_session(&state, |s| sync::leave_group(s.db.conn()))
+}
+
+/// Tells the frontend to reload its data after other devices' changes landed.
+fn announce(app: &tauri::AppHandle, report: &Report) {
+    if report.received > 0 {
+        let _ = app.emit("sync://changed", report.received);
+    }
+}
+
+/// One sync at a time, whichever transport starts it.
+static SYNC_RUNNING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T> + Send + 'static) -> Result<T> {
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| Error::Invalid(e.to_string()))?
+}
+
+async fn run_mailbox(
+    app: tauri::AppHandle,
+    connect: impl FnOnce(&AppState) -> Result<Box<dyn Mailbox>> + Send + 'static,
+) -> Result<Report> {
+    let handle = app.clone();
+    let report = blocking(move || {
+        let _running = SYNC_RUNNING.lock().unwrap_or_else(|e| e.into_inner());
+        let state = handle.state::<AppState>();
+        let mailbox = connect(&state)?;
+        sync::sync_mailbox(&state.session, mailbox.as_ref())
+    })
+    .await?;
+    announce(&app, &report);
+    Ok(report)
+}
+
+/// Syncs through a shared folder (e.g. kept in step by Syncthing).
+#[tauri::command]
+pub async fn sync_folder(app: tauri::AppHandle, path: String) -> Result<Report> {
+    run_mailbox(app, move |_| {
+        Ok(Box::new(FolderMailbox {
+            root: PathBuf::from(path),
+        }))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn sync_drive(app: tauri::AppHandle) -> Result<Report> {
+    run_mailbox(app, |state| {
+        let refresh = with_session(state, |s| drive::refresh_token(s.db.conn()))?
+            .ok_or_else(|| Error::Invalid("Google Drive is not connected".into()))?;
+        Ok(Box::new(drive::DriveMailbox::connect(&refresh)?))
+    })
+    .await
+}
+
+/// Direct sync with the laptop. On the laptop (`host` empty) this syncs with
+/// the folder it serves; on the phone it syncs with the laptop at `host`.
+/// An unreachable laptop is not an error: the report just has no peers.
+#[tauri::command]
+pub async fn sync_lan(app: tauri::AppHandle, host: Option<String>) -> Result<Report> {
+    let host = host.filter(|h| !h.trim().is_empty());
+    if let Some(host) = &host {
+        let state = app.state::<AppState>();
+        let key = with_session(&state, |s| sync::group_key(s.db.conn()))?
+            .ok_or_else(|| Error::Invalid("this device is not paired".into()))?;
+        let mailbox = sync::lan::HttpMailbox::new(host, &key);
+        if !blocking(move || Ok(mailbox.reachable())).await? {
+            return Ok(Report::default());
+        }
+    }
+    run_mailbox(app, move |state| {
+        Ok(match host {
+            Some(host) => {
+                let key = with_session(state, |s| sync::group_key(s.db.conn()))?
+                    .ok_or_else(|| Error::Invalid("this device is not paired".into()))?;
+                Box::new(sync::lan::HttpMailbox::new(&host, &key))
+            }
+            None => Box::new(sync::lan::LocalStore(FolderMailbox {
+                root: sync::lan::store_dir(&state.data_dir),
+            })),
+        })
+    })
+    .await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LanInfo {
+    /// Whether this device serves direct sync (desktop only).
+    serving: bool,
+    port: u16,
+    addresses: Vec<String>,
+}
+
+#[tauri::command]
+pub fn sync_lan_info() -> LanInfo {
+    #[cfg(desktop)]
+    return LanInfo {
+        serving: true,
+        port: sync::lan::PORT,
+        addresses: sync::lan::local_addresses(),
+    };
+    #[cfg(mobile)]
+    LanInfo {
+        serving: false,
+        port: sync::lan::PORT,
+        addresses: Vec::new(),
+    }
+}
+
+/// Opens Google sign-in in the browser and waits for it to finish.
+/// Returns the account's email.
+#[tauri::command]
+pub async fn sync_drive_connect(app: tauri::AppHandle) -> Result<String> {
+    use tauri_plugin_opener::OpenerExt;
+    let sign_in = drive::start_sign_in()?;
+    app.opener()
+        .open_url(sign_in.url.clone(), None::<&str>)
+        .map_err(|e| Error::Invalid(format!("could not open the browser: {e}")))?;
+    let (refresh, email) = blocking(move || drive::finish_sign_in(sign_in)).await?;
+    let state = app.state::<AppState>();
+    with_session(&state, |s| {
+        drive::save_account(s.db.conn(), &refresh, email.as_deref())
+    })?;
+    Ok(email.unwrap_or_default())
+}
+
+#[tauri::command]
+pub async fn sync_drive_disconnect(state: State<'_, AppState>) -> Result<()> {
+    with_session(&state, |s| drive::forget_account(s.db.conn()))
 }

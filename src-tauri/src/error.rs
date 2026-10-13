@@ -27,6 +27,8 @@ pub enum Error {
     Keychain(String),
     #[error("{0}")]
     Tauri(#[from] tauri::Error),
+    #[error("{0}")]
+    Http(String),
 }
 
 impl Error {
@@ -44,6 +46,7 @@ impl Error {
             Error::Crypto => "crypto",
             Error::Keychain(_) => "keychain",
             Error::Tauri(_) => "tauri",
+            Error::Http(_) => "http",
         }
     }
 }

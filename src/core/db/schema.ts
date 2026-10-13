@@ -31,13 +31,24 @@ export const localMeta = sqliteTable("local_meta", {
   value: text("value").notNull(),
 });
 
-export const syncChanges = sqliteTable("sync_changes", {
-  seq: integer("seq").primaryKey({ autoIncrement: true }),
+/** Last-writer-wins clock per synced cell, written by triggers. */
+export const syncClock = sqliteTable("sync_clock", {
   tableName: text("table_name").notNull(),
   rowId: text("row_id").notNull(),
-  op: text("op", { enum: ["insert", "update", "delete"] }).notNull(),
-  changedAt: integer("changed_at").notNull(),
-  deviceId: text("device_id"),
+  col: text("col").notNull(),
+  ts: integer("ts").notNull(),
+  deviceId: text("device_id").notNull(),
+  seq: integer("seq").notNull(),
+});
+
+/** Device-local history of sync runs. */
+export const syncLog = sqliteTable("sync_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  at: integer("at").notNull(),
+  transport: text("transport").notNull(),
+  sent: integer("sent").notNull(),
+  received: integer("received").notNull(),
+  error: text("error"),
 });
 
 /** Synced settings; `id` is the key and `value` is JSON. */

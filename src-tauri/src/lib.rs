@@ -3,6 +3,7 @@ mod commands;
 mod db;
 mod error;
 mod logging;
+mod sync;
 mod vault;
 
 use std::path::PathBuf;
@@ -30,7 +31,9 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init());
 
     #[cfg(mobile)]
-    let builder = builder.plugin(tauri_plugin_biometric::init());
+    let builder = builder
+        .plugin(tauri_plugin_biometric::init())
+        .plugin(tauri_plugin_barcode_scanner::init());
 
     builder
         .setup(|app| {
@@ -40,6 +43,19 @@ pub fn run() {
             std::fs::create_dir_all(&log_dir)?;
             logging::init(&log_dir);
             tracing::info!(version = %app.package_info().version, data_dir = %data_dir.display(), "starting Kaizen");
+            #[cfg(desktop)]
+            {
+                let handle = app.handle().clone();
+                let store = sync::lan::store_dir(&data_dir);
+                std::thread::spawn(move || {
+                    sync::lan::serve(store, move || {
+                        let state = handle.state::<AppState>();
+                        let guard = state.session.lock().ok()?;
+                        let key = sync::group_key(guard.as_ref()?.db.conn()).ok()??;
+                        Some((sync::bundle::group_id(&key), sync::lan::auth_token(&key)))
+                    })
+                });
+            }
             app.manage(AppState { data_dir, log_dir, session: Mutex::new(None) });
             Ok(())
         })
@@ -61,6 +77,16 @@ pub fn run() {
             commands::data_export_json,
             commands::logs_tail,
             commands::log_frontend,
+            commands::sync_status,
+            commands::sync_pair_code,
+            commands::sync_join,
+            commands::sync_leave,
+            commands::sync_folder,
+            commands::sync_lan,
+            commands::sync_lan_info,
+            commands::sync_drive,
+            commands::sync_drive_connect,
+            commands::sync_drive_disconnect,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

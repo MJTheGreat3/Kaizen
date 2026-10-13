@@ -9,6 +9,7 @@ import { LoadingScreen, RecoveryKeyScreen, SetupScreen, UnlockScreen } from "@/c
 import { useSession } from "@/core/security/session";
 import { useAutoLock } from "@/core/security/useAutoLock";
 import { useNotificationSync } from "@/core/notifications/scheduler";
+import { useAutoSync } from "@/core/sync/autosync";
 import { useTheme } from "@/core/theme";
 import { log } from "@/lib/log";
 import { ease } from "@/lib/motion";
@@ -33,7 +34,9 @@ export function App() {
 
   useAutoLock(unlocked);
   useScheduledBackup(unlocked);
-  useNotificationSync(unlocked, info?.platform === "android" ? "android" : "desktop");
+  const platform = info?.platform === "android" ? "android" : "desktop";
+  useNotificationSync(unlocked, platform);
+  useAutoSync(unlocked, platform);
 
   return (
     <>

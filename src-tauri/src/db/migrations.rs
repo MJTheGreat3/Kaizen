@@ -1,9 +1,10 @@
 //! Versioned schema migrations, tracked with `PRAGMA user_version`.
 //!
 //! Every synced table has the shared columns `id`, `created_at`, `updated_at`,
-//! `deleted_at` and `device_id`, plus triggers that record each change in
-//! `sync_changes` for LAN sync (Phase 2). Keep `src/core/db/schema.ts` in step
-//! with this file.
+//! `deleted_at` and `device_id`. From v3, triggers stamp every changed cell in
+//! `sync_clock` (see `crate::sync`). A migration that adds a synced table or a
+//! column to one must call [`install_clock_triggers`] for it. Keep
+//! `src/core/db/schema.ts` in step with this file.
 
 use rusqlite::Connection;
 
@@ -357,7 +358,141 @@ fn seed_activity_types(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub const LATEST: i64 = 2;
+/// Every synced table, parents before children so rows referencing other
+/// rows can be applied in order.
+pub fn synced_tables() -> impl Iterator<Item = &'static str> {
+    V1_SYNCED.iter().chain(V2_SYNCED).copied()
+}
+
+/// Columns of `table`, in declaration order.
+pub fn table_columns(conn: &Connection, table: &str) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT name FROM pragma_table_info(?1)")?;
+    let cols = stmt
+        .query_map([table], |r| r.get(0))?
+        .collect::<std::result::Result<Vec<String>, _>>()?;
+    Ok(cols)
+}
+
+/// (Re)creates the triggers that stamp each changed cell of `table` in
+/// `sync_clock`. A cell's new timestamp is never below its previous one, so a
+/// local edit always beats the value it replaces even if this device's clock
+/// is behind. Nothing is stamped while remote changes are being applied
+/// (`sync.applying` set in `local_meta`); hard deletes are not synced.
+pub fn install_clock_triggers(conn: &Connection, table: &str) -> Result<()> {
+    let cols: Vec<String> = table_columns(conn, table)?
+        .into_iter()
+        .filter(|c| c != "id")
+        .collect();
+    let stamp = |col: &str, row: &str, condition: &str| {
+        format!(
+            "  INSERT OR REPLACE INTO sync_clock (table_name, row_id, col, ts, device_id, seq)
+  SELECT '{table}', {row}.id, '{col}',
+    MAX({NOW_MS}, COALESCE((SELECT ts + 1 FROM sync_clock WHERE table_name = '{table}' AND row_id = {row}.id AND col = '{col}'), 0)),
+    (SELECT value FROM local_meta WHERE key = 'device_id'),
+    COALESCE((SELECT MAX(seq) FROM sync_clock), 0) + 1{condition};
+"
+        )
+    };
+    let not_applying = "NOT EXISTS (SELECT 1 FROM local_meta WHERE key = 'sync.applying')";
+    let mut sql = format!(
+        "DROP TRIGGER IF EXISTS {table}_clock_insert;
+DROP TRIGGER IF EXISTS {table}_clock_update;
+CREATE TRIGGER {table}_clock_insert AFTER INSERT ON {table} WHEN {not_applying} BEGIN
+"
+    );
+    for col in &cols {
+        sql.push_str(&stamp(col, "NEW", ""));
+    }
+    sql.push_str(&format!(
+        "END;
+CREATE TRIGGER {table}_clock_update AFTER UPDATE ON {table} WHEN {not_applying} BEGIN
+"
+    ));
+    for col in &cols {
+        sql.push_str(&stamp(
+            col,
+            "NEW",
+            &format!(" WHERE OLD.\"{col}\" IS NOT NEW.\"{col}\""),
+        ));
+    }
+    sql.push_str("END;\n");
+    conn.execute_batch(&sql)?;
+    Ok(())
+}
+
+/// Phase 2: per-cell clocks for sync (replacing the row-level
+/// `sync_changes` log), plus device-local sync bookkeeping. Existing cells
+/// are stamped with their row's `updated_at` so data entered before pairing
+/// merges too.
+fn v3(conn: &Connection) -> Result<()> {
+    let mut drop = String::new();
+    for table in synced_tables() {
+        for op in ["insert", "update", "delete"] {
+            drop.push_str(&format!("DROP TRIGGER IF EXISTS {table}_sync_{op};\n"));
+        }
+    }
+    conn.execute_batch(&format!(
+        "{drop}
+DROP TABLE sync_changes;
+
+-- Last-writer-wins clock for every synced cell. `seq` orders this device's
+-- writes so it can send only what changed since the last sync.
+CREATE TABLE sync_clock (
+  table_name TEXT NOT NULL,
+  row_id     TEXT NOT NULL,
+  col        TEXT NOT NULL,
+  ts         INTEGER NOT NULL,
+  device_id  TEXT NOT NULL,
+  seq        INTEGER NOT NULL,
+  PRIMARY KEY (table_name, row_id, col)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX sync_clock_seq ON sync_clock (seq);
+
+-- Per source device: the highest of its `seq` values applied here.
+CREATE TABLE sync_peers (
+  device_id   TEXT PRIMARY KEY,
+  applied_seq INTEGER NOT NULL DEFAULT 0,
+  last_at     INTEGER
+) STRICT;
+
+-- Device-local history of sync runs.
+CREATE TABLE sync_log (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  at        INTEGER NOT NULL,
+  transport TEXT NOT NULL,
+  sent      INTEGER NOT NULL DEFAULT 0,
+  received  INTEGER NOT NULL DEFAULT 0,
+  error     TEXT
+) STRICT;
+"
+    ))?;
+    let device: String = conn.query_row(
+        "SELECT value FROM local_meta WHERE key = 'device_id'",
+        [],
+        |r| r.get(0),
+    )?;
+    let mut seq: i64 = 0;
+    for table in synced_tables() {
+        let cols = table_columns(conn, table)?;
+        let mut rows = conn.prepare(&format!("SELECT id, updated_at FROM {table}"))?;
+        let rows = rows
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let mut insert = conn.prepare(
+            "INSERT INTO sync_clock (table_name, row_id, col, ts, device_id, seq) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        )?;
+        for (id, updated_at) in rows {
+            for col in cols.iter().filter(|c| *c != "id") {
+                seq += 1;
+                insert.execute(rusqlite::params![table, id, col, updated_at, device, seq])?;
+            }
+        }
+        install_clock_triggers(conn, table)?;
+    }
+    Ok(())
+}
+
+pub const LATEST: i64 = 3;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -365,8 +500,12 @@ pub fn current_version(conn: &Connection) -> Result<i64> {
 
 /// Applies pending migrations, each in its own transaction.
 pub fn migrate(conn: &mut Connection) -> Result<()> {
+    migrate_to(conn, LATEST)
+}
+
+pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
     let mut version = current_version(conn)?;
-    while version < LATEST {
+    while version < target {
         let next = version + 1;
         let tx = conn.transaction()?;
         match next {
@@ -383,6 +522,7 @@ pub fn migrate(conn: &mut Connection) -> Result<()> {
                 seed_activity_types(&tx)?;
             }
             2 => tx.execute_batch(&v2())?,
+            3 => v3(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;
@@ -391,4 +531,51 @@ pub fn migrate(conn: &mut Connection) -> Result<()> {
         version = next;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v3_stamps_existing_rows_and_keeps_tracking_changes() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrate_to(&mut conn, 2).unwrap();
+        conn.execute(
+            "INSERT INTO tasks (id, list, title, created_at, updated_at, device_id) VALUES ('t', 'todo', 'Old task', 5, 7, 'd')",
+            [],
+        )
+        .unwrap();
+        migrate_to(&mut conn, LATEST).unwrap();
+
+        let (count, ts): (i64, i64) = conn
+            .query_row("SELECT count(*), MIN(ts) FROM sync_clock WHERE table_name = 'tasks' AND row_id = 't'", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert_eq!(
+            count,
+            table_columns(&conn, "tasks").unwrap().len() as i64 - 1
+        );
+        assert_eq!(ts, 7);
+
+        conn.execute("UPDATE tasks SET title = 'New' WHERE id = 't'", [])
+            .unwrap();
+        let title_ts: i64 = conn
+            .query_row(
+                "SELECT ts FROM sync_clock WHERE row_id = 't' AND col = 'title'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(title_ts > 7);
+        let old: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE name LIKE '%_sync_insert'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(old, 0);
+    }
 }
