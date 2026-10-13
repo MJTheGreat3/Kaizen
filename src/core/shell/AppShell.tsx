@@ -10,6 +10,7 @@ import { ease, spring } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { groupLabels, modules, type ModuleGroup } from "@/modules/registry";
 import { useSession } from "@/core/security/session";
+import { SyncButton } from "@/core/sync/SyncButton";
 import { CommandPalette } from "./CommandPalette";
 import { usePalette } from "./palette";
 
@@ -149,6 +150,7 @@ function MobileTopBar() {
           >
             <MagnifyingGlass size={20} />
           </button>
+          <SyncButton variant="icon" />
           <button
             aria-label="Lock"
             onClick={() => void lock()}
@@ -265,6 +267,7 @@ export function AppShell() {
         </motion.main>
       </div>
       <BottomNav />
+      <SyncButton variant="floating" />
       <CommandPalette />
     </div>
   );
