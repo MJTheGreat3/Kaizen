@@ -5,6 +5,15 @@ import { Placeholder } from "@/modules/Placeholder";
 import { modules } from "@/modules/registry";
 import { SettingsPage } from "@/modules/settings/SettingsPage";
 import { TodayPage } from "@/modules/today/TodayPage";
+import { ListsPage } from "@/modules/lists/ListsPage";
+import { DebtsPage } from "@/modules/debts/DebtsPage";
+
+/** Built modules; the rest show their placeholder. */
+const pages: Record<string, () => React.ReactNode> = {
+  today: TodayPage,
+  lists: ListsPage,
+  debts: DebtsPage,
+};
 
 const rootRoute = createRootRoute({ component: AppShell });
 
@@ -12,7 +21,7 @@ const moduleRoutes = modules.map((module) =>
   createRoute({
     getParentRoute: () => rootRoute,
     path: module.path,
-    component: module.id === "today" ? TodayPage : () => <Placeholder module={module} />,
+    component: pages[module.id] ?? (() => <Placeholder module={module} />),
   }),
 );
 

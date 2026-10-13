@@ -36,6 +36,7 @@ chrono = { version = "0.4.45", features = ["serde"] }
 base32 = "0.5.1"
 tauri-plugin-dialog = "2.8.2"
 zeroize = "1.9.1"
+tauri-plugin-notification = "2.6.0"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

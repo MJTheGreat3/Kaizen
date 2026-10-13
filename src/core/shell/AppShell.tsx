@@ -212,7 +212,7 @@ function BottomNav() {
       </nav>
 
       <Dialog open={moreOpen} onOpenChange={setMoreOpen}>
-        <DialogContent className="inset-x-0 bottom-0 top-auto left-0 w-full max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-[28px] border-x-0 border-b-0 pb-[calc(1.5rem+env(safe-area-inset-bottom))] data-[state=closed]:slide-out-to-bottom-8 data-[state=closed]:zoom-out-100 data-[state=open]:slide-in-from-bottom-8 data-[state=open]:zoom-in-100">
+        <DialogContent>
           <span aria-hidden className="mx-auto -mt-2 h-1 w-10 rounded-full bg-border" />
           <DialogTitle>Everything</DialogTitle>
           <div className="grid grid-cols-3 gap-2.5">

@@ -9,8 +9,9 @@ use rusqlite::Connection;
 
 use crate::error::Result;
 
-/// Tables whose changes are recorded in `sync_changes`.
-pub const SYNCED_TABLES: &[&str] = &[
+/// Tables created in v1 whose changes are recorded in `sync_changes`.
+/// Each migration lists its own tables so older migrations never change.
+const V1_SYNCED: &[&str] = &[
     "settings",
     "devices",
     "activity_types",
@@ -136,7 +137,190 @@ CREATE VIRTUAL TABLE search_index USING fts5 (
 );
 "
     );
-    for table in SYNCED_TABLES {
+    for table in V1_SYNCED {
+        sql.push_str(&sync_triggers(table));
+    }
+    sql
+}
+
+const V2_SYNCED: &[&str] = &[
+    "tasks",
+    "habits",
+    "habit_logs",
+    "ideas",
+    "important_dates",
+    "semesters",
+    "subjects",
+    "timetable_slots",
+    "timetable_exceptions",
+    "attendance",
+    "people",
+    "debts",
+    "debt_payments",
+];
+
+/// Phase 1: lists, habits, ideas, important dates, timetable with
+/// attendance, and debts. Dates are local `YYYY-MM-DD`, times are minutes
+/// after midnight, money is in paise.
+fn v2() -> String {
+    let mut sql = format!(
+        "
+CREATE TABLE tasks (
+  id           TEXT PRIMARY KEY,
+  list         TEXT NOT NULL CHECK (list IN ('todo', 'watch', 'read')),
+  title        TEXT NOT NULL,
+  notes        TEXT,
+  status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'done')),
+  due_date     TEXT,
+  due_time     TEXT,
+  remind       INTEGER NOT NULL DEFAULT 0,
+  recurrence   TEXT,
+  priority     INTEGER NOT NULL DEFAULT 0,
+  tags         TEXT NOT NULL DEFAULT '[]',
+  meta         TEXT NOT NULL DEFAULT '{{}}',
+  completed_at INTEGER,
+  sort_order   REAL NOT NULL DEFAULT 0,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX tasks_list ON tasks (list, status, due_date);
+
+CREATE TABLE habits (
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
+  color         TEXT NOT NULL,
+  kind          TEXT NOT NULL DEFAULT 'check' CHECK (kind IN ('check', 'count')),
+  target        REAL NOT NULL DEFAULT 1,
+  unit          TEXT,
+  schedule      TEXT NOT NULL DEFAULT '{{\"type\":\"daily\"}}',
+  reminder_time TEXT,
+  start_date    TEXT NOT NULL,
+  archived      INTEGER NOT NULL DEFAULT 0,
+  sort_order    REAL NOT NULL DEFAULT 0,{BASE_COLUMNS}
+) STRICT;
+
+CREATE TABLE habit_logs (
+  id       TEXT PRIMARY KEY,
+  habit_id TEXT NOT NULL REFERENCES habits (id),
+  date     TEXT NOT NULL,
+  value    REAL NOT NULL DEFAULT 1,{BASE_COLUMNS}
+) STRICT;
+CREATE UNIQUE INDEX habit_logs_day ON habit_logs (habit_id, date);
+
+CREATE TABLE ideas (
+  id     TEXT PRIMARY KEY,
+  body   TEXT NOT NULL,
+  tags   TEXT NOT NULL DEFAULT '[]',
+  pinned INTEGER NOT NULL DEFAULT 0,
+  color  TEXT,{BASE_COLUMNS}
+) STRICT;
+
+CREATE TABLE important_dates (
+  id             TEXT PRIMARY KEY,
+  title          TEXT NOT NULL,
+  kind           TEXT NOT NULL DEFAULT 'other',
+  date           TEXT NOT NULL,
+  recurrence     TEXT NOT NULL DEFAULT 'none' CHECK (recurrence IN ('none', 'monthly', 'yearly')),
+  remind_offsets TEXT NOT NULL DEFAULT '[0, 1]',
+  notes          TEXT,{BASE_COLUMNS}
+) STRICT;
+
+CREATE TABLE semesters (
+  id               TEXT PRIMARY KEY,
+  name             TEXT NOT NULL,
+  start_date       TEXT NOT NULL,
+  end_date         TEXT NOT NULL,
+  target           REAL NOT NULL DEFAULT 80,
+  separate_labs    INTEGER NOT NULL DEFAULT 0,
+  separate_tutorials INTEGER NOT NULL DEFAULT 0,
+  unmarked_default TEXT NOT NULL DEFAULT 'unmarked' CHECK (unmarked_default IN ('present', 'unmarked')),
+  reminder_minutes INTEGER NOT NULL DEFAULT 10,
+  is_active        INTEGER NOT NULL DEFAULT 1,{BASE_COLUMNS}
+) STRICT;
+
+CREATE TABLE subjects (
+  id          TEXT PRIMARY KEY,
+  semester_id TEXT NOT NULL REFERENCES semesters (id),
+  name        TEXT NOT NULL,
+  code        TEXT,
+  professor   TEXT,
+  color       TEXT NOT NULL,
+  target      REAL,{BASE_COLUMNS}
+) STRICT;
+
+CREATE TABLE timetable_slots (
+  id          TEXT PRIMARY KEY,
+  semester_id TEXT NOT NULL REFERENCES semesters (id),
+  subject_id  TEXT NOT NULL REFERENCES subjects (id),
+  weekday     INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 7),
+  start_min   INTEGER NOT NULL,
+  end_min     INTEGER NOT NULL,
+  kind        TEXT NOT NULL DEFAULT 'lecture' CHECK (kind IN ('lecture', 'lab', 'tutorial')),
+  room        TEXT,
+  week_parity TEXT NOT NULL DEFAULT 'all' CHECK (week_parity IN ('all', 'odd', 'even')),{BASE_COLUMNS}
+) STRICT;
+
+-- Changes to the weekly schedule: extra classes, cancelled classes,
+-- single-day holidays and vacation ranges.
+CREATE TABLE timetable_exceptions (
+  id          TEXT PRIMARY KEY,
+  semester_id TEXT NOT NULL REFERENCES semesters (id),
+  kind        TEXT NOT NULL CHECK (kind IN ('extra', 'cancel', 'holiday', 'vacation')),
+  date        TEXT NOT NULL,
+  end_date    TEXT,
+  slot_id     TEXT,
+  subject_id  TEXT,
+  class_kind  TEXT,
+  start_min   INTEGER,
+  end_min     INTEGER,
+  room        TEXT,
+  title       TEXT,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX timetable_exceptions_date ON timetable_exceptions (semester_id, date);
+
+-- One row per marked class; `class_key` identifies the occurrence
+-- (`date:slot_id` or `date:x:exception_id`).
+CREATE TABLE attendance (
+  id          TEXT PRIMARY KEY,
+  semester_id TEXT NOT NULL REFERENCES semesters (id),
+  subject_id  TEXT NOT NULL REFERENCES subjects (id),
+  class_key   TEXT NOT NULL,
+  date        TEXT NOT NULL,
+  class_kind  TEXT NOT NULL,
+  status      TEXT NOT NULL CHECK (status IN ('present', 'absent', 'excused')),{BASE_COLUMNS}
+) STRICT;
+CREATE UNIQUE INDEX attendance_class ON attendance (class_key);
+
+CREATE TABLE people (
+  id    TEXT PRIMARY KEY,
+  name  TEXT NOT NULL,
+  phone TEXT,
+  notes TEXT,{BASE_COLUMNS}
+) STRICT;
+
+CREATE TABLE debts (
+  id           TEXT PRIMARY KEY,
+  person_id    TEXT NOT NULL REFERENCES people (id),
+  direction    TEXT NOT NULL CHECK (direction IN ('owed_to_me', 'i_owe')),
+  amount_paise INTEGER NOT NULL CHECK (amount_paise > 0),
+  occurred_on  TEXT NOT NULL,
+  reason       TEXT,
+  due_on       TEXT,
+  notes        TEXT,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX debts_person ON debts (person_id);
+
+-- Repayments against a person's running balance.
+CREATE TABLE debt_payments (
+  id           TEXT PRIMARY KEY,
+  person_id    TEXT NOT NULL REFERENCES people (id),
+  direction    TEXT NOT NULL CHECK (direction IN ('to_me', 'from_me')),
+  amount_paise INTEGER NOT NULL CHECK (amount_paise > 0),
+  paid_on      TEXT NOT NULL,
+  note         TEXT,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX debt_payments_person ON debt_payments (person_id);
+"
+    );
+    for table in V2_SYNCED {
         sql.push_str(&sync_triggers(table));
     }
     sql
@@ -173,7 +357,7 @@ fn seed_activity_types(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub const LATEST: i64 = 1;
+pub const LATEST: i64 = 2;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -198,6 +382,7 @@ pub fn migrate(conn: &mut Connection) -> Result<()> {
                 )?;
                 seed_activity_types(&tx)?;
             }
+            2 => tx.execute_batch(&v2())?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;

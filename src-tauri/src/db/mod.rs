@@ -296,3 +296,44 @@ mod tests {
         );
     }
 }
+
+/// Dev tool: writes the full schema as SQL for the browser preview.
+/// Run with `KAIZEN_SCHEMA_OUT=path cargo test dump_schema -- --ignored`.
+#[cfg(test)]
+mod dump {
+    use super::*;
+
+    #[test]
+    #[ignore]
+    fn dump_schema() {
+        let Ok(out) = std::env::var("KAIZEN_SCHEMA_OUT") else { return };
+        let dir = tempfile::tempdir().unwrap();
+        let key = zeroize::Zeroizing::new([3u8; 32]);
+        let db = Database::open(&dir.path().join(DB_FILE), &key, None).unwrap();
+        let mut sql = String::new();
+        let mut stmt = db
+            .conn()
+            .prepare("SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'search_index%' ORDER BY rowid")
+            .unwrap();
+        for row in stmt.query_map([], |r| r.get::<_, String>(0)).unwrap() {
+            sql.push_str(&row.unwrap());
+            sql.push_str(";\n");
+        }
+        let mut stmt = db.conn().prepare("SELECT * FROM activity_types").unwrap();
+        let cols = stmt.column_count();
+        let mut rows = stmt.query([]).unwrap();
+        while let Some(r) = rows.next().unwrap() {
+            let vals: Vec<String> = (0..cols)
+                .map(|i| match r.get_ref(i).unwrap() {
+                    rusqlite::types::ValueRef::Null => "NULL".into(),
+                    rusqlite::types::ValueRef::Integer(n) => n.to_string(),
+                    rusqlite::types::ValueRef::Real(f) => f.to_string(),
+                    rusqlite::types::ValueRef::Text(t) => format!("'{}'", String::from_utf8_lossy(t).replace('\'', "''")),
+                    rusqlite::types::ValueRef::Blob(_) => "NULL".into(),
+                })
+                .collect();
+            sql.push_str(&format!("INSERT INTO activity_types VALUES ({});\n", vals.join(", ")));
+        }
+        std::fs::write(out, sql).unwrap();
+    }
+}
