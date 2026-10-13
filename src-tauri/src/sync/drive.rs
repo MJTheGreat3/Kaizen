@@ -209,17 +209,29 @@ pub fn finish_sign_in(sign_in: SignIn) -> Result<(String, Option<String>)> {
         }
     };
 
-    let resp = agent()
-        .post(TOKEN_URL)
-        .send_form([
+    // The browser hands the code back while it is still in front, and
+    // Android blocks network access for background apps; keep trying until
+    // the user switches back to Kaizen (the code stays valid ~10 minutes).
+    let agent = agent();
+    let retry_until = Instant::now() + Duration::from_secs(300);
+    let resp = loop {
+        let attempt = agent.post(TOKEN_URL).send_form([
             ("code", code.as_str()),
             ("client_id", client.id),
             ("client_secret", client.secret),
             ("redirect_uri", sign_in.redirect_uri.as_str()),
             ("grant_type", "authorization_code"),
             ("code_verifier", sign_in.verifier.as_str()),
-        ])
-        .map_err(http_err)?;
+        ]);
+        match attempt {
+            Ok(resp) => break resp,
+            Err(e) if Instant::now() < retry_until => {
+                tracing::info!(error = %e, "token exchange not possible yet; retrying");
+                std::thread::sleep(Duration::from_secs(2));
+            }
+            Err(e) => return Err(http_err(e)),
+        }
+    };
     let body = json_response(resp)?;
     let refresh = body["refresh_token"]
         .as_str()

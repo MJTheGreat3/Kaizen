@@ -613,8 +613,11 @@ Built and tested (Rust unit and integration tests, browser preview of the UI):
 - Auto-sync while unlocked: shortly after unlock, 15 s after changes, on returning to the app and every 5 minutes; incoming changes reload all screens and reschedule notifications. Settings → Sync shows devices, Drive account, direct-sync addresses, history and unpair.
 - Restoring a backup gives the device a new id so its re-used sequence numbers are not skipped by others.
 
+Verified on the devices (laptop + phone, 2026-10-13): QR pairing, Google sign-in on both, and a task added on one device appearing on the other through Drive. Fixed along the way:
+- v4 migration: the clock triggers used `INSERT OR REPLACE`, which SQLite ignores inside an upsert (`INSERT ... ON CONFLICT DO UPDATE`), so the second unlock failed on a `sync_clock` unique constraint; triggers now upsert.
+- Android blocks network access for background apps, and the browser hands the sign-in code back while it is still in front; the token exchange now retries until Kaizen is back in the foreground.
+
 Still to do:
-- On-device test with the real Google OAuth client (needs the Google Cloud setup in the README).
 - Clean up old bundles in Drive (snapshot once every device has applied them).
 - Automatic laptop discovery (mDNS) and laptop addresses inside the QR code; for now the address is typed.
 - Background sync on Android (`WorkManager`); for now sync runs while the app is open.

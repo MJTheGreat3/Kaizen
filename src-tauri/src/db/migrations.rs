@@ -378,6 +378,10 @@ pub fn table_columns(conn: &Connection, table: &str) -> Result<Vec<String>> {
 /// local edit always beats the value it replaces even if this device's clock
 /// is behind. Nothing is stamped while remote changes are being applied
 /// (`sync.applying` set in `local_meta`); hard deletes are not synced.
+///
+/// The stamp is an upsert rather than `INSERT OR REPLACE`: when the change
+/// comes from an `INSERT ... ON CONFLICT DO UPDATE`, SQLite applies the outer
+/// statement's conflict handling to the trigger and `OR REPLACE` is ignored.
 pub fn install_clock_triggers(conn: &Connection, table: &str) -> Result<()> {
     let cols: Vec<String> = table_columns(conn, table)?
         .into_iter()
@@ -385,11 +389,13 @@ pub fn install_clock_triggers(conn: &Connection, table: &str) -> Result<()> {
         .collect();
     let stamp = |col: &str, row: &str, condition: &str| {
         format!(
-            "  INSERT OR REPLACE INTO sync_clock (table_name, row_id, col, ts, device_id, seq)
+            "  INSERT INTO sync_clock (table_name, row_id, col, ts, device_id, seq)
   SELECT '{table}', {row}.id, '{col}',
     MAX({NOW_MS}, COALESCE((SELECT ts + 1 FROM sync_clock WHERE table_name = '{table}' AND row_id = {row}.id AND col = '{col}'), 0)),
     (SELECT value FROM local_meta WHERE key = 'device_id'),
-    COALESCE((SELECT MAX(seq) FROM sync_clock), 0) + 1{condition};
+    COALESCE((SELECT MAX(seq) FROM sync_clock), 0) + 1
+  WHERE {condition}
+  ON CONFLICT (table_name, row_id, col) DO UPDATE SET ts = excluded.ts, device_id = excluded.device_id, seq = excluded.seq;
 "
         )
     };
@@ -401,7 +407,7 @@ CREATE TRIGGER {table}_clock_insert AFTER INSERT ON {table} WHEN {not_applying} 
 "
     );
     for col in &cols {
-        sql.push_str(&stamp(col, "NEW", ""));
+        sql.push_str(&stamp(col, "NEW", "true"));
     }
     sql.push_str(&format!(
         "END;
@@ -412,7 +418,7 @@ CREATE TRIGGER {table}_clock_update AFTER UPDATE ON {table} WHEN {not_applying} 
         sql.push_str(&stamp(
             col,
             "NEW",
-            &format!(" WHERE OLD.\"{col}\" IS NOT NEW.\"{col}\""),
+            &format!("OLD.\"{col}\" IS NOT NEW.\"{col}\""),
         ));
     }
     sql.push_str("END;\n");
@@ -492,7 +498,16 @@ CREATE TABLE sync_log (
     Ok(())
 }
 
-pub const LATEST: i64 = 3;
+/// Reinstalls the clock triggers with upserts (see [`install_clock_triggers`]);
+/// v3's `INSERT OR REPLACE` failed inside upserts on synced tables.
+fn v4(conn: &Connection) -> Result<()> {
+    for table in synced_tables() {
+        install_clock_triggers(conn, table)?;
+    }
+    Ok(())
+}
+
+pub const LATEST: i64 = 4;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -523,6 +538,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             }
             2 => tx.execute_batch(&v2())?,
             3 => v3(&tx)?,
+            4 => v4(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;
@@ -577,5 +593,33 @@ mod tests {
             )
             .unwrap();
         assert_eq!(old, 0);
+    }
+
+    /// Upserts on synced tables (device registration, activity events) must
+    /// stamp clocks without tripping the clock's primary key.
+    #[test]
+    fn upserts_on_synced_tables_update_clocks() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrate(&mut conn).unwrap();
+        for name in ["first", "second", "third"] {
+            conn.execute(
+                "INSERT INTO devices (id, name, platform, created_at, updated_at, device_id) VALUES ('d', ?1, 'macos', 1, 1, 'd')
+                 ON CONFLICT (id) DO UPDATE SET name = excluded.name",
+                [name],
+            )
+            .unwrap();
+        }
+        let name: String = conn
+            .query_row("SELECT name FROM devices WHERE id = 'd'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(name, "third");
+        let stamps: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sync_clock WHERE row_id = 'd' AND col = 'name'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(stamps, 1);
     }
 }

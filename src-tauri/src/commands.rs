@@ -395,7 +395,9 @@ pub async fn sync_drive_connect(app: tauri::AppHandle) -> Result<String> {
     app.opener()
         .open_url(sign_in.url.clone(), None::<&str>)
         .map_err(|e| Error::Invalid(format!("could not open the browser: {e}")))?;
-    let (refresh, email) = blocking(move || drive::finish_sign_in(sign_in)).await?;
+    let (refresh, email) = blocking(move || drive::finish_sign_in(sign_in))
+        .await
+        .inspect_err(|e| tracing::warn!(error = %e, "Google sign-in failed"))?;
     let state = app.state::<AppState>();
     with_session(&state, |s| {
         drive::save_account(s.db.conn(), &refresh, email.as_deref())
