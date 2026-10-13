@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { CalendarCheck, Fire, PencilSimple, Snowflake, Trophy } from "@phosphor-icons/react";
+import { CalendarCheck, Fire, PencilSimple, SelectionAll, SelectionSlash, Snowflake, Trophy } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import { NativeSelect, Segmented, Skeleton } from "@/components/ui/controls";
@@ -435,6 +435,22 @@ export function ActivityPage() {
                       </button>
                     );
                   })}
+                  {[
+                    { label: "Show all", icon: SelectionAll, onClick: () => setHidden([]), off: hidden.length === 0 },
+                    { label: "Hide all", icon: SelectionSlash, onClick: () => setHidden(view.types.map((t) => t.id)), off: view.shown.length === 0 },
+                  ].map(({ label, icon: Icon, onClick, off }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      aria-label={label}
+                      title={label}
+                      disabled={off}
+                      onClick={onClick}
+                      className="grid size-8 place-items-center rounded-full border border-border text-muted-foreground transition-colors hover:text-foreground active:scale-95 disabled:opacity-40 disabled:hover:text-muted-foreground"
+                    >
+                      <Icon size={16} />
+                    </button>
+                  ))}
                 </div>
                 <div className="flex items-center gap-2">
                   {activity.data?.allTags.length ? (
