@@ -155,7 +155,7 @@ export function Tree({
           initial={{ scale: 0.4, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.6 }}
-          style={{ originX: `${BASE_X}px`, originY: `${BASE_Y}px` }}
+          style={{ originX: 0.5, originY: 1 }}
         >
           <ellipse cx={BASE_X} cy={BASE_Y - 2} rx="9" ry="5" fill="#7a5a3a" />
           <path d={`M${BASE_X} ${BASE_Y - 4} C${BASE_X} ${BASE_Y - 14} ${BASE_X} ${BASE_Y - 18} ${BASE_X} ${BASE_Y - 22}`} stroke={species.leafDeep} strokeWidth="3" strokeLinecap="round" fill="none" />
@@ -175,7 +175,7 @@ export function Tree({
             scaleY: { duration: 0.9, ease: [0.16, 1, 0.3, 1] },
             rotate: sway && !withered ? { duration: 6, repeat: Infinity, ease: "easeInOut" } : { duration: 0.8 },
           }}
-          style={{ originX: `${BASE_X}px`, originY: `${BASE_Y}px` }}
+          style={{ originX: 0.5, originY: 1 }}
         >
           <Crown species={species} colors={colors} />
         </motion.g>

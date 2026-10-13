@@ -485,8 +485,8 @@ function ResultCard({ session, onDone }: { session: FocusSession; onDone: () => 
           <>
             <p className="text-[22px] font-semibold tracking-tight">This one withered</p>
             <p className="text-[14px] text-muted-foreground">
-              {session.status === "withered" ? "You left during strict mode." : "You gave up."} {formatMinutes(session.focusedMinutes)} were still
-              focused. Plant another when you are ready.
+              {session.status === "withered" ? "You left during strict mode" : "You gave up"} after {formatMinutes(session.focusedMinutes)} of
+              focus. Plant another when you are ready.
             </p>
           </>
         )}
