@@ -16,6 +16,9 @@ const queryClient = new QueryClient({
   },
 });
 
+// Lets the browser preview refresh data after editing its mock database.
+if (import.meta.env.DEV) (window as unknown as { __queryClient: QueryClient }).__queryClient = queryClient;
+
 window.addEventListener("error", (e) => log.error(`window error: ${e.message}`));
 window.addEventListener("unhandledrejection", (e) => log.error(`unhandled rejection: ${String(e.reason?.message ?? e.reason)}`));
 

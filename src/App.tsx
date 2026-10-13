@@ -10,6 +10,8 @@ import { useSession } from "@/core/security/session";
 import { useAutoLock } from "@/core/security/useAutoLock";
 import { useNotificationSync } from "@/core/notifications/scheduler";
 import { useAutoSync } from "@/core/sync/autosync";
+import { useFocusEngine } from "@/modules/focus/engine";
+import { setNativePlatform } from "@/modules/focus/native";
 import { useTheme } from "@/core/theme";
 import { log } from "@/lib/log";
 import { ease } from "@/lib/motion";
@@ -37,6 +39,8 @@ export function App() {
   const platform = info?.platform === "android" ? "android" : "desktop";
   useNotificationSync(unlocked, platform);
   useAutoSync(unlocked, platform);
+  useEffect(() => setNativePlatform(platform === "android"), [platform]);
+  useFocusEngine(unlocked, platform);
 
   return (
     <>

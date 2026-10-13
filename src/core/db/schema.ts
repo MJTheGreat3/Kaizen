@@ -351,3 +351,39 @@ export type AttendanceMark = typeof attendance.$inferSelect;
 export type Person = typeof people.$inferSelect;
 export type Debt = typeof debts.$inferSelect;
 export type DebtPayment = typeof debtPayments.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Phase 3 (migration v6)
+// ---------------------------------------------------------------------------
+
+export type FocusStatus = "running" | "paused" | "completed" | "withered" | "given_up";
+
+export const focusSessions = sqliteTable("focus_sessions", {
+  id: id(),
+  /** Local day the session started. */
+  date: text("date").notNull(),
+  startedAt: integer("started_at").notNull(),
+  plannedMinutes: integer("planned_minutes").notNull(),
+  status: text("status", { enum: ["running", "paused", "completed", "withered", "given_up"] })
+    .notNull()
+    .default("running"),
+  pausedAt: integer("paused_at"),
+  pausedMs: integer("paused_ms").notNull().default(0),
+  endedAt: integer("ended_at"),
+  focusedMinutes: real("focused_minutes").notNull().default(0),
+  tag: text("tag"),
+  taskId: text("task_id"),
+  species: text("species").notNull().default("oak"),
+  strict: integer("strict", { mode: "boolean" }).notNull().default(false),
+  note: text("note"),
+  ...base,
+});
+
+/** Unlocked tree species; `id` is the species key. */
+export const focusUnlocks = sqliteTable("focus_unlocks", {
+  id: text("id").primaryKey(),
+  ...base,
+});
+
+export type FocusSession = typeof focusSessions.$inferSelect;
+export type FocusUnlock = typeof focusUnlocks.$inferSelect;

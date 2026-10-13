@@ -361,6 +361,12 @@ fn seed_activity_types(conn: &Connection) -> Result<()> {
 /// Every synced table, parents before children so rows referencing other
 /// rows can be applied in order.
 pub fn synced_tables() -> impl Iterator<Item = &'static str> {
+    V1_SYNCED.iter().chain(V2_SYNCED).chain(V6_SYNCED).copied()
+}
+
+/// Synced tables that existed when v3/v4 ran; those migrations must not see
+/// tables created later.
+fn tables_until_v5() -> impl Iterator<Item = &'static str> {
     V1_SYNCED.iter().chain(V2_SYNCED).copied()
 }
 
@@ -432,7 +438,7 @@ CREATE TRIGGER {table}_clock_update AFTER UPDATE ON {table} WHEN {not_applying} 
 /// merges too.
 fn v3(conn: &Connection) -> Result<()> {
     let mut drop = String::new();
-    for table in synced_tables() {
+    for table in tables_until_v5() {
         for op in ["insert", "update", "delete"] {
             drop.push_str(&format!("DROP TRIGGER IF EXISTS {table}_sync_{op};\n"));
         }
@@ -478,7 +484,7 @@ CREATE TABLE sync_log (
         |r| r.get(0),
     )?;
     let mut seq: i64 = 0;
-    for table in synced_tables() {
+    for table in tables_until_v5() {
         let cols = table_columns(conn, table)?;
         let mut rows = conn.prepare(&format!("SELECT id, updated_at FROM {table}"))?;
         let rows = rows
@@ -501,7 +507,7 @@ CREATE TABLE sync_log (
 /// Reinstalls the clock triggers with upserts (see [`install_clock_triggers`]);
 /// v3's `INSERT OR REPLACE` failed inside upserts on synced tables.
 fn v4(conn: &Connection) -> Result<()> {
-    for table in synced_tables() {
+    for table in tables_until_v5() {
         install_clock_triggers(conn, table)?;
     }
     Ok(())
@@ -513,7 +519,46 @@ fn v5(conn: &Connection) -> Result<()> {
     install_clock_triggers(conn, "devices")
 }
 
-pub const LATEST: i64 = 5;
+const V6_SYNCED: &[&str] = &["focus_sessions", "focus_unlocks"];
+
+/// Phase 3: focus sessions (Forest-style) and the tree species bought with
+/// focus coins. A session's `status` moves from running/paused to
+/// completed, withered (left during strict mode) or given_up.
+fn v6(conn: &Connection) -> Result<()> {
+    conn.execute_batch(&format!(
+        "
+CREATE TABLE focus_sessions (
+  id              TEXT PRIMARY KEY,
+  date            TEXT NOT NULL,
+  started_at      INTEGER NOT NULL,
+  planned_minutes INTEGER NOT NULL CHECK (planned_minutes > 0),
+  status          TEXT NOT NULL DEFAULT 'running'
+                  CHECK (status IN ('running', 'paused', 'completed', 'withered', 'given_up')),
+  paused_at       INTEGER,
+  paused_ms       INTEGER NOT NULL DEFAULT 0,
+  ended_at        INTEGER,
+  focused_minutes REAL NOT NULL DEFAULT 0,
+  tag             TEXT,
+  task_id         TEXT,
+  species         TEXT NOT NULL DEFAULT 'oak',
+  strict          INTEGER NOT NULL DEFAULT 0,
+  note            TEXT,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX focus_sessions_date ON focus_sessions (date);
+
+-- One row per unlocked species; `id` is the species key.
+CREATE TABLE focus_unlocks (
+  id TEXT PRIMARY KEY,{BASE_COLUMNS}
+) STRICT;
+"
+    ))?;
+    for table in V6_SYNCED {
+        install_clock_triggers(conn, table)?;
+    }
+    Ok(())
+}
+
+pub const LATEST: i64 = 6;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -546,6 +591,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             3 => v3(&tx)?,
             4 => v4(&tx)?,
             5 => v5(&tx)?,
+            6 => v6(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;

@@ -1,0 +1,12 @@
+[default]
+description = "Everything the focus timer needs."
+permissions = [
+  "allow-start",
+  "allow-pause",
+  "allow-resume",
+  "allow-stop",
+  "allow-drain-events",
+  "allow-access",
+  "allow-open-usage-settings",
+  "allow-open-dnd-settings",
+]

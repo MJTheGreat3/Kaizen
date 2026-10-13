@@ -2124,6 +2124,7 @@ dependencies = [
  "tauri-plugin-barcode-scanner",
  "tauri-plugin-biometric",
  "tauri-plugin-dialog",
+ "tauri-plugin-focus",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tempfile",
@@ -4166,6 +4167,14 @@ dependencies = [
  "tauri-plugin-fs",
  "thiserror 2.0.21",
  "url",
+]
+
+[[package]]
+name = "tauri-plugin-focus"
+version = "0.1.0"
+dependencies = [
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]

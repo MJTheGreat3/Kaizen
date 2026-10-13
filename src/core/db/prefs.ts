@@ -28,6 +28,16 @@ export interface Prefs {
   "sync.folder": string;
   /** Laptop address for direct sync (phone): IP or name, optional `:port`. */
   "sync.lanHost": string;
+  /** Focus timer defaults on this device. */
+  "focus.minutes": number;
+  "focus.rest": number;
+  "focus.species": string;
+  /** Leaving (another app, or the window on desktop) withers the tree. */
+  "focus.strict": boolean;
+  /** Turn on Do Not Disturb during sessions (Android). */
+  "focus.dnd": boolean;
+  /** Seconds allowed away before the tree withers. */
+  "focus.grace": number;
 }
 
 export const defaultPrefs: Prefs = {
@@ -45,6 +55,12 @@ export const defaultPrefs: Prefs = {
   "notify.digest": "07:30",
   "sync.folder": "",
   "sync.lanHost": "",
+  "focus.minutes": 25,
+  "focus.rest": 5,
+  "focus.species": "oak",
+  "focus.strict": true,
+  "focus.dnd": true,
+  "focus.grace": 10,
 };
 
 const PREFIX = "pref.";

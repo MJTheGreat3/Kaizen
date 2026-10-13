@@ -35,7 +35,8 @@ pub fn run() {
     #[cfg(mobile)]
     let builder = builder
         .plugin(tauri_plugin_biometric::init())
-        .plugin(tauri_plugin_barcode_scanner::init());
+        .plugin(tauri_plugin_barcode_scanner::init())
+        .plugin(tauri_plugin_focus::init());
 
     builder
         .setup(|app| {
