@@ -48,8 +48,8 @@ function WeekStrip({ habit, values, onToggle }: { habit: Habit; values: DayValue
               transition={{ duration: 0.3 }}
               className="size-7 rounded-full transition-colors"
               style={{
-                background: done ? habit.color : partial ? `color-mix(in oklch, ${habit.color} 30%, transparent)` : "transparent",
-                boxShadow: done ? "none" : `inset 0 0 0 1.5px ${scheduled ? "var(--input)" : "color-mix(in oklch, var(--input) 40%, transparent)"}`,
+                background: done ? habit.color : partial ? `color-mix(in srgb, ${habit.color} 30%, transparent)` : "transparent",
+                boxShadow: done ? "none" : `inset 0 0 0 1.5px ${scheduled ? "var(--input)" : "color-mix(in srgb, var(--input) 40%, transparent)"}`,
               }}
             />
           </button>
@@ -75,7 +75,7 @@ function HabitCard({ habit, values, onEdit }: { habit: Habit; values: DayValues;
   return (
     <article
       className="h-full rounded-2xl border border-border bg-surface p-5 shadow-soft"
-      style={{ background: done ? `color-mix(in oklch, ${habit.color} 6%, var(--surface))` : undefined }}
+      style={{ background: done ? `color-mix(in srgb, ${habit.color} 6%, var(--surface))` : undefined }}
     >
       <div className="flex items-start gap-4">
         {habit.kind === "check" ? (

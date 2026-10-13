@@ -36,7 +36,7 @@ function Card({
         <div
           aria-hidden
           className="pointer-events-none absolute -left-10 -top-16 size-48 rounded-full opacity-60 blur-2xl transition-opacity duration-300 group-hover:opacity-90"
-          style={{ background: `color-mix(in oklch, ${hue} 16%, transparent)` }}
+          style={{ background: `color-mix(in srgb, ${hue} 16%, transparent)` }}
         />
         <div className="relative flex items-center justify-between">
           <span className="flex items-center gap-2.5">

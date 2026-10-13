@@ -55,7 +55,7 @@ function RichText({ text }: { text: string }) {
             {p.replace(/^https?:\/\/(www\.)?/, "")}
           </a>
         ) : p.startsWith("#") ? (
-          <span key={i} className="font-medium" style={{ color: `color-mix(in oklch, ${HUE} 70%, var(--foreground))` }}>
+          <span key={i} className="font-medium" style={{ color: `color-mix(in srgb, ${HUE} 70%, var(--foreground))` }}>
             {p}
           </span>
         ) : (
@@ -81,8 +81,8 @@ function IdeaCard({ idea, onOpen, highlight }: { idea: Idea; onOpen: (i: Idea) =
       onClick={() => onOpen(idea)}
       className="group relative mb-3 cursor-pointer break-inside-avoid rounded-2xl border border-border bg-surface p-4 shadow-soft transition-shadow hover:shadow-float"
       style={{
-        background: tint ? `color-mix(in oklch, ${tint} 10%, var(--surface))` : undefined,
-        borderColor: highlight ? HUE : tint ? `color-mix(in oklch, ${tint} 30%, var(--border))` : undefined,
+        background: tint ? `color-mix(in srgb, ${tint} 10%, var(--surface))` : undefined,
+        borderColor: highlight ? HUE : tint ? `color-mix(in srgb, ${tint} 30%, var(--border))` : undefined,
       }}
     >
       {idea.pinned ? <PushPin size={14} weight="fill" className="absolute right-3 top-3 text-muted-foreground" /> : null}

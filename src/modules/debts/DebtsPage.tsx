@@ -61,8 +61,8 @@ function Avatar({ name, size = 40 }: { name: string; size?: number }) {
         width: size,
         height: size,
         fontSize: size * 0.36,
-        background: `color-mix(in oklch, ${hue} 18%, transparent)`,
-        color: `color-mix(in oklch, ${hue} 80%, var(--foreground))`,
+        background: `color-mix(in srgb, ${hue} 18%, transparent)`,
+        color: `color-mix(in srgb, ${hue} 80%, var(--foreground))`,
       }}
     >
       {initials(name)}
@@ -363,7 +363,7 @@ function PersonDialog({ person, data, onClose }: { person: Person | null; data: 
               <span
                 className="grid size-9 shrink-0 place-items-center rounded-full"
                 style={{
-                  background: `color-mix(in oklch, ${h.kind === "payment" ? "#7487a3" : h.in ? GOOD : BAD} 14%, transparent)`,
+                  background: `color-mix(in srgb, ${h.kind === "payment" ? "#7487a3" : h.in ? GOOD : BAD} 14%, transparent)`,
                   color: h.kind === "payment" ? "#7487a3" : h.in ? GOOD : BAD,
                 }}
               >

@@ -93,8 +93,8 @@ export function ModuleTile({
       aria-hidden
       className={cn("relative grid shrink-0 place-items-center text-white", s.box, className)}
       style={{
-        background: `linear-gradient(150deg, color-mix(in oklch, ${hue} 85%, white), color-mix(in oklch, ${hue} 80%, black))`,
-        boxShadow: `inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 -1px 0 rgb(0 0 0 / 0.12), 0 8px 18px -8px color-mix(in oklch, ${hue} 80%, transparent)`,
+        background: `linear-gradient(150deg, color-mix(in srgb, ${hue} 85%, white), color-mix(in srgb, ${hue} 80%, black))`,
+        boxShadow: `inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 -1px 0 rgb(0 0 0 / 0.12), 0 8px 18px -8px color-mix(in srgb, ${hue} 80%, transparent)`,
       }}
     >
       <Icon size={s.icon} weight="duotone" />
@@ -112,7 +112,7 @@ export function Wash({ hue, className }: { hue: string; className?: string }) {
       aria-hidden
       className={cn("pointer-events-none absolute inset-x-0 top-0 h-[420px] opacity-[var(--wash-opacity)]", className)}
       style={{
-        background: `radial-gradient(60% 70% at 12% 0%, color-mix(in oklch, ${hue} 26%, transparent), transparent 70%), radial-gradient(40% 50% at 85% 5%, color-mix(in oklch, ${hue} 14%, transparent), transparent 70%)`,
+        background: `radial-gradient(60% 70% at 12% 0%, color-mix(in srgb, ${hue} 26%, transparent), transparent 70%), radial-gradient(40% 50% at 85% 5%, color-mix(in srgb, ${hue} 14%, transparent), transparent 70%)`,
       }}
     />
   );

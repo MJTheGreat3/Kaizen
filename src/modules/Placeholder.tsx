@@ -24,7 +24,7 @@ export function Placeholder({ module }: { module: ModuleDef }) {
           <ul className="mt-5 grid gap-3">
             {module.planned.map((item) => (
               <li key={item} className="flex items-start gap-3 text-[15px] leading-snug">
-                <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-[color-mix(in_oklch,var(--hue)_18%,transparent)] text-[var(--hue)]">
+                <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--hue)_18%,transparent)] text-[var(--hue)]">
                   <Check size={12} weight="bold" />
                 </span>
                 {item}
@@ -64,7 +64,7 @@ function PhaseTrack({ phase, hue }: { phase: number; hue: string }) {
               style={{
                 background: done ? "var(--accent)" : target ? hue : "var(--surface)",
                 boxShadow: target
-                  ? `0 0 0 4px color-mix(in oklch, ${hue} 22%, transparent)`
+                  ? `0 0 0 4px color-mix(in srgb, ${hue} 22%, transparent)`
                   : done
                     ? "none"
                     : "inset 0 0 0 1.5px var(--input)",

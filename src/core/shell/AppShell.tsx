@@ -168,7 +168,7 @@ function Indicator({ hue }: { hue: string }) {
       layoutId="bottom-nav-indicator"
       transition={spring}
       className="absolute top-2 h-8 w-14 rounded-full"
-      style={{ background: `color-mix(in oklch, ${hue} 18%, transparent)` }}
+      style={{ background: `color-mix(in srgb, ${hue} 18%, transparent)` }}
     />
   );
 }

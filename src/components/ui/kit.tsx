@@ -85,7 +85,7 @@ export function Chip({
 }) {
   const style =
     tone === "hue" && hue
-      ? { background: `color-mix(in oklch, ${hue} 14%, transparent)`, color: `color-mix(in oklch, ${hue} 75%, var(--foreground))` }
+      ? { background: `color-mix(in srgb, ${hue} 14%, transparent)`, color: `color-mix(in srgb, ${hue} 75%, var(--foreground))` }
       : undefined;
   return (
     <span
@@ -307,7 +307,7 @@ export function EmptyState({
     <div className="flex flex-col items-center px-6 py-14 text-center">
       <span
         className="grid size-14 place-items-center rounded-2xl"
-        style={{ background: `color-mix(in oklch, ${hue} 14%, transparent)`, color: hue }}
+        style={{ background: `color-mix(in srgb, ${hue} 14%, transparent)`, color: hue }}
       >
         <IconCmp size={28} weight="duotone" />
       </span>
