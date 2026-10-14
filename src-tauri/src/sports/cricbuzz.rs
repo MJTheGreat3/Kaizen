@@ -446,6 +446,9 @@ fn number(v: &JsonValue) -> Option<i64> {
     v.as_i64().or_else(|| v.as_str()?.parse().ok())
 }
 
+/// Cricbuzz's grey placeholder flag.
+const NO_LOGO: [i64; 1] = [174284];
+
 /// A team's matches on a schedule or results page (which also shows
 /// other teams' matches around the list).
 pub fn parse_games(text: &str, team: &str) -> Vec<Game> {
@@ -466,10 +469,13 @@ pub fn parse_games(text: &str, team: &str) -> Vec<Game> {
         if !seen.insert(id) {
             continue;
         }
+        // Finished matches give both teams one placeholder image.
+        let shared = number(&info["team1"]["imageId"]) == number(&info["team2"]["imageId"]);
         let side = |t: &JsonValue, s: &JsonValue| Side {
             name: t["teamName"].as_str().unwrap_or_default().to_string(),
             short: t["teamSName"].as_str().unwrap_or_default().to_string(),
             logo: number(&t["imageId"])
+                .filter(|i| !shared && !NO_LOGO.contains(i))
                 .map(|i| format!("https://static.cricbuzz.com/a/img/v1/72x54/i1/c{i}/i.jpg")),
             score: score(s),
         };
@@ -497,6 +503,24 @@ pub fn team_games(http: &Http, team: &str, slug: Option<&str>) -> Result<Vec<Gam
     // A match on both pages: the results page is newer.
     games.retain(|g| !results.iter().any(|r| r.id == g.id));
     games.extend(results);
+    // Crests missing from finished matches come from the team's other matches.
+    let mut logos = std::collections::HashMap::new();
+    for g in &games {
+        for side in [&g.home, &g.away] {
+            if let Some(logo) = &side.logo {
+                logos
+                    .entry(side.name.clone())
+                    .or_insert_with(|| logo.clone());
+            }
+        }
+    }
+    for g in &mut games {
+        for side in [&mut g.home, &mut g.away] {
+            if side.logo.is_none() {
+                side.logo = logos.get(&side.name).cloned();
+            }
+        }
+    }
     let mut games = super::espn::pick_games(games);
     for g in games
         .iter_mut()

@@ -22,7 +22,7 @@ fn page(payload: &str) -> String {
 
 #[test]
 fn reads_cricbuzz_payloads() {
-    let payload = r#"1f:["$","div",null,{"children":[{"matchDetailsMap":{"key":"Wed","match":[{"matchInfo":{"matchId":151598,"seriesName":"West Indies tour of India, 2026","matchDesc":"4th T20I","matchFormat":"T20","startDate":"1791984600000","state":"Preview","status":"Match starts at 13:30 GMT","team1":{"teamId":2,"teamName":"India","teamSName":"IND","imageId":776162},"team2":{"teamId":10,"teamName":"West Indies","teamSName":"WI","imageId":776191}}},{"matchInfo":{"matchId":151587,"seriesName":"West Indies tour of India, 2026","matchDesc":"3rd T20I","startDate":1791725400000,"state":"Complete","status":"India won by 14 runs","team1":{"teamId":2,"teamName":"India","teamSName":"IND"},"team2":{"teamId":10,"teamName":"West Indies","teamSName":"WI"}},"matchScore":{"team1Score":{"inngs1":{"runs":172,"wickets":10,"overs":19.5}},"team2Score":{"inngs1":{"runs":158,"wickets":7},"inngs2":{"runs":20,"wickets":1}}}},{"matchInfo":{"matchId":9,"team1":{"teamId":128,"teamName":"Karnataka"},"team2":{"teamId":129,"teamName":"Andhra"}}}]}}]}]"#;
+    let payload = r#"1f:["$","div",null,{"children":[{"matchDetailsMap":{"key":"Wed","match":[{"matchInfo":{"matchId":151598,"seriesName":"West Indies tour of India, 2026","matchDesc":"4th T20I","matchFormat":"T20","startDate":"1791984600000","state":"Preview","status":"Match starts at 13:30 GMT","team1":{"teamId":2,"teamName":"India","teamSName":"IND","imageId":776162},"team2":{"teamId":10,"teamName":"West Indies","teamSName":"WI","imageId":776191}}},{"matchInfo":{"matchId":151587,"seriesName":"West Indies tour of India, 2026","matchDesc":"3rd T20I","startDate":1791725400000,"state":"Complete","status":"India won by 14 runs","team1":{"teamId":2,"teamName":"India","teamSName":"IND","imageId":174284},"team2":{"teamId":10,"teamName":"West Indies","teamSName":"WI","imageId":174284}},"matchScore":{"team1Score":{"inngs1":{"runs":172,"wickets":10,"overs":19.5}},"team2Score":{"inngs1":{"runs":158,"wickets":7},"inngs2":{"runs":20,"wickets":1}}}},{"matchInfo":{"matchId":9,"team1":{"teamId":128,"teamName":"Karnataka"},"team2":{"teamId":129,"teamName":"Andhra"}}}]}}]}]"#;
     let text = cricbuzz::flight(&page(payload));
     assert_eq!(text, payload);
     let games = cricbuzz::parse_games(&text, "2");
@@ -34,6 +34,9 @@ fn reads_cricbuzz_payloads() {
     assert_eq!(games[1].state, "post");
     assert_eq!(games[1].home.score.as_deref(), Some("172"));
     assert_eq!(games[1].away.score.as_deref(), Some("158/7 & 20/1"));
+    // Both sides with one placeholder image: no crest rather than a grey flag.
+    assert!(games[0].home.logo.as_deref().unwrap().contains("c776162"));
+    assert!(games[1].home.logo.is_none());
 
     let profile = r#"a:{"playerInfo":{"id":"1413","bat":"Right Handed Bat","name":"Virat Kohli","role":"Batsman","intlTeam":"India","rankings":{"bat":{"testRank":"14","odiRank":"3"}}},"faceImageId":616517,"recentBatting":{"headers":["Score","OPPN.","Format","Date"],"rows":[{"values":["151554","0(1)","WI","ODI","03 Oct 26"]},{"values":["151532","139*(88)","WI","ODI","27 Sep 26"]}]},"battingStats":{"headers":["ROWHEADER","Test","ODI","T20","IPL"],"values":[{"values":["Matches","123","317","125","283"]},{"values":["Runs","9230","15109","4188","9336"]},{"values":["Average","46.85","58.79","48.7","40.42"]},{"values":["100s","30","55","1","9"]},{"values":["Balls","1","2","3","4"]}]},"bowlingStats":{"headers":["ROWHEADER","Test","ODI","T20","IPL"],"values":[{"values":["Wickets","0","5","4","4"]}]}}"#;
     let stats = cricbuzz::parse_player(&cricbuzz::flight(&page(profile))).unwrap();
@@ -391,14 +394,16 @@ fn report(result: crate::error::Result<Fetched>) {
         Ok(Fetched::Games(games)) => {
             for g in &games {
                 println!(
-                    "    {} {} {:?} v {} {:?} [{}] {:?}",
+                    "    {} {} {:?} v {} {:?} [{}] {:?} logos {:?} {:?}",
                     g.state,
                     g.home.short,
                     g.home.score,
                     g.away.short,
                     g.away.score,
                     g.status,
-                    g.league
+                    g.league,
+                    g.home.logo.as_deref().map(|l| l.split('/').nth(8).unwrap_or("")),
+                    g.away.logo.as_deref().map(|l| l.split('/').nth(8).unwrap_or(""))
                 );
             }
         }
