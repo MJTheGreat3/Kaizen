@@ -91,6 +91,7 @@ pub fn run() {
             commands::sync_background_set,
             commands::practice_refresh,
             commands::practice_contests,
+            commands::github_refresh,
             commands::sync_drive,
             commands::sync_drive_connect,
             commands::sync_drive_disconnect,

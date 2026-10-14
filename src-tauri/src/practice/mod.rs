@@ -14,6 +14,7 @@
 pub mod atcoder;
 pub mod codechef;
 pub mod codeforces;
+pub mod github;
 pub mod http;
 pub mod leetcode;
 

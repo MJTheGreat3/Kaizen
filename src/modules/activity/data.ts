@@ -96,6 +96,8 @@ export async function loadDayLog(date: DateKey): Promise<DayLogItem[]> {
         const s = sessions.find((x) => x.id === id);
         return s?.tag ? `Focus on ${s.tag}` : "Focus session";
       }
+      case "github":
+        return "GitHub";
       default:
         return ev.typeId;
     }

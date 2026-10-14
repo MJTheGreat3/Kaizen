@@ -7,8 +7,8 @@ import { uuidv7 } from "uuidv7";
 import { clearActivity, recordActivity } from "@/core/activity";
 import { db, schema } from "@/core/db/client";
 import { getPref, setPref } from "@/core/db/prefs";
-import type { CpAccount, CpContest, CpPlatform, CpProblem, CpRating, CpRevisit } from "@/core/db/schema";
-import { ipc, type PracticeReport } from "@/lib/ipc";
+import type { CpAccount, CpContest, CpPlatform, CpProblem, CpRating, CpRevisit, GhAccount, GhIssue, GhRepo } from "@/core/db/schema";
+import { ipc, type GitHubReport, type PracticeReport } from "@/lib/ipc";
 import { todayKey, toKey, type DateKey } from "@/lib/dates";
 import { log } from "@/lib/log";
 import { nextRevisit, startRevisit } from "./logic";
@@ -16,6 +16,7 @@ import { nextRevisit, startRevisit } from "./logic";
 const a = schema.cpAccounts;
 const p = schema.cpProblems;
 const r = schema.cpRevisit;
+const g = schema.ghAccount;
 
 export interface PracticeData {
   accounts: CpAccount[];
@@ -23,17 +24,23 @@ export interface PracticeData {
   revisit: CpRevisit[];
   ratings: CpRating[];
   contests: CpContest[];
+  github: GhAccount | null;
+  repos: GhRepo[];
+  issues: GhIssue[];
 }
 
 export async function loadPractice(): Promise<PracticeData> {
-  const [accounts, problems, revisit, ratings, contests] = await Promise.all([
+  const [accounts, problems, revisit, ratings, contests, github, repos, issues] = await Promise.all([
     db.select().from(a).where(isNull(a.deletedAt)),
     db.select().from(p).where(isNull(p.deletedAt)).orderBy(desc(p.solvedAt), desc(p.lastAt)),
     db.select().from(r).where(isNull(r.deletedAt)).orderBy(asc(r.dueDate)),
     db.select().from(schema.cpRatings).orderBy(asc(schema.cpRatings.at)),
     loadContests(),
+    db.select().from(g).where(isNull(g.deletedAt)).get(),
+    db.select().from(schema.ghRepos).orderBy(asc(schema.ghRepos.sort)),
+    db.select().from(schema.ghIssues).orderBy(desc(schema.ghIssues.updatedAt)),
   ]);
-  return { accounts, problems, revisit, ratings, contests };
+  return { accounts, problems, revisit, ratings, contests, github: github ?? null, repos, issues };
 }
 
 /** Contests not yet over, soonest first. */
@@ -113,6 +120,53 @@ export function useRefreshContests() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// GitHub
+// ---------------------------------------------------------------------------
+
+/**
+ * Sets the GitHub username. Another person's username starts over: the old
+ * account's contributions leave the heatmap and the caches are cleared.
+ */
+export async function saveGithub(handle: string) {
+  const existing: GhAccount | undefined = await db.select().from(g).where(eq(g.id, "github")).get();
+  const changed = existing && existing.handle.toLowerCase() !== handle.toLowerCase();
+  if (changed) {
+    const ae = schema.activityEvents;
+    await db
+      .update(ae)
+      .set({ deletedAt: Date.now() })
+      .where(and(eq(ae.typeId, "github"), isNull(ae.deletedAt)));
+    await db.delete(schema.ghRepos);
+    await db.delete(schema.ghIssues);
+  }
+  const reset = changed || existing?.deletedAt ? { contributions: 0, meta: {}, syncedAt: null, error: null } : {};
+  await db
+    .insert(g)
+    .values({ id: "github", handle })
+    .onConflictDoUpdate({ target: g.id, set: { handle, deletedAt: null, ...reset, updatedAt: Date.now() } });
+}
+
+export function useSaveGithub() {
+  return usePracticeMutation(async (handle: string) => {
+    await saveGithub(handle.trim());
+    return ipc.githubRefresh();
+  });
+}
+
+/** Disconnecting keeps past contributions on the heatmap. */
+export function useRemoveGithub() {
+  return usePracticeMutation(async () => {
+    await db.update(g).set({ deletedAt: Date.now() }).where(eq(g.id, "github"));
+    await db.delete(schema.ghRepos);
+    await db.delete(schema.ghIssues);
+  });
+}
+
+export function useRefreshGithub() {
+  return usePracticeMutation(() => ipc.githubRefresh());
+}
+
 const STALE_MS = 3 * 3_600_000;
 const CONTESTS_STALE_MS = 6 * 3_600_000;
 
@@ -120,6 +174,8 @@ const CONTESTS_STALE_MS = 6 * 3_600_000;
 export function usePracticeAutoRefresh(enabled: boolean) {
   const refresh = useRefresh();
   const contests = useRefreshContests();
+  const github = useRefreshGithub();
+  const { mutate: githubMutate } = github;
   const { mutate: refreshMutate } = refresh;
   const { mutate: contestsMutate } = contests;
   useEffect(() => {
@@ -129,6 +185,8 @@ export function usePracticeAutoRefresh(enabled: boolean) {
         const accounts = await db.select().from(a).where(isNull(a.deletedAt));
         const stale = accounts.filter((x) => !x.syncedAt || Date.now() - x.syncedAt > STALE_MS).map((x) => x.id);
         if (stale.length) refreshMutate(stale);
+        const gh = await db.select().from(g).where(isNull(g.deletedAt)).get();
+        if (gh && (!gh.syncedAt || Date.now() - gh.syncedAt > STALE_MS)) githubMutate();
         if (Date.now() - (await getPref("practice.contestsAt")) > CONTESTS_STALE_MS) contestsMutate();
       } catch (e) {
         log.warn(`practice refresh check failed: ${String(e)}`);
@@ -140,13 +198,13 @@ export function usePracticeAutoRefresh(enabled: boolean) {
       clearTimeout(first);
       clearInterval(interval);
     };
-  }, [enabled, refreshMutate, contestsMutate]);
+  }, [enabled, refreshMutate, contestsMutate, githubMutate]);
 }
 
 /** Toast for a manual refresh: new solves, or what failed. */
-export function reportToast(reports: PracticeReport[]) {
+export function reportToast(reports: PracticeReport[], github?: GitHubReport | null) {
   const solves = reports.reduce((n, x) => n + x.newSolves, 0);
-  const errors = reports.filter((x) => x.error);
+  const errors = [...reports, ...(github ? [github] : [])].filter((x) => x.error);
   if (errors.length) toast.error(errors.map((e) => e.error).join("\n"));
   else toast.success(solves ? `${solves} new ${solves === 1 ? "solve" : "solves"}` : "Up to date");
 }

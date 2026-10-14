@@ -367,6 +367,7 @@ pub fn synced_tables() -> impl Iterator<Item = &'static str> {
         .chain(V6_SYNCED)
         .chain(V7_SYNCED)
         .chain(V8_SYNCED)
+        .chain(V9_SYNCED)
         .copied()
 }
 
@@ -896,7 +897,78 @@ ALTER TABLE goals ADD COLUMN metric TEXT;
     )
 }
 
-pub const LATEST: i64 = 8;
+const V9_SYNCED: &[&str] = &["gh_account"];
+
+/// GitHub, shown on the Practice page and the heatmap.
+///
+/// `gh_account` is synced so the username set on one device reaches the
+/// other. Contributions are stored as `github` activity events (one per day,
+/// `ae:github:{date}`), so the heatmap and streaks need nothing new. The
+/// recent repositories and issues are caches each device fetches itself.
+fn v9(conn: &Connection) -> Result<()> {
+    conn.execute_batch(&format!(
+        "
+CREATE TABLE gh_account (
+  id            TEXT PRIMARY KEY CHECK (id = 'github'),
+  handle        TEXT NOT NULL,
+  contributions INTEGER NOT NULL DEFAULT 0,
+  meta          TEXT NOT NULL DEFAULT '{{}}',
+  synced_at     INTEGER,
+  error         TEXT,{BASE_COLUMNS}
+) STRICT;
+
+-- Device-local caches.
+CREATE TABLE gh_repos (
+  id             TEXT PRIMARY KEY,
+  url            TEXT NOT NULL,
+  description    TEXT,
+  language       TEXT,
+  stars          INTEGER NOT NULL DEFAULT 0,
+  fork           INTEGER NOT NULL DEFAULT 0,
+  pushed_at      INTEGER NOT NULL,
+  head_sha       TEXT,
+  commit_message TEXT,
+  commit_url     TEXT,
+  sort           INTEGER NOT NULL
+) STRICT;
+
+CREATE TABLE gh_issues (
+  id         TEXT PRIMARY KEY,
+  repo       TEXT NOT NULL,
+  number     INTEGER NOT NULL,
+  title      TEXT NOT NULL,
+  url        TEXT NOT NULL,
+  state      TEXT NOT NULL,
+  author     TEXT NOT NULL,
+  role       TEXT NOT NULL,
+  labels     TEXT NOT NULL DEFAULT '[]',
+  comments   INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  closed_at  INTEGER
+) STRICT;
+"
+    ))?;
+    for table in V9_SYNCED {
+        install_clock_triggers(conn, table)?;
+    }
+    // Both devices add the same row, so the id is fixed.
+    let device: String = conn.query_row(
+        "SELECT value FROM local_meta WHERE key = 'device_id'",
+        [],
+        |r| r.get(0),
+    )?;
+    conn.execute(
+        "INSERT OR IGNORE INTO activity_types
+           (id, name, color, unit, sort_order, is_builtin, created_at, updated_at, device_id)
+         VALUES ('github', 'GitHub', '#5a6ad0', 'contributions',
+                 (SELECT coalesce(max(sort_order), 0) + 1 FROM activity_types), 1, ?1, ?1, ?2)",
+        rusqlite::params![chrono::Utc::now().timestamp_millis(), device],
+    )?;
+    Ok(())
+}
+
+pub const LATEST: i64 = 9;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -932,6 +1004,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             6 => v6(&tx)?,
             7 => v7(&tx)?,
             8 => v8(&tx)?,
+            9 => v9(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;

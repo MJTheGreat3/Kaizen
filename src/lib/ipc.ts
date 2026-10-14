@@ -121,6 +121,11 @@ export interface PracticeReport {
   error: string | null;
 }
 
+export interface GitHubReport {
+  contributions: number;
+  error: string | null;
+}
+
 export const ipc = {
   appInfo: () => call<AppInfo>("app_info"),
 
@@ -158,6 +163,7 @@ export const ipc = {
 
   practiceRefresh: (platforms?: string[]) => call<PracticeReport[]>("practice_refresh", { platforms: platforms ?? null }),
   practiceContests: () => call<number>("practice_contests"),
+  githubRefresh: () => call<GitHubReport | null>("github_refresh"),
 
   logsTail: (lines: number) => call<string>("logs_tail", { lines }),
   logFrontend: (level: "debug" | "info" | "warn" | "error", message: string) =>

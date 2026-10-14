@@ -544,6 +544,64 @@ export const cpContests = sqliteTable("cp_contests", {
   durationMin: integer("duration_min").notNull(),
 });
 
+export interface GhMeta {
+  name?: string | null;
+  avatarUrl?: string | null;
+  followers?: number;
+  publicRepos?: number;
+  /** Lower-cased handle whose past years have been read. */
+  backfilledFor?: string;
+}
+
+/** The GitHub account (one row, id "github"). */
+export const ghAccount = sqliteTable("gh_account", {
+  id: text("id").$type<"github">().primaryKey(),
+  handle: text("handle").notNull(),
+  /** Contributions in the last 365 days. */
+  contributions: integer("contributions").notNull().default(0),
+  meta: json<GhMeta>("meta").notNull().default({}),
+  syncedAt: integer("synced_at"),
+  error: text("error"),
+  ...base,
+});
+
+/** Device-local cache of the repositories pushed to most recently. */
+export const ghRepos = sqliteTable("gh_repos", {
+  /** "owner/name". */
+  id: text("id").primaryKey(),
+  url: text("url").notNull(),
+  description: text("description"),
+  language: text("language"),
+  stars: integer("stars").notNull().default(0),
+  fork: integer("fork", { mode: "boolean" }).notNull().default(false),
+  pushedAt: integer("pushed_at").notNull(),
+  headSha: text("head_sha"),
+  commitMessage: text("commit_message"),
+  commitUrl: text("commit_url"),
+  sort: integer("sort").notNull(),
+});
+
+/** Device-local cache of issues the user opened, is assigned or took part in. */
+export const ghIssues = sqliteTable("gh_issues", {
+  id: text("id").primaryKey(),
+  repo: text("repo").notNull(),
+  number: integer("number").notNull(),
+  title: text("title").notNull(),
+  url: text("url").notNull(),
+  state: text("state").$type<"open" | "closed">().notNull(),
+  author: text("author").notNull(),
+  role: text("role").$type<"author" | "assignee" | "involved">().notNull(),
+  labels: json<string[]>("labels").notNull().default([]),
+  comments: integer("comments").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+  closedAt: integer("closed_at"),
+});
+
+export type GhAccount = typeof ghAccount.$inferSelect;
+export type GhRepo = typeof ghRepos.$inferSelect;
+export type GhIssue = typeof ghIssues.$inferSelect;
+
 export type CpAccount = typeof cpAccounts.$inferSelect;
 export type CpProblem = typeof cpProblems.$inferSelect;
 export type CpRevisit = typeof cpRevisit.$inferSelect;

@@ -599,3 +599,47 @@ pub async fn practice_contests(app: tauri::AppHandle) -> Result<usize> {
     })
     .await
 }
+
+/// One GitHub refresh at a time.
+static GITHUB_RUNNING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Fetches the GitHub contribution calendar, recent repositories and
+/// issues; `None` when no account is connected.
+#[tauri::command]
+pub async fn github_refresh(
+    app: tauri::AppHandle,
+) -> Result<Option<practice::github::GitHubReport>> {
+    blocking(move || {
+        let _running = GITHUB_RUNNING.lock().unwrap_or_else(|e| e.into_inner());
+        let state = app.state::<AppState>();
+        let Some(account) = with_session(&state, |s| practice::github::account(s.db.conn()))?
+        else {
+            return Ok(None);
+        };
+        let http = practice::http::Http::new();
+        let result = practice::github::fetch(&http, &account);
+        with_session(&state, |s| {
+            let conn = s.db.conn();
+            Ok(Some(match result {
+                Ok(fetched) => {
+                    let contributions = practice::github::store(conn, &account.handle, &fetched)?;
+                    tracing::info!(contributions, "github refreshed");
+                    practice::github::GitHubReport {
+                        contributions,
+                        error: None,
+                    }
+                }
+                Err(e) => {
+                    let message = practice::github::describe(&e);
+                    tracing::warn!(%message, "github refresh failed");
+                    practice::github::store_error(conn, &message)?;
+                    practice::github::GitHubReport {
+                        contributions: 0,
+                        error: Some(message),
+                    }
+                }
+            }))
+        })
+    })
+    .await
+}

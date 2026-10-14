@@ -153,7 +153,7 @@ export const modules: ModuleDef[] = [
     title: "Practice",
     icon: Code,
     group: "track",
-    summary: "Codeforces, LeetCode, AtCoder and CodeChef progress.",
+    summary: "Codeforces, LeetCode, AtCoder, CodeChef and GitHub progress.",
     planned: ["Rating graphs and solved counts", "Weak-topic analysis", "Revisit queue and contest reminders"],
     phase: 4,
   },

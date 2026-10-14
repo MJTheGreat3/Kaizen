@@ -320,6 +320,104 @@ fn parses_codechef() {
     assert_eq!(contests[0].duration_min, 120);
 }
 
+#[test]
+fn parses_github() {
+    let days = github::parse_calendar(include_str!("fixtures/github_calendar.html"));
+    assert_eq!(
+        days,
+        vec![
+            ("2026-10-11".to_string(), 0),
+            ("2026-10-12".to_string(), 1),
+            ("2026-10-13".to_string(), 1024),
+            // No tooltip: the colour level stands in.
+            ("2026-10-14".to_string(), 2),
+        ]
+    );
+
+    let push = |repo: &str, at: &str, head: &str| json!({ "type": "PushEvent", "repo": { "name": repo }, "created_at": at, "payload": { "head": head } });
+    let events = json!([
+        push("me/app", "2026-10-13T10:00:00Z", "a2"),
+        { "type": "IssuesEvent", "repo": { "name": "x/y" }, "created_at": "2026-10-13T11:00:00Z" },
+        push("me/app", "2026-10-13T12:00:00Z", "a3"),
+        push("friend/lib", "2026-10-12T10:00:00Z", "b1"),
+    ]);
+    let owned = json!([
+        { "full_name": "me/app", "html_url": "https://github.com/me/app", "language": "Rust",
+          "stargazers_count": 4, "fork": false, "pushed_at": "2026-10-13T12:00:00Z" },
+        { "full_name": "me/old", "html_url": "https://github.com/me/old", "language": null,
+          "stargazers_count": 0, "fork": true, "pushed_at": "2025-01-01T00:00:00Z" },
+    ]);
+    let repos = github::recent_repos(&events, &owned);
+    assert_eq!(
+        repos
+            .iter()
+            .map(|r| r.full_name.as_str())
+            .collect::<Vec<_>>(),
+        ["me/app", "friend/lib", "me/old"]
+    );
+    // The newest push wins and owned repos bring their details.
+    assert_eq!(repos[0].head_sha.as_deref(), Some("a3"));
+    assert_eq!(repos[0].language.as_deref(), Some("Rust"));
+    assert!(repos[1].url.is_empty());
+    assert!(repos[2].fork);
+
+    let issues = github::parse_issues(
+        &json!({ "items": [
+            { "id": 1, "number": 7, "title": "Crash on start", "html_url": "https://github.com/me/app/issues/7",
+              "repository_url": "https://api.github.com/repos/me/app", "state": "open",
+              "user": { "login": "Me" }, "assignees": [], "labels": [{ "name": "bug" }], "comments": 2,
+              "created_at": "2026-10-01T00:00:00Z", "updated_at": "2026-10-02T00:00:00Z", "closed_at": null },
+            { "id": 2, "number": 3, "title": "Docs", "html_url": "u", "repository_url": "https://api.github.com/repos/x/y",
+              "state": "closed", "user": { "login": "other" }, "assignees": [{ "login": "me" }], "labels": [],
+              "created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z", "closed_at": "2026-09-02T00:00:00Z" },
+            { "id": 3, "number": 4, "title": "A pull request", "html_url": "u", "repository_url": "https://api.github.com/repos/x/y",
+              "pull_request": {}, "state": "open", "user": { "login": "me" } },
+        ]}),
+        "me",
+    );
+    assert_eq!(issues.len(), 2);
+    assert_eq!(
+        (issues[0].repo.as_str(), issues[0].role.as_str()),
+        ("me/app", "author")
+    );
+    assert_eq!(issues[0].labels, ["bug"]);
+    assert_eq!(issues[1].role, "assignee");
+    assert!(issues[1].closed_at.is_some());
+}
+
+#[test]
+fn github_store_writes_contribution_days() {
+    let conn = db();
+    conn.execute(
+        "INSERT INTO gh_account (id, handle, created_at, updated_at, device_id) VALUES ('github', 'me', 1, 1, 'd')",
+        [],
+    )
+    .unwrap();
+    let today = chrono::Local::now().date_naive();
+    let day = |n: u64| (today - chrono::Days::new(n)).to_string();
+    let mut fetched = github::GitHubFetched {
+        days: vec![(day(400), 9), (day(2), 3), (day(1), 0), (day(0), 2)],
+        ..Default::default()
+    };
+    assert_eq!(github::store(&conn, "me", &fetched).unwrap(), 5);
+    let events = |conn: &Connection| -> Vec<(String, i64)> {
+        conn.prepare("SELECT date, CAST(quantity AS INTEGER) FROM activity_events WHERE type_id = 'github' AND deleted_at IS NULL ORDER BY date")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap()
+    };
+    assert_eq!(events(&conn), vec![(day(400), 9), (day(2), 3), (day(0), 2)]);
+
+    // A changed day updates, a day back to zero goes away.
+    fetched.days = vec![(day(2), 0), (day(0), 4)];
+    github::store(&conn, "me", &fetched).unwrap();
+    assert_eq!(events(&conn), vec![(day(400), 9), (day(0), 4)]);
+    let account = github::account(&conn).unwrap().unwrap();
+    assert!(account.backfilled);
+}
+
 /// Hits the real sites: `cargo test --lib practice::tests::live -- --ignored --nocapture`.
 #[test]
 #[ignore]
@@ -352,5 +450,24 @@ fn live() {
             ),
             Err(e) => println!("  upcoming ERROR {e}"),
         }
+    }
+    let account = github::Account {
+        handle: "torvalds".into(),
+        backfilled: true,
+        known_commits: Default::default(),
+    };
+    match github::fetch(&http, &account) {
+        Ok(f) => {
+            println!(
+                "github: {} days, {} contributions, {} issues",
+                f.days.len(),
+                f.days.iter().map(|d| d.1).sum::<i64>(),
+                f.issues.len()
+            );
+            for r in &f.repos {
+                println!("  {} {:?} {:?}", r.full_name, r.language, r.commit_message);
+            }
+        }
+        Err(e) => println!("github: ERROR {e}"),
     }
 }

@@ -656,6 +656,8 @@ Built and tested (Rust unit tests with saved responses, a live test against all 
 - Contest reminders (Settings → Notifications → Contests, 10 min to 2 h before) and contests in Today's "Up next" card.
 - Goals: a number goal can follow a site's rating after each contest ("Reach CF Expert").
 
+**GitHub** (added after Phase 4, migration v9): a GitHub username on the Practice page. The contribution calendar (every year on the first refresh, then the last twelve months) becomes `github` activity events, one per day with ids `ae:github:{date}`, so GitHub shows on the heatmap with its own streak. The page also lists the five repositories pushed to most recently (from push events, so other people's repositories count, with the latest commit message) and the issues I opened, am assigned or took part in (open and closed). Everything is read without a token: the REST API allows 60 requests an hour, a refresh uses about a dozen and skips commits it already knows. `gh_account` is synced; repositories and issues are device-local caches.
+
 Known limits: LeetCode history only from the first refresh on (its topic stats cover only those problems); CodeChef shows problem codes, not names, and reads at most 300 past submissions on the first refresh; the LeetCode and CodeChef adapters depend on their websites and may need fixing when those change.
 
 ## 7. Open questions

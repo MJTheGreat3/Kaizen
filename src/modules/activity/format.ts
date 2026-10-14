@@ -20,6 +20,8 @@ export function amount(typeId: string, q: number) {
       return plural("problem");
     case "gym":
       return plural("session");
+    case "github":
+      return plural("contribution");
     default:
       return String(n);
   }
@@ -35,6 +37,7 @@ export const UNITS: Record<string, string> = {
   classes: "classes",
   cp: "problems",
   gym: "sessions",
+  github: "contributions",
 };
 
 /** Types whose quantity is minutes. */

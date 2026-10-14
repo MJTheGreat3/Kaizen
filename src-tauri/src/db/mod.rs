@@ -224,7 +224,7 @@ mod tests {
         let types = db
             .query("SELECT count(*) FROM activity_types", &[], QueryMethod::Get)
             .unwrap();
-        assert_eq!(types[0][0], json!(8));
+        assert_eq!(types[0][0], json!(9));
 
         db.query(
             "INSERT INTO settings (id, value, created_at, updated_at, device_id) VALUES (?, ?, ?, ?, ?)",
@@ -294,7 +294,7 @@ mod tests {
         let types = restored
             .query("SELECT count(*) FROM activity_types", &[], QueryMethod::Get)
             .unwrap();
-        assert_eq!(types[0][0], json!(8));
+        assert_eq!(types[0][0], json!(9));
         assert_eq!(
             migrations::current_version(restored.conn()).unwrap(),
             migrations::LATEST

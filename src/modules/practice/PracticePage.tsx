@@ -17,7 +17,8 @@ import { streak, weekStart } from "@/modules/activity/logic";
 import { modules } from "@/modules/registry";
 import { AccountCard, AccountDialog } from "./Accounts";
 import { DifficultyChart, RatingChart, TopicsChart } from "./Charts";
-import { reportToast, usePractice, useRefresh, useRefreshContests } from "./data";
+import { reportToast, usePractice, useRefresh, useRefreshContests, useRefreshGithub } from "./data";
+import { GithubCard, GithubDialog, IssueList, RecentRepos } from "./GitHub";
 import { PLATFORMS, solvedSince, solvesByDay, type PlatformInfo } from "./logic";
 import { ContestList, LogDialog, ProblemDialog, ProblemRow, RevisitList } from "./Problems";
 
@@ -49,6 +50,8 @@ export function PracticePage() {
   const { data, isLoading } = usePractice();
   const refresh = useRefresh();
   const contests = useRefreshContests();
+  const github = useRefreshGithub();
+  const [editingGithub, setEditingGithub] = useState(false);
   const [editing, setEditing] = useState<PlatformInfo | null>(null);
   const [logging, setLogging] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -89,21 +92,26 @@ export function PracticePage() {
   const opened: CpProblem | undefined = data?.problems.find((p) => p.id === openId);
 
   async function refreshAll() {
-    const [reports] = await Promise.all([refresh.mutateAsync(undefined), contests.mutateAsync()]);
-    reportToast(reports);
+    const [reports, , gh] = await Promise.all([
+      connected.length ? refresh.mutateAsync(undefined) : Promise.resolve([]),
+      contests.mutateAsync(),
+      data?.github ? github.mutateAsync() : Promise.resolve(null),
+    ]);
+    reportToast(reports, gh);
   }
+  const refreshing = refresh.isPending || github.isPending;
 
   return (
     <Page hue={HUE} className="max-w-[1100px]">
       <PageHeader
         title="Practice"
-        description="Codeforces, LeetCode, AtCoder and CodeChef in one place."
+        description="Codeforces, LeetCode, AtCoder, CodeChef and GitHub in one place."
         icon={mod.icon}
         hue={HUE}
         actions={
           <div className="flex gap-2">
-            <Button size="sm" variant="secondary" onClick={() => void refreshAll()} disabled={refresh.isPending || !connected.length} aria-label="Refresh">
-              <motion.span className="grid" animate={refresh.isPending ? { rotate: 360 } : { rotate: 0 }} transition={refresh.isPending ? { duration: 1, repeat: Infinity, ease: "linear" } : { duration: 0.3 }}>
+            <Button size="sm" variant="secondary" onClick={() => void refreshAll()} disabled={refreshing || (!connected.length && !data?.github)} aria-label="Refresh">
+              <motion.span className="grid" animate={refreshing ? { rotate: 360 } : { rotate: 0 }} transition={refreshing ? { duration: 1, repeat: Infinity, ease: "linear" } : { duration: 0.3 }}>
                 <ArrowsClockwise />
               </motion.span>
               <span className="hidden sm:inline">Refresh</span>
@@ -124,13 +132,14 @@ export function PracticePage() {
         </div>
       ) : (
         <div className="mt-8 grid gap-4">
-          <motion.div variants={rise} className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <motion.div variants={rise} className="grid grid-cols-2 gap-3 md:grid-cols-5">
             {PLATFORMS.map((p) => (
               <AccountCard key={p.id} platform={p} account={data.accounts.find((a) => a.id === p.id)} onEdit={() => setEditing(p)} />
             ))}
+            <GithubCard account={data.github} onEdit={() => setEditingGithub(true)} className="col-span-2 md:col-span-1" />
           </motion.div>
 
-          {!connected.length ? (
+          {!connected.length && !data.github ? (
             <p className="text-center text-[14px] text-muted-foreground">Connect a site with your public handle to pull in solves, ratings and contests. Problems from anywhere else can be logged by hand.</p>
           ) : null}
 
@@ -194,6 +203,17 @@ export function PracticePage() {
             </Card>
           </div>
 
+          {data.github ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card title="Recent repositories">
+                <RecentRepos repos={data.repos} handle={data.github.handle} />
+              </Card>
+              <Card title="Issues">
+                <IssueList issues={data.issues} />
+              </Card>
+            </div>
+          ) : null}
+
           <Card title="Problems">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <div className="relative min-w-40 flex-1">
@@ -234,6 +254,7 @@ export function PracticePage() {
       )}
 
       {editing ? <AccountDialog key={editing.id} platform={editing} account={data?.accounts.find((a) => a.id === editing.id) ?? null} onClose={() => setEditing(null)} /> : null}
+      {editingGithub ? <GithubDialog account={data?.github ?? null} onClose={() => setEditingGithub(false)} /> : null}
       {logging ? <LogDialog onClose={() => setLogging(false)} /> : null}
       {opened ? <ProblemDialog key={opened.id} problem={opened} revisit={data?.revisit.find((r) => r.id === opened.id)} onClose={() => setOpenId(null)} /> : null}
     </Page>
