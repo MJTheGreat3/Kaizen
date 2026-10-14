@@ -8,6 +8,7 @@
 //! adapter reads the data its pages embed and fails with a readable error
 //! when that changes.
 
+pub mod alerts;
 pub mod cricbuzz;
 pub mod espn;
 pub mod photo;
@@ -148,6 +149,24 @@ pub struct PlayerStats {
     pub highlights: Vec<Highlight>,
     pub season: Vec<StatTable>,
     pub career: Vec<StatTable>,
+    /// The player's latest finished game, for the after-game notification.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_game: Option<LastGame>,
+}
+
+/// How a player did in one game.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LastGame {
+    /// The source's game id.
+    pub id: String,
+    /// When it was played (ms).
+    pub at: i64,
+    /// "35 pts, 4 reb, 4 ast", "74 (60) and 1-13".
+    pub line: String,
+    /// "L 111-96 @ Phoenix Suns", "vs ENG, ODI".
+    pub game: String,
+    pub url: Option<String>,
 }
 
 /// One followed team or player, as stored.
@@ -201,9 +220,20 @@ pub fn follows(conn: &Connection) -> Result<Vec<Follow>> {
 pub enum Fetched {
     Games(Vec<Game>),
     Stats(Box<PlayerStats>),
+    /// Only a player's latest game (ESPN), between full stats refreshes.
+    LastGame(Option<LastGame>),
 }
 
-pub fn fetch(http: &Http, follow: &Follow) -> Result<Fetched> {
+/// A team's games, or a player's stats; with `full` false an ESPN player
+/// only gets their latest game (Cricbuzz has it on the same page anyway).
+pub fn fetch(http: &Http, follow: &Follow, full: bool) -> Result<Fetched> {
+    if !full && follow.kind == Kind::Player && follow.sport != Sport::Cricket {
+        return Ok(Fetched::LastGame(espn::last_game(
+            http,
+            follow.sport,
+            &follow.r#ref,
+        )?));
+    }
     let mut fetched = fetch_from_source(http, follow)?;
     if let Fetched::Stats(stats) = &mut fetched
         && stats.image.is_none()
@@ -249,16 +279,110 @@ fn fetch_from_source(http: &Http, follow: &Follow) -> Result<Fetched> {
     })
 }
 
+/// Stats are refetched in full at most this often; in between, ESPN
+/// players only get their latest game.
+pub const STATS_MS: i64 = 6 * 3_600_000;
+
+/// What a refresh fetches: the follows (only `ids` when given), each with
+/// whether a player gets full stats.
+pub fn plan(follows: Vec<Follow>, ids: Option<&[String]>, now: i64) -> Vec<(Follow, bool)> {
+    follows
+        .into_iter()
+        .filter(|f| ids.is_none_or(|ids| ids.contains(&f.id)))
+        .map(|f| {
+            let full = ids.is_some() || f.stats_at.is_none_or(|t| now - t > STATS_MS);
+            (f, full)
+        })
+        .collect()
+}
+
+/// Fetches a plan in parallel.
+pub fn fetch_all(http: &Http, plan: &[(Follow, bool)]) -> Vec<Result<Fetched>> {
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = plan
+            .iter()
+            .map(|(f, full)| scope.spawn(move || fetch(http, f, *full)))
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().expect("sports fetch panicked"))
+            .collect()
+    })
+}
+
 fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
 
+/// The stored latest game of a player: None without stats, Some(None)
+/// when the stats predate last games being kept.
+fn stored_last_game(conn: &Connection, follow: &str) -> Result<Option<Option<String>>> {
+    let data: Option<String> = conn
+        .query_row(
+            "SELECT data FROM sport_stats WHERE id = ?1",
+            [follow],
+            |r| r.get(0),
+        )
+        .optional()?;
+    Ok(data.map(|d| {
+        serde_json::from_str::<serde_json::Value>(&d)
+            .ok()
+            .and_then(|v| v["lastGame"]["id"].as_str().map(String::from))
+    }))
+}
+
+/// The announcement for a player's newer game, if there is one. The first
+/// game seen for a player only sets the baseline.
+fn performance(
+    conn: &Connection,
+    follow: &Follow,
+    name: &str,
+    game: &Option<LastGame>,
+) -> Result<Option<alerts::Alert>> {
+    let Some(game) = game else { return Ok(None) };
+    match stored_last_game(conn, &follow.id)? {
+        Some(Some(prev)) if prev != game.id && alerts::fresh(game.at) => alerts::keep(
+            conn,
+            alerts::performance_alert(follow, name, game),
+            &[alerts::follow_mute_id(&follow.id)],
+            "notify.performances",
+        ),
+        _ => Ok(None),
+    }
+}
+
 /// Replaces a team's games, or a player's stats (also refreshing the
-/// follow's picture and team line when they changed).
-pub fn store(conn: &Connection, follow: &Follow, fetched: &Fetched) -> Result<()> {
+/// follow's picture and team line when they changed). Returns what to
+/// announce: games that finished since the last refresh, a player's new game.
+pub fn store(conn: &Connection, follow: &Follow, fetched: &Fetched) -> Result<Vec<alerts::Alert>> {
     let tx = conn.unchecked_transaction()?;
+    let mut out = Vec::new();
     match fetched {
         Fetched::Games(games) => {
+            // Games seen before and not finished then.
+            let mut stmt = tx.prepare("SELECT id, state FROM sport_games WHERE follow_id = ?1")?;
+            let before: std::collections::HashMap<String, String> = stmt
+                .query_map([&follow.id], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<rusqlite::Result<_>>()?;
+            drop(stmt);
+            for g in games {
+                let was = before.get(&format!("{}:{}", follow.id, g.id));
+                if g.state == "post"
+                    && was.is_some_and(|s| s != "post")
+                    && alerts::fresh(g.start_at)
+                {
+                    let mutes = [
+                        alerts::game_mute_id(follow.sport, &g.id),
+                        alerts::follow_mute_id(&follow.id),
+                    ];
+                    out.extend(alerts::keep(
+                        &tx,
+                        alerts::result_alert(follow, g),
+                        &mutes,
+                        "notify.results",
+                    )?);
+                }
+            }
             tx.execute("DELETE FROM sport_games WHERE follow_id = ?1", [&follow.id])?;
             for g in games {
                 tx.execute(
@@ -302,6 +426,12 @@ pub fn store(conn: &Connection, follow: &Follow, fetched: &Fetched) -> Result<()
             }
         }
         Fetched::Stats(stats) => {
+            let name = if stats.name.is_empty() {
+                follow.name.clone()
+            } else {
+                stats.name.clone()
+            };
+            out.extend(performance(&tx, follow, &name, &stats.last_game)?);
             tx.execute(
                 "INSERT OR REPLACE INTO sport_stats (id, data, fetched_at) VALUES (?1, ?2, ?3)",
                 params![follow.id, serde_json::to_string(stats)?, now_ms()],
@@ -324,13 +454,22 @@ pub fn store(conn: &Connection, follow: &Follow, fetched: &Fetched) -> Result<()
                 ],
             )?;
         }
+        Fetched::LastGame(game) => {
+            out.extend(performance(&tx, follow, &follow.name, game)?);
+            if let Some(game) = game {
+                tx.execute(
+                    "UPDATE sport_stats SET data = json_set(data, '$.lastGame', json(?2)) WHERE id = ?1",
+                    params![follow.id, serde_json::to_string(game)?],
+                )?;
+            }
+        }
     }
     tx.execute(
         "UPDATE sport_follows SET error = NULL WHERE id = ?1 AND error IS NOT NULL",
         [&follow.id],
     )?;
     tx.commit()?;
-    Ok(())
+    Ok(out)
 }
 
 pub fn store_error(conn: &Connection, follow: &Follow, error: &str) -> Result<()> {

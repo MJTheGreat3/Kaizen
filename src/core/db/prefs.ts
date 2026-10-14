@@ -62,6 +62,10 @@ export interface Prefs {
   "notify.matches": boolean;
   /** Minutes before a game to notify. */
   "notify.matchesLead": number;
+  /** Followed teams' results, after their games. Read by Rust too. */
+  "notify.results": boolean;
+  /** Favourite players' performances, after their games. Read by Rust too. */
+  "notify.performances": boolean;
   /** Last searches typed in the palette, newest first. */
   "search.recent": string[];
   /** Items last opened from search, newest first. */
@@ -101,6 +105,8 @@ export const defaultPrefs: Prefs = {
   "notify.contestsLead": 60,
   "notify.matches": true,
   "notify.matchesLead": 30,
+  "notify.results": true,
+  "notify.performances": true,
   "search.recent": [],
   "search.opened": [],
 };

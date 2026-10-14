@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { ArrowsClockwise, Fire, Plus, Trash, Warning } from "@phosphor-icons/react";
+import { ArrowsClockwise, Bell, BellSlash, Fire, Plus, Trash, Warning } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/controls";
@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { activeDays, streak, weekStart } from "@/modules/activity/logic";
 import { amount } from "@/modules/activity/format";
 import { modules } from "@/modules/registry";
-import { sportsToast, useRefreshSports, useSports, useUnfollow } from "./data";
+import { followMuteId, gameMuteId, isGameMuted, sportsToast, useMute, useRefreshSports, useSports, useUnfollow } from "./data";
 import { FollowDialog, SessionDialog } from "./Dialogs";
 import { INTENSITY, bySport, minutesBetween, sportName, splitGames } from "./logic";
 import { Avatar, GameRow } from "./parts";
@@ -47,6 +47,7 @@ export function SportsPage() {
   const { data, isLoading } = useSports();
   const refresh = useRefreshSports();
   const unfollow = useUnfollow();
+  const mute = useMute();
   const now = useNow(60_000).getTime();
   const [following, setFollowing] = useState<"team" | "player" | null>(null);
   const [editing, setEditing] = useState<SportSession | "new" | null>(null);
@@ -141,9 +142,21 @@ export function SportsPage() {
             <Card title={games.live.length ? "Live and upcoming" : "Upcoming"}>
               {games.live.length + games.upcoming.length ? (
                 <ul className="-mx-1 grid gap-0.5">
-                  {[...games.live, ...games.upcoming.slice(0, 6)].map((g) => (
-                    <GameRow key={g.id} game={g} team={teamOf(g.followId)} now={now} />
-                  ))}
+                  {[...games.live, ...games.upcoming.slice(0, 6)].map((g) => {
+                    const muted = isGameMuted(g, data.mutes);
+                    const teamMuted = data.mutes.has(followMuteId(g.followId));
+                    return (
+                      <GameRow
+                        key={g.id}
+                        game={g}
+                        team={teamOf(g.followId)}
+                        now={now}
+                        muted={muted}
+                        // A whole team muted is turned back on from its menu.
+                        onMute={teamMuted ? undefined : () => mute.mutate({ id: gameMuteId(g), title: `${g.home} v ${g.away}`, on: !muted })}
+                      />
+                    );
+                  })}
                 </ul>
               ) : (
                 <p className="py-6 text-center text-[14px] text-muted-foreground">{data.teams.length ? "No fixtures found yet." : "Follow a team to see its fixtures."}</p>
@@ -184,7 +197,15 @@ export function SportsPage() {
                           <span className="truncate">{t.error ?? [sportName(t.sport), t.subtitle].filter(Boolean).join(" · ")}</span>
                         </span>
                       </span>
-                      <RowMenu items={[{ label: "Unfollow", icon: Trash, danger: true, onSelect: () => unfollow.mutate(t.id) }]} />
+                      {data.mutes.has(followMuteId(t.id)) ? <BellSlash size={16} className="shrink-0 text-muted-foreground" aria-label="Notifications muted" /> : null}
+                      <RowMenu
+                        items={[
+                          data.mutes.has(followMuteId(t.id))
+                            ? { label: "Turn on notifications", icon: Bell, onSelect: () => mute.mutate({ id: followMuteId(t.id), title: t.name, on: false }) }
+                            : { label: "Mute notifications", icon: BellSlash, onSelect: () => mute.mutate({ id: followMuteId(t.id), title: t.name, on: true }) },
+                          { label: "Unfollow", icon: Trash, danger: true, onSelect: () => unfollow.mutate(t.id) },
+                        ]}
+                      />
                     </li>
                   ))}
                 </ul>

@@ -9,8 +9,8 @@ use regex::Regex;
 use serde_json::Value as JsonValue;
 
 use super::{
-    Candidate, Game, Highlight, Kind, PlayerStats, Side, Sport, StatRow, StatTable, follow_id,
-    title_from_slug,
+    Candidate, Game, Highlight, Kind, LastGame, PlayerStats, Side, Sport, StatRow, StatTable,
+    follow_id, title_from_slug,
 };
 use crate::error::{Error, Result};
 use crate::practice::http::{Http, pause};
@@ -578,6 +578,59 @@ fn recent(table: &JsonValue, title: &str, what: &str) -> Option<StatTable> {
     })
 }
 
+/// Recent innings as (match id, figure, against, format, day in ms).
+fn recent_rows(table: &JsonValue) -> Vec<(String, String, String, String, i64)> {
+    table["rows"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|r| {
+            let v: Vec<&str> = r["values"]
+                .as_array()?
+                .iter()
+                .filter_map(|x| x.as_str())
+                .collect();
+            let [id, figure, against, format, date] = v.as_slice() else {
+                return None;
+            };
+            let day = chrono::NaiveDate::parse_from_str(date, "%d %b %y").ok()?;
+            Some((
+                id.to_string(),
+                figure.to_string(),
+                against.to_string(),
+                format.to_string(),
+                day.and_hms_opt(12, 0, 0)?.and_utc().timestamp_millis(),
+            ))
+        })
+        .collect()
+}
+
+/// The latest match in a player's recent batting and bowling.
+pub fn last_game(batting: Option<&JsonValue>, bowling: Option<&JsonValue>) -> Option<LastGame> {
+    let bat = batting.map(recent_rows).unwrap_or_default();
+    let bowl = bowling.map(recent_rows).unwrap_or_default();
+    let (id, _, against, format, at) = bat.iter().chain(&bowl).max_by_key(|r| r.4)?.clone();
+    // "74(60)" reads as "74 (60)"; "did not bat" is no figure.
+    let figure = |rows: &[(String, String, String, String, i64)]| {
+        rows.iter()
+            .find(|r| r.0 == id && !matches!(r.1.as_str(), "DNB" | "-" | ""))
+            .map(|r| r.1.replace('(', " ("))
+    };
+    let line = match (figure(&bat), figure(&bowl)) {
+        (Some(b), Some(w)) => format!("{b} and {w}"),
+        (Some(b), None) => b,
+        (None, Some(w)) => w,
+        (None, None) => return None,
+    };
+    Some(LastGame {
+        url: Some(format!("{SITE}/live-cricket-scores/{id}")),
+        id,
+        at,
+        line,
+        game: format!("vs {against}, {format}"),
+    })
+}
+
 pub fn parse_player(text: &str) -> Result<PlayerStats> {
     let batting = value_of(text, "battingStats");
     let bowling = value_of(text, "bowlingStats");
@@ -596,13 +649,18 @@ pub fn parse_player(text: &str) -> Result<PlayerStats> {
         ..Default::default()
     };
 
-    if let Some(t) =
-        value_of(text, "recentBatting").and_then(|t| recent(&t, "Recent batting", "Runs"))
+    let recent_batting = value_of(text, "recentBatting");
+    let recent_bowling = value_of(text, "recentBowling");
+    stats.last_game = last_game(recent_batting.as_ref(), recent_bowling.as_ref());
+    if let Some(t) = recent_batting
+        .as_ref()
+        .and_then(|t| recent(t, "Recent batting", "Runs"))
     {
         stats.season.push(t);
     }
-    if let Some(t) =
-        value_of(text, "recentBowling").and_then(|t| recent(&t, "Recent bowling", "Figures"))
+    if let Some(t) = recent_bowling
+        .as_ref()
+        .and_then(|t| recent(t, "Recent bowling", "Figures"))
     {
         stats.season.push(t);
     }

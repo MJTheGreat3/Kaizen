@@ -687,14 +687,16 @@ pub async fn sports_search(
 pub struct SportsReport {
     updated: usize,
     errors: Vec<String>,
+    /// Results and performances to announce (already shown on Android).
+    alerts: Vec<sports::alerts::Alert>,
 }
 
 /// One sports refresh at a time.
 static SPORTS_RUNNING: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Fetches games for followed teams and stats for followed players (only
-/// those `ids` when given; player stats at most every six hours unless
-/// named).
+/// those `ids` when given; full player stats at most every six hours unless
+/// named, their latest game every time).
 #[tauri::command]
 pub async fn sports_refresh(
     app: tauri::AppHandle,
@@ -704,39 +706,25 @@ pub async fn sports_refresh(
         let _running = SPORTS_RUNNING.lock().unwrap_or_else(|e| e.into_inner());
         let state = app.state::<AppState>();
         let now = chrono::Utc::now().timestamp_millis();
-        let follows: Vec<_> = with_session(&state, |s| sports::follows(s.db.conn()))?
-            .into_iter()
-            .filter(|f| match &ids {
-                Some(ids) => ids.contains(&f.id),
-                None => {
-                    f.kind == sports::Kind::Team
-                        || f.stats_at.is_none_or(|t| now - t > 6 * 3_600_000)
-                }
-            })
-            .collect();
+        let follows = with_session(&state, |s| {
+            sports::alerts::apply_pending_mutes(s.db.conn(), &state.data_dir)?;
+            sports::follows(s.db.conn())
+        })?;
+        let plan = sports::plan(follows, ids.as_deref(), now);
         let http = practice::http::Http::new();
-        let results: Vec<_> = std::thread::scope(|scope| {
-            let handles: Vec<_> = follows
-                .iter()
-                .map(|f| {
-                    let http = &http;
-                    scope.spawn(move || sports::fetch(http, f))
-                })
-                .collect();
-            handles
-                .into_iter()
-                .map(|h| h.join().expect("sports fetch panicked"))
-                .collect()
-        });
+        let results = sports::fetch_all(&http, &plan);
         let mut report = SportsReport {
             updated: 0,
             errors: Vec::new(),
+            alerts: Vec::new(),
         };
-        for (follow, result) in follows.iter().zip(results) {
+        for ((follow, _), result) in plan.iter().zip(results) {
             with_session(&state, |s| {
                 match &result {
                     Ok(fetched) => {
-                        sports::store(s.db.conn(), follow, fetched)?;
+                        report
+                            .alerts
+                            .extend(sports::store(s.db.conn(), follow, fetched)?);
                         report.updated += 1;
                     }
                     Err(e) => {
@@ -752,9 +740,68 @@ pub async fn sports_refresh(
         tracing::info!(
             updated = report.updated,
             failed = report.errors.len(),
+            alerts = report.alerts.len(),
             "sports refreshed"
         );
+        // Android shows them natively, with a Mute button.
+        #[cfg(target_os = "android")]
+        if !report.alerts.is_empty() {
+            crate::android::sports_notifier("postAll", &serde_json::to_string(&report.alerts)?)?;
+            report.alerts.clear();
+        }
         Ok(report)
+    })
+    .await
+}
+
+/// Mutes or unmutes a game (`game:{sport}:{id}`) or a follow (`follow:{id}`).
+#[tauri::command]
+pub async fn sports_mute(
+    app: tauri::AppHandle,
+    id: String,
+    title: Option<String>,
+    on: bool,
+) -> Result<()> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        with_session(&state, |s| {
+            sports::alerts::set_muted(s.db.conn(), &id, title.as_deref(), on)
+        })
+    })
+    .await
+}
+
+/// A reminder before a followed team's game, scheduled natively on Android.
+#[derive(serde::Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GameReminder {
+    key: String,
+    at: i64,
+    title: String,
+    body: String,
+    mute_id: Option<String>,
+    url: Option<String>,
+}
+
+/// Replaces the scheduled game reminders (Android; elsewhere they run as
+/// timers in the app). Returns whether they were scheduled here.
+#[tauri::command]
+pub async fn sports_schedule(app: tauri::AppHandle, reminders: Vec<GameReminder>) -> Result<bool> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        with_session(&state, |s| {
+            sports::alerts::apply_pending_mutes(s.db.conn(), &state.data_dir)
+        })?;
+        #[cfg(target_os = "android")]
+        {
+            crate::android::sports_notifier("scheduleAll", &serde_json::to_string(&reminders)?)?;
+            Ok(true)
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = reminders;
+            Ok(false)
+        }
     })
     .await
 }

@@ -370,6 +370,7 @@ pub fn synced_tables() -> impl Iterator<Item = &'static str> {
         .chain(V9_SYNCED)
         .chain(V10_SYNCED)
         .chain(V11_SYNCED)
+        .chain(V12_SYNCED)
         .copied()
 }
 
@@ -1600,7 +1601,34 @@ CREATE INDEX body_metrics_date ON body_metrics (date);
     )
 }
 
-pub const LATEST: i64 = 11;
+const V12_SYNCED: &[&str] = &["sport_mutes"];
+
+/// Phase 5: muted games and follows (synced), and which results and
+/// performances this device has already announced (device-local).
+///
+/// A mute id is `game:{sport}:{game id}` (that game's reminder and result)
+/// or `follow:{follow id}` (everything about a team or player).
+fn v12(conn: &Connection) -> Result<()> {
+    conn.execute_batch(&format!(
+        "
+CREATE TABLE sport_mutes (
+  id    TEXT PRIMARY KEY,
+  title TEXT,{BASE_COLUMNS}
+) STRICT;
+
+CREATE TABLE sport_alerts (
+  key TEXT PRIMARY KEY,
+  at  INTEGER NOT NULL
+) STRICT;
+"
+    ))?;
+    for table in V12_SYNCED {
+        install_clock_triggers(conn, table)?;
+    }
+    Ok(())
+}
+
+pub const LATEST: i64 = 12;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -1639,6 +1667,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             9 => v9(&tx)?,
             10 => v10(&tx)?,
             11 => v11(&tx)?,
+            12 => v12(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Broadcast } from "@phosphor-icons/react";
+import { Bell, BellSlash, Broadcast } from "@phosphor-icons/react";
 
 import type { SportGame, StatTable } from "@/core/db/schema";
 import { openUrl } from "@/lib/native";
@@ -37,8 +37,8 @@ function when(ms: number, now: number) {
   return `${d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}${ms > now ? `, ${time}` : ""}`;
 }
 
-/** A fixture, live game or result. `team` marks the followed side. */
-export function GameRow({ game, team, now }: { game: SportGame; team?: string; now: number }) {
+/** A fixture, live game or result. `team` marks the followed side; `onMute` adds a bell for its notifications. */
+export function GameRow({ game, team, now, muted, onMute }: { game: SportGame; team?: string; now: number; muted?: boolean; onMute?: () => void }) {
   const result = game.state === "post" && team ? outcome(game, team) : null;
   const side = (name: string, short: string, logo: string | null, score: string | null) => (
     <span className="flex min-w-0 items-center gap-2">
@@ -50,11 +50,11 @@ export function GameRow({ game, team, now }: { game: SportGame; team?: string; n
     </span>
   );
   return (
-    <li>
+    <li className="flex items-center gap-1">
       <button
         type="button"
         onClick={() => game.url && void openUrl(game.url)}
-        className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 rounded-xl px-2 py-2 text-left transition-colors hover:bg-surface-muted"
+        className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 rounded-xl px-2 py-2 text-left transition-colors hover:bg-surface-muted"
       >
         <span className="grid min-w-0 gap-1">
           {side(game.home, game.homeShort, game.homeLogo, game.homeScore)}
@@ -83,6 +83,18 @@ export function GameRow({ game, team, now }: { game: SportGame; team?: string; n
           <span className="line-clamp-2">{game.state === "pre" ? [game.title, game.league].filter(Boolean).join(" · ") : game.status}</span>
         </span>
       </button>
+      {onMute ? (
+        <button
+          type="button"
+          onClick={onMute}
+          aria-pressed={muted}
+          aria-label={muted ? "Turn on notifications for this game" : "Mute this game"}
+          title={muted ? "Muted: no reminder or result" : "Reminder before, result after"}
+          className={cn("grid size-8 shrink-0 place-items-center rounded-lg transition-colors hover:bg-surface-muted", muted ? "text-muted-foreground/60" : "text-muted-foreground")}
+        >
+          {muted ? <BellSlash size={16} /> : <Bell size={16} />}
+        </button>
+      ) : null}
     </li>
   );
 }

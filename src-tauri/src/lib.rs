@@ -1,3 +1,5 @@
+#[cfg(target_os = "android")]
+mod android;
 mod attachments;
 mod backup;
 mod commands;
@@ -96,6 +98,8 @@ pub fn run() {
             commands::github_refresh,
             commands::sports_search,
             commands::sports_refresh,
+            commands::sports_mute,
+            commands::sports_schedule,
             commands::attachment_add,
             commands::attachment_read,
             commands::attachment_remove,

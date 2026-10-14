@@ -339,7 +339,7 @@ fn live() {
             league: first.league.clone(),
             stats_at: None,
         };
-        report(fetch(&http, &follow));
+        report(fetch(&http, &follow, true));
     }
     let index = cricbuzz::index(&http).unwrap();
     let mut teams = std::collections::BTreeMap::new();
@@ -381,7 +381,7 @@ fn live() {
             league: first.league.clone(),
             stats_at: None,
         };
-        report(fetch(&http, &follow));
+        report(fetch(&http, &follow, true));
     }
 }
 
@@ -402,11 +402,13 @@ fn report(result: crate::error::Result<Fetched>) {
                 );
             }
         }
+        Ok(Fetched::LastGame(g)) => println!("    last game {g:?}"),
         Ok(Fetched::Stats(s)) => {
             println!(
                 "    {} · {:?} · {:?} · {} · {:?}",
                 s.name, s.team, s.position, s.season_label, s.image
             );
+            println!("    last game {:?}", s.last_game);
             println!(
                 "    {:?}",
                 s.highlights
@@ -423,4 +425,185 @@ fn report(result: crate::error::Result<Fetched>) {
         }
         Err(e) => println!("    ERROR {e}"),
     }
+}
+
+#[test]
+fn reads_last_games() {
+    let log = json!({
+        "labels": ["MIN", "REB", "AST", "PTS"],
+        "events": {
+            "1": { "gameDate": "2026-04-18T02:00:00.000+00:00", "score": "111-96", "atVs": "@", "gameResult": "L", "opponent": { "displayName": "Phoenix Suns" },
+                   "links": [{ "rel": ["summary", "desktop", "event"], "href": "https://espn.com/1" }] },
+            "2": { "gameDate": "2026-04-10T02:00:00.000+00:00", "score": "100-90", "atVs": "vs", "gameResult": "W", "opponent": { "displayName": "Kings" } }
+        },
+        "seasonTypes": [{ "categories": [{ "events": [
+            { "eventId": "1", "stats": ["36", "4", "8", "35"] },
+            { "eventId": "2", "stats": ["30", "2", "3", "20"] }
+        ]}]}]
+    });
+    let g = espn::parse_gamelog(&log, Sport::Nba).unwrap();
+    assert_eq!(g.id, "1");
+    assert_eq!(g.line, "35 pts, 4 reb, 8 ast");
+    assert_eq!(g.game, "L 111-96 @ Phoenix Suns");
+    assert_eq!(g.url.as_deref(), Some("https://espn.com/1"));
+
+    let soccer = json!({
+        "labels": ["G", "A", "SHOT"],
+        "events": { "9": { "gameDate": "2026-10-11T15:30:00.000+00:00", "score": "3-0", "atVs": "@", "gameResult": "W", "opponent": { "displayName": "Liverpool" } } },
+        "seasonTypes": [{ "categories": [{ "events": [{ "eventId": "9", "stats": ["1", "0", "2"] }] }] }]
+    });
+    assert_eq!(
+        espn::parse_gamelog(&soccer, Sport::Football).unwrap().line,
+        "1 goal"
+    );
+
+    let batting = json!({ "rows": [{ "values": ["151554", "0(1)", "WI", "ODI", "03 Oct 26"] }, { "values": ["151532", "139*(88)", "WI", "ODI", "27 Sep 26"] }] });
+    let bowling = json!({ "rows": [{ "values": ["151554", "1-13", "WI", "ODI", "03 Oct 26"] }] });
+    let g = cricbuzz::last_game(Some(&batting), Some(&bowling)).unwrap();
+    assert_eq!(
+        (g.id.as_str(), g.line.as_str(), g.game.as_str()),
+        ("151554", "0 (1) and 1-13", "vs WI, ODI")
+    );
+}
+
+#[test]
+fn announces_results_and_performances_once() {
+    let mut conn = Connection::open_in_memory().unwrap();
+    migrate(&mut conn).unwrap();
+    conn.execute_batch(
+        "INSERT INTO sport_follows (id, sport, kind, ref, name, created_at, updated_at, device_id)
+         VALUES ('cricket:team:2', 'cricket', 'team', '2', 'India', 1, 1, 'd'),
+                ('nba:player:3975', 'nba', 'player', '3975', 'Stephen Curry', 1, 1, 'd');",
+    )
+    .unwrap();
+    let all = follows(&conn).unwrap();
+    let team = all.iter().find(|f| f.kind == Kind::Team).unwrap();
+    let now = chrono::Utc::now().timestamp_millis();
+    let game = |id: &str, state: &str| Game {
+        id: id.into(),
+        start_at: now - 3_600_000,
+        state: state.into(),
+        status: if state == "post" {
+            "India won by 14 runs".into()
+        } else {
+            "Live".into()
+        },
+        home: Side {
+            name: "India".into(),
+            short: "IND".into(),
+            score: Some("172".into()),
+            ..Default::default()
+        },
+        away: Side {
+            name: "West Indies".into(),
+            short: "WI".into(),
+            score: Some("158/7".into()),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    // Seen finished the first time: no alert.
+    assert!(
+        store(&conn, team, &Fetched::Games(vec![game("old", "post")]))
+            .unwrap()
+            .is_empty()
+    );
+    // Live, then finished: one alert, once.
+    assert!(
+        store(&conn, team, &Fetched::Games(vec![game("1", "in")]))
+            .unwrap()
+            .is_empty()
+    );
+    let alerts = store(&conn, team, &Fetched::Games(vec![game("1", "post")])).unwrap();
+    assert_eq!(alerts.len(), 1);
+    assert_eq!(alerts[0].title, "India won by 14 runs");
+    assert_eq!(alerts[0].body, "IND 172 v WI 158/7");
+    assert_eq!(alerts[0].mute_id.as_deref(), Some("follow:cricket:team:2"));
+    store(&conn, team, &Fetched::Games(vec![game("1", "in")])).unwrap();
+    assert!(
+        store(&conn, team, &Fetched::Games(vec![game("1", "post")]))
+            .unwrap()
+            .is_empty()
+    );
+
+    // A muted game stays quiet.
+    alerts::set_muted(
+        &conn,
+        &alerts::game_mute_id(Sport::Cricket, "2"),
+        Some("India v WI"),
+        true,
+    )
+    .unwrap();
+    store(&conn, team, &Fetched::Games(vec![game("2", "in")])).unwrap();
+    assert!(
+        store(&conn, team, &Fetched::Games(vec![game("2", "post")]))
+            .unwrap()
+            .is_empty()
+    );
+
+    // Players: the first game seen is the baseline, a newer one is announced.
+    let player = all.iter().find(|f| f.kind == Kind::Player).unwrap();
+    let last = |id: &str| LastGame {
+        id: id.into(),
+        at: now,
+        line: "35 pts, 4 reb, 8 ast".into(),
+        game: "W 111-96 vs PHX".into(),
+        url: None,
+    };
+    let stats = PlayerStats {
+        name: "Stephen Curry".into(),
+        last_game: Some(last("a")),
+        ..Default::default()
+    };
+    assert!(
+        store(&conn, player, &Fetched::Stats(Box::new(stats)))
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        store(&conn, player, &Fetched::LastGame(Some(last("a"))))
+            .unwrap()
+            .is_empty()
+    );
+    let alerts = store(&conn, player, &Fetched::LastGame(Some(last("b")))).unwrap();
+    assert_eq!(alerts[0].title, "Stephen Curry: 35 pts, 4 reb, 8 ast");
+    // Its latest game was saved, so it is not announced again.
+    assert!(
+        store(&conn, player, &Fetched::LastGame(Some(last("b"))))
+            .unwrap()
+            .is_empty()
+    );
+
+    // Muting from a notification goes through the pending file.
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(alerts::PENDING_MUTES),
+        "follow:nba:player:3975\tStephen Curry\n",
+    )
+    .unwrap();
+    assert_eq!(alerts::apply_pending_mutes(&conn, dir.path()).unwrap(), 1);
+    assert!(
+        store(&conn, player, &Fetched::LastGame(Some(last("c"))))
+            .unwrap()
+            .is_empty()
+    );
+    alerts::set_muted(&conn, "follow:nba:player:3975", None, false).unwrap();
+    assert_eq!(
+        store(&conn, player, &Fetched::LastGame(Some(last("d"))))
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // Turned off on this device.
+    conn.execute(
+        "INSERT INTO local_meta VALUES ('pref.notify.performances', 'false')",
+        [],
+    )
+    .unwrap();
+    assert!(
+        store(&conn, player, &Fetched::LastGame(Some(last("e"))))
+            .unwrap()
+            .is_empty()
+    );
 }

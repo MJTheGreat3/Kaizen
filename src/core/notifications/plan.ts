@@ -50,6 +50,21 @@ export function notificationId(key: string): number {
 
 const DAY_START = 9 * 60;
 
+export type Match = NonNullable<PlanInput["matches"]>[number];
+
+/** Reminders before followed teams' games, when turned on. */
+export function matchReminders(matches: Match[], prefs: Prefs): (PlannedNotification & { match: Match })[] {
+  if (!prefs["notify.matches"]) return [];
+  const lead = prefs["notify.matchesLead"];
+  return matches.map((g) => ({
+    key: `match:${g.id}:${g.startAt}`,
+    at: new Date(g.startAt - lead * 60_000),
+    title: `${g.title} starts ${lead >= 60 ? `in ${lead / 60} h` : `in ${lead} min`}`,
+    body: g.detail,
+    match: g,
+  }));
+}
+
 export function buildPlan(input: PlanInput, horizonDays = 3): PlannedNotification[] {
   const { now, prefs } = input;
   const today = todayKey(now);
@@ -152,17 +167,7 @@ export function buildPlan(input: PlanInput, horizonDays = 3): PlannedNotificatio
     }
   }
 
-  if (prefs["notify.matches"]) {
-    const lead = prefs["notify.matchesLead"];
-    for (const g of input.matches ?? []) {
-      push({
-        key: `match:${g.id}:${g.startAt}`,
-        at: new Date(g.startAt - lead * 60_000),
-        title: `${g.title} starts ${lead >= 60 ? `in ${lead / 60} h` : `in ${lead} min`}`,
-        body: g.detail,
-      });
-    }
-  }
+  for (const n of matchReminders(input.matches ?? [], prefs)) push(n);
 
   if (prefs["notify.goals"]) {
     for (const g of input.goals ?? []) {

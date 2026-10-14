@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { ArrowLeft, ArrowsClockwise, CaretLeft, CaretRight, Plus, Trash, Warning } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowsClockwise, Bell, BellSlash, CaretLeft, CaretRight, Plus, Trash, Warning } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -11,7 +11,8 @@ import { Page } from "@/core/shell/PageHeader";
 import { rise } from "@/lib/motion";
 import { cn, timeAgo } from "@/lib/utils";
 import { modules, pathOf } from "@/modules/registry";
-import { useMovePlayer, useRefreshSports, useSports, useUnfollow } from "./data";
+import { followMuteId, useMovePlayer, useMute, useRefreshSports, useSports, useUnfollow } from "./data";
+import { openUrl } from "@/lib/native";
 import { FollowDialog } from "./Dialogs";
 import { MAX_FAVOURITES, sportName } from "./logic";
 import { Avatar, StatsTable } from "./parts";
@@ -26,6 +27,7 @@ export function PlayersPage() {
   const refresh = useRefreshSports();
   const unfollow = useUnfollow();
   const move = useMovePlayer();
+  const mute = useMute();
   const [adding, setAdding] = useState(false);
 
   const players = data?.players ?? [];
@@ -117,6 +119,16 @@ export function PlayersPage() {
                 <Button
                   size="sm"
                   variant="ghost"
+                  aria-pressed={!data.mutes.has(followMuteId(player.id))}
+                  aria-label={data.mutes.has(followMuteId(player.id)) ? "Turn on notifications after games" : "Mute notifications after games"}
+                  title={data.mutes.has(followMuteId(player.id)) ? "Muted" : "Notified with their line after each game"}
+                  onClick={() => mute.mutate({ id: followMuteId(player.id), title: player.name, on: !data.mutes.has(followMuteId(player.id)) })}
+                >
+                  {data.mutes.has(followMuteId(player.id)) ? <BellSlash /> : <Bell />}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
                   aria-label="Refresh stats"
                   disabled={refresh.isPending}
                   onClick={async () => {
@@ -146,6 +158,19 @@ export function PlayersPage() {
                 </Button>
               </div>
             </div>
+            {s?.lastGame ? (
+              <button
+                type="button"
+                onClick={() => s.lastGame?.url && void openUrl(s.lastGame.url)}
+                className="relative mt-4 flex w-full items-center gap-3 rounded-xl border border-border bg-surface/70 px-3 py-2 text-left transition-colors hover:bg-surface-muted"
+              >
+                <span className="text-[12px] font-medium text-muted-foreground">Last game</span>
+                <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{s.lastGame.line}</span>
+                <span className="shrink-0 truncate text-[12px] text-muted-foreground">
+                  {s.lastGame.game} · {new Date(s.lastGame.at).toLocaleDateString([], { day: "numeric", month: "short" })}
+                </span>
+              </button>
+            ) : null}
             {s?.highlights.length ? (
               <div className="relative mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {s.highlights.map((h) => (

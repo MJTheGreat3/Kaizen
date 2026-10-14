@@ -155,7 +155,7 @@ function LeadTime({ kind }: { kind: "contests" | "matches" }) {
   );
 }
 
-function NotifyToggle({ prefKey, label, description }: { prefKey: "notify.classes" | "notify.attendance" | "notify.habits" | "notify.tasks" | "notify.dates" | "notify.debts" | "notify.streaks" | "notify.goals" | "notify.contests" | "notify.matches"; label: string; description: string }) {
+function NotifyToggle({ prefKey, label, description }: { prefKey: "notify.classes" | "notify.attendance" | "notify.habits" | "notify.tasks" | "notify.dates" | "notify.debts" | "notify.streaks" | "notify.goals" | "notify.contests" | "notify.matches" | "notify.results" | "notify.performances"; label: string; description: string }) {
   const [value, setValue] = usePref(prefKey);
   return (
     <Row label={label} description={description} inline>
@@ -214,6 +214,8 @@ function NotificationsSection() {
       <LeadTime kind="contests" />
       <NotifyToggle prefKey="notify.matches" label="Games" description="Before games of the teams you follow in Sports." />
       <LeadTime kind="matches" />
+      <NotifyToggle prefKey="notify.results" label="Results" description="When a followed team's game ends. Mute a game or team in Sports." />
+      <NotifyToggle prefKey="notify.performances" label="Player performances" description="A favourite player's line after each game." />
       <Row label="Morning summary" description="Classes, tasks and habits for the day.">
         <DateTimeInput type="time" aria-label="Morning summary time" className="h-9 w-32" value={digest} onChange={(e) => setDigest(e.target.value)} />
         {digest ? (

@@ -23,17 +23,20 @@ export interface SportsData {
   players: SportFollow[];
   games: SportGame[];
   stats: Map<string, SportStat>;
+  /** Muted games (`game:{sport}:{id}`) and follows (`follow:{id}`). */
+  mutes: Set<string>;
   /** The heatmap's active-day rule for Sports, for the streak. */
   rule: ActiveRule;
 }
 
 export async function loadSports(): Promise<SportsData> {
-  const [sessions, follows, games, stats, type] = await Promise.all([
+  const [sessions, follows, games, stats, type, mutes] = await Promise.all([
     db.select().from(s).where(isNull(s.deletedAt)).orderBy(desc(s.date), desc(s.createdAt)),
     db.select().from(f).where(isNull(f.deletedAt)).orderBy(asc(f.sort), asc(f.createdAt)),
     db.select().from(schema.sportGames).orderBy(asc(schema.sportGames.startAt)),
     db.select().from(schema.sportStats),
     db.select().from(schema.activityTypes).where(eq(schema.activityTypes.id, "sports")).get(),
+    loadMutes(),
   ]);
   return {
     sessions,
@@ -41,8 +44,24 @@ export async function loadSports(): Promise<SportsData> {
     players: follows.filter((x) => x.kind === "player").slice(0, MAX_FAVOURITES),
     games,
     stats: new Map(stats.map((x) => [x.id, x])),
+    mutes,
     rule: ruleFor("sports", type?.activeDayRule),
   };
+}
+
+export async function loadMutes() {
+  const rows = await db.select({ id: schema.sportMutes.id }).from(schema.sportMutes).where(isNull(schema.sportMutes.deletedAt));
+  return new Set(rows.map((r) => r.id));
+}
+
+/** A game's source id: stored ids are `{follow id}:{game id}`. */
+export const gameRef = (g: Pick<SportGame, "id" | "followId">) => g.id.slice(g.followId.length + 1);
+export const gameMuteId = (g: Pick<SportGame, "id" | "followId" | "sport">) => `game:${g.sport}:${gameRef(g)}`;
+export const followMuteId = (followId: string) => `follow:${followId}`;
+
+/** Whether a game is muted, itself or through its team. */
+export function isGameMuted(g: Pick<SportGame, "id" | "followId" | "sport">, mutes: Set<string>) {
+  return mutes.has(gameMuteId(g)) || mutes.has(followMuteId(g.followId));
 }
 
 /** Live and upcoming games of followed teams, each once, soonest first. */
@@ -152,10 +171,34 @@ export function useMovePlayer() {
   });
 }
 
+export function useMute() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, title, on }: { id: string; title: string | null; on: boolean }) => ipc.sportsMute(id, title, on),
+    onSuccess: () => {
+      // Any successful mutation also reschedules notifications, dropping this game's reminder.
+      void client.invalidateQueries({ queryKey: ["sports"] });
+    },
+  });
+}
+
+/** Shows results and performances on the desktop (Android posts its own, with a Mute button). */
+async function announce(report: SportsReport) {
+  if (!report.alerts.length) return;
+  try {
+    const n = await import("@tauri-apps/plugin-notification");
+    if ((await n.isPermissionGranted()) !== true) return;
+    for (const a of report.alerts) n.sendNotification({ title: a.title, body: a.body });
+  } catch (e) {
+    log.warn(`sports alerts failed: ${String(e)}`);
+  }
+}
+
 export function useRefreshSports() {
   return useSportsMutation(async (ids?: string[]) => {
     const report = await ipc.sportsRefresh(ids);
     if (!ids) await setPref("sports.refreshedAt", Date.now());
+    await announce(report);
     return report;
   });
 }
@@ -166,8 +209,20 @@ export function sportsToast(report: SportsReport) {
 }
 
 const STALE_MS = 60 * 60_000;
+/** While a followed team is playing, results are checked this often. */
+const LIVE_MS = 10 * 60_000;
 
-/** Refreshes games and stats shortly after unlock, then every half hour when over an hour old. */
+/** Whether a followed team's game is on (or should have started and not finished). */
+async function gameOn(now: number) {
+  const games = await db.select({ state: schema.sportGames.state, startAt: schema.sportGames.startAt }).from(schema.sportGames);
+  return games.some((g) => g.state === "in" || (g.state === "pre" && g.startAt < now && g.startAt > now - 8 * 3_600_000));
+}
+
+/**
+ * Refreshes games and stats shortly after unlock, then when over an hour
+ * old, or every ten minutes while a followed team is playing, so results
+ * and performances are announced soon after the game.
+ */
 export function useSportsAutoRefresh(enabled: boolean) {
   const { mutate } = useRefreshSports();
   useEffect(() => {
@@ -175,13 +230,16 @@ export function useSportsAutoRefresh(enabled: boolean) {
     const check = async () => {
       try {
         const follows = await db.select({ id: f.id }).from(f).where(isNull(f.deletedAt)).limit(1);
-        if (follows.length && Date.now() - (await getPref("sports.refreshedAt")) > STALE_MS) mutate(undefined);
+        if (!follows.length) return;
+        const now = Date.now();
+        const age = now - (await getPref("sports.refreshedAt"));
+        if (age > STALE_MS || (age > LIVE_MS && (await gameOn(now)))) mutate(undefined);
       } catch (e) {
         log.warn(`sports refresh check failed: ${String(e)}`);
       }
     };
     const first = setTimeout(check, 25_000);
-    const interval = setInterval(check, 30 * 60_000);
+    const interval = setInterval(check, 5 * 60_000);
     return () => {
       clearTimeout(first);
       clearInterval(interval);

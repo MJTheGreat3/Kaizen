@@ -132,9 +132,28 @@ export interface SportCandidate {
   image: string | null;
 }
 
+export interface SportAlert {
+  key: string;
+  title: string;
+  body: string;
+  muteId: string | null;
+  url: string | null;
+}
+
 export interface SportsReport {
   updated: number;
   errors: string[];
+  /** Results and performances to announce; Android has already shown them. */
+  alerts: SportAlert[];
+}
+
+export interface GameReminder {
+  key: string;
+  at: number;
+  title: string;
+  body: string;
+  muteId: string | null;
+  url: string | null;
 }
 
 export interface GitHubReport {
@@ -182,6 +201,10 @@ export const ipc = {
   githubRefresh: () => call<GitHubReport | null>("github_refresh"),
   sportsSearch: (sport: string, kind: string, query: string) => call<SportCandidate[]>("sports_search", { sport, kind, query }),
   sportsRefresh: (ids?: string[]) => call<SportsReport>("sports_refresh", { ids: ids ?? null }),
+  /** Mutes or unmutes `game:{sport}:{id}` or `follow:{id}` (synced). */
+  sportsMute: (id: string, title: string | null, on: boolean) => call<void>("sports_mute", { id, title, on }),
+  /** Schedules game reminders natively (Android); false elsewhere. */
+  sportsSchedule: (reminders: GameReminder[]) => call<boolean>("sports_schedule", { reminders }),
   /** Stores a file (base64) for a row, encrypted on this device. */
   attachmentAdd: (ownerTable: string, ownerId: string, fileName: string, mime: string | null, data: string) =>
     call<string>("attachment_add", { ownerTable, ownerId, fileName, mime, data }),

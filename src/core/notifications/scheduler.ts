@@ -14,11 +14,12 @@ import { loadDebts } from "@/modules/debts/data";
 import { currentStreaks } from "@/modules/activity/milestones";
 import { goalReminders } from "@/modules/goals/watch";
 import { loadContests } from "@/modules/practice/data";
-import { loadMatches } from "@/modules/sports/data";
+import { gameMuteId, isGameMuted, loadMatches, loadMutes } from "@/modules/sports/data";
+import { ipc } from "@/lib/ipc";
 import { platformOf } from "@/modules/practice/logic";
 import { loadHabits } from "@/modules/habits/data";
 import { loadTasks } from "@/modules/lists/data";
-import { buildPlan, notificationId, type PlannedNotification } from "./plan";
+import { buildPlan, matchReminders, notificationId, type PlannedNotification } from "./plan";
 
 const STORE_KEY = "kaizen.notifications.scheduled";
 const CHANNEL = "reminders";
@@ -112,7 +113,7 @@ async function applyDesktop(plan: PlannedNotification[]) {
 /** Rebuilds the plan from the database and (re)schedules everything. */
 export async function syncNotifications(platform: Platform) {
   if (!(await notificationsAllowed())) return;
-  const [prefs, tasks, habits, calendar, dates, debts, streaks, goals, contests, games] = await Promise.all([
+  const [prefs, tasks, habits, calendar, dates, debts, streaks, goals, contests, games, mutes] = await Promise.all([
     getAllPrefs(),
     loadTasks(),
     loadHabits(14),
@@ -123,14 +124,30 @@ export async function syncNotifications(platform: Platform) {
     goalReminders(),
     loadContests(),
     loadMatches(),
+    loadMutes(),
   ]);
   const chosen = contests
     .filter((c) => prefs["practice.contestPlatforms"].includes(c.platform))
     .map((c) => ({ id: c.id, name: c.name, startAt: c.startAt, site: platformOf(c.platform)?.name ?? c.platform }));
-  const matches = games
-    .filter((g) => g.state === "pre")
-    .map((g) => ({ id: g.id, title: `${g.home} v ${g.away}`, startAt: g.startAt, detail: [g.league, g.title].filter(Boolean).join(" · ") }));
-  const plan = buildPlan({ now: new Date(), prefs, tasks, habits, calendar, dates, debts, streaks, goals, contests: chosen, matches });
+  const upcoming = games.filter((g) => g.state === "pre" && !isGameMuted(g, mutes));
+  const matches = upcoming.map((g) => ({ id: g.id, title: `${g.home} v ${g.away}`, startAt: g.startAt, detail: [g.league, g.title].filter(Boolean).join(" · ") }));
+  // Android schedules game reminders natively, with a Mute button.
+  const native =
+    platform === "android" &&
+    (await ipc
+      .sportsSchedule(
+        matchReminders(matches, prefs)
+          .filter((n) => n.at.getTime() > Date.now() && n.at.getTime() < Date.now() + 7 * 86_400_000)
+          .map((n) => {
+            const g = upcoming.find((x) => x.id === n.match.id)!;
+            return { key: n.key, at: n.at.getTime(), title: n.title, body: n.body, muteId: gameMuteId(g), url: g.url };
+          }),
+      )
+      .catch((e) => {
+        log.warn(`game reminders failed: ${String(e)}`);
+        return false;
+      }));
+  const plan = buildPlan({ now: new Date(), prefs, tasks, habits, calendar, dates, debts, streaks, goals, contests: chosen, matches: native ? [] : matches });
   if (platform === "android") await applyAndroid(plan);
   else await applyDesktop(plan);
   log.info(`scheduled ${plan.length} notifications`);

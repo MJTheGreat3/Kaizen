@@ -76,6 +76,99 @@ pub fn run(data_dir: &Path) -> Result<Report> {
     Ok(total)
 }
 
+/// Follows worth checking with the app closed: teams with a game under way
+/// (or due to have started), and players (ESPN ones only for their latest
+/// game; Cricbuzz pages at most hourly).
+fn background_plan(
+    conn: &rusqlite::Connection,
+    now: i64,
+) -> Result<Vec<(crate::sports::Follow, bool)>> {
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT follow_id FROM sport_games
+         WHERE state = 'in' OR (state = 'pre' AND start_at BETWEEN ?1 AND ?2)",
+    )?;
+    let busy: Vec<String> = stmt
+        .query_map([now - 8 * 3_600_000, now], |r| r.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(crate::sports::follows(conn)?
+        .into_iter()
+        .filter_map(|f| match (f.kind, f.sport) {
+            (crate::sports::Kind::Team, _) => busy.contains(&f.id).then_some((f, true)),
+            (_, crate::sports::Sport::Cricket) => f
+                .stats_at
+                .is_none_or(|t| now - t > 3_600_000)
+                .then_some((f, true)),
+            _ => Some((f, false)),
+        })
+        .collect())
+}
+
+/// One background sports round: results and performances to announce.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub fn sports_round(data_dir: &Path) -> Result<Vec<crate::sports::alerts::Alert>> {
+    if !enabled(data_dir) || !vault::exists(data_dir) {
+        return Ok(Vec::new());
+    }
+    let key = vault::load_device_key(data_dir)?.ok_or(Error::DeviceUnlockUnavailable)?;
+    let db = Database::open(
+        &data_dir.join(DB_FILE),
+        &key,
+        Some(&backup::default_dir(data_dir)),
+    )?;
+    let conn = db.conn();
+    crate::sports::alerts::apply_pending_mutes(conn, data_dir)?;
+    let plan = background_plan(conn, chrono::Utc::now().timestamp_millis())?;
+    if plan.is_empty() {
+        return Ok(Vec::new());
+    }
+    let http = crate::practice::http::Http::new();
+    let mut alerts = Vec::new();
+    for ((follow, _), result) in plan.iter().zip(crate::sports::fetch_all(&http, &plan)) {
+        match result {
+            Ok(fetched) => alerts.extend(crate::sports::store(conn, follow, &fetched)?),
+            Err(e) => {
+                tracing::warn!(follow = follow.id, error = %e, "background sports check failed")
+            }
+        }
+    }
+    tracing::info!(
+        checked = plan.len(),
+        alerts = alerts.len(),
+        "background sports round"
+    );
+    Ok(alerts)
+}
+
+/// Entry point for `SyncWorker.nativeSports(dataDir)`: the alerts to show,
+/// as JSON (an empty list when there are none or the round failed).
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_matt_kaizen_SyncWorker_nativeSports<'local>(
+    mut env: jni::JNIEnv<'local>,
+    _class: jni::objects::JClass<'local>,
+    data_dir: jni::objects::JString<'local>,
+) -> jni::sys::jstring {
+    let json = env
+        .get_string(&data_dir)
+        .map(String::from)
+        .ok()
+        .and_then(|dir| {
+            let dir = std::path::PathBuf::from(dir);
+            match std::panic::catch_unwind(|| sports_round(&dir)) {
+                Ok(Ok(alerts)) => serde_json::to_string(&alerts).ok(),
+                Ok(Err(e)) => {
+                    tracing::warn!(error = %e, "background sports round failed");
+                    None
+                }
+                Err(_) => None,
+            }
+        })
+        .unwrap_or_else(|| "[]".into());
+    env.new_string(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(std::ptr::null_mut())
+}
+
 /// Entry point for `SyncWorker.nativeSync(dataDir)`. Returns 0 on success.
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]

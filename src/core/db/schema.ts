@@ -679,6 +679,8 @@ export interface PlayerStats {
   highlights: { label: string; value: string }[];
   season: StatTable[];
   career: StatTable[];
+  /** The latest finished game, for the after-game notification. */
+  lastGame?: { id: string; at: number; line: string; game: string; url: string | null };
 }
 
 /** Device-local cache of favourite players' stats. */
@@ -686,6 +688,16 @@ export const sportStats = sqliteTable("sport_stats", {
   id: text("id").primaryKey(),
   data: json<PlayerStats>("data").notNull(),
   fetchedAt: integer("fetched_at").notNull(),
+});
+
+/**
+ * Muted notifications (migration v12): `game:{sport}:{game id}` for one game,
+ * `follow:{follow id}` for a team or player. Unmuting soft-deletes.
+ */
+export const sportMutes = sqliteTable("sport_mutes", {
+  id: text("id").primaryKey(),
+  title: text("title"),
+  ...base,
 });
 
 export type SportSession = typeof sportSessions.$inferSelect;

@@ -2111,6 +2111,7 @@ dependencies = [
  "if-addrs",
  "jni",
  "keyring",
+ "ndk-context",
  "objc2",
  "objc2-foundation",
  "objc2-local-authentication",

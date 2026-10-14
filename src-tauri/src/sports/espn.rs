@@ -6,7 +6,8 @@ use std::collections::BTreeMap;
 use serde_json::Value as JsonValue;
 
 use super::{
-    Candidate, Game, Highlight, Kind, PlayerStats, Side, Sport, StatRow, StatTable, follow_id,
+    Candidate, Game, Highlight, Kind, LastGame, PlayerStats, Side, Sport, StatRow, StatTable,
+    follow_id,
 };
 use crate::error::{Error, Result};
 use crate::practice::codeforces::urlencode;
@@ -234,7 +235,106 @@ pub fn player_stats(http: &Http, sport: Sport, player: &str) -> Result<PlayerSta
         }
         _ => soccer_stats(http, player, &mut stats)?,
     }
+    pause(150);
+    stats.last_game = last_game(http, sport, player).unwrap_or(None);
     Ok(stats)
+}
+
+/// A player's latest game from their game log.
+pub fn last_game(http: &Http, sport: Sport, player: &str) -> Result<Option<LastGame>> {
+    let log = get(
+        http,
+        &format!("{COMMON}/{}/athletes/{player}/gamelog", path(sport)),
+    )?;
+    Ok(parse_gamelog(&log, sport))
+}
+
+pub fn parse_gamelog(log: &JsonValue, sport: Sport) -> Option<LastGame> {
+    let labels: Vec<&str> = log["labels"]
+        .as_array()?
+        .iter()
+        .filter_map(|l| l.as_str())
+        .collect();
+    // Stat lines by game, from every season type and category.
+    let mut lines = BTreeMap::new();
+    for season in log["seasonTypes"].as_array().into_iter().flatten() {
+        for category in season["categories"].as_array().into_iter().flatten() {
+            for e in category["events"].as_array().into_iter().flatten() {
+                if let (Some(id), Some(stats)) = (e["eventId"].as_str(), e["stats"].as_array()) {
+                    lines.insert(id.to_string(), stats.clone());
+                }
+            }
+        }
+    }
+    let (id, event, at) = log["events"]
+        .as_object()?
+        .iter()
+        .filter(|(id, _)| lines.contains_key(*id))
+        .filter_map(|(id, e)| Some((id, e, parse_date(e["gameDate"].as_str()?)?)))
+        .max_by_key(|(_, _, at)| *at)?;
+    let stats = &lines[id];
+    let stat = |label: &str| -> String {
+        labels
+            .iter()
+            .position(|l| *l == label)
+            .and_then(|i| stats.get(i)?.as_str())
+            .unwrap_or("0")
+            .to_string()
+    };
+    let count =
+        |n: &str, one: &str, many: &str| format!("{n} {}", if n == "1" { one } else { many });
+    let line = match sport {
+        Sport::Nba => format!(
+            "{} pts, {} reb, {} ast",
+            stat("PTS"),
+            stat("REB"),
+            stat("AST")
+        ),
+        _ => {
+            let mut parts = Vec::new();
+            if stat("G") != "0" {
+                parts.push(count(&stat("G"), "goal", "goals"));
+            }
+            if stat("A") != "0" {
+                parts.push(count(&stat("A"), "assist", "assists"));
+            }
+            if parts.is_empty() {
+                parts.push(format!(
+                    "No goals, {}",
+                    count(&stat("SHOT"), "shot", "shots")
+                ));
+            }
+            parts.join(", ")
+        }
+    };
+    let game = [
+        event["gameResult"].as_str(),
+        event["score"].as_str(),
+        event["atVs"].as_str(),
+        event["opponent"]["displayName"].as_str(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join(" ");
+    let url = event["links"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|l| {
+            l["rel"]
+                .as_array()
+                .is_some_and(|r| r.iter().any(|x| x == "desktop"))
+        })
+        .and_then(|l| l["href"].as_str())
+        .map(String::from);
+    Some(LastGame {
+        id: id.clone(),
+        at,
+        line,
+        game,
+        url,
+    })
 }
 
 /// Basketball: the latest season's averages and totals, and career ones.
