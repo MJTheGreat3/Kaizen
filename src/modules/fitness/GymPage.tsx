@@ -251,24 +251,6 @@ export function GymPage() {
             <Stat label="Bodyweight" value={view.lastWeight ? `${toUnit(view.lastWeight.weight!, unit)} ${unit}` : "–"} sub={view.lastWeight ? formatLongDate(view.lastWeight.date) : "Log it under Body"} />
           </motion.div>
 
-          <Card title="Body parts trained">
-            <BodyHeatmap workouts={data.workouts} sets={data.sets} exercises={data.byId} />
-          </Card>
-
-          <Card
-            title="Routines"
-            action={
-              data.templates.length ? (
-                <Button size="sm" variant="ghost" onClick={() => setEditing("new")}>
-                  <Plus />
-                  Routine
-                </Button>
-              ) : null
-            }
-          >
-            <Routines data={data} onStart={(t) => void begin(t)} onEdit={setEditing} />
-          </Card>
-
           <div className="grid gap-4 md:grid-cols-2">
             <Card
               title="Last 12 weeks"
@@ -302,6 +284,24 @@ export function GymPage() {
               {view.muscleRows.length ? <p className="mt-3 text-[12px] text-muted-foreground">The tick marks your weekly average over the four weeks before.</p> : null}
             </Card>
           </div>
+
+          <Card title="Body parts trained">
+            <BodyHeatmap workouts={data.workouts} sets={data.sets} exercises={data.byId} />
+          </Card>
+
+          <Card
+            title="Routines"
+            action={
+              data.templates.length ? (
+                <Button size="sm" variant="ghost" onClick={() => setEditing("new")}>
+                  <Plus />
+                  Routine
+                </Button>
+              ) : null
+            }
+          >
+            <Routines data={data} onStart={(t) => void begin(t)} onEdit={setEditing} />
+          </Card>
 
           <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
             <Card
