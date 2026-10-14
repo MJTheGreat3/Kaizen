@@ -15,6 +15,13 @@ const LABELS = 22;
 
 const regionInfo = (id: RegionId) => REGIONS.find((r) => r.id === id)!;
 
+/** Equal vertical stripes, one per colour. */
+function stripes(colors: string[]) {
+  if (colors.length === 1) return colors[0];
+  const w = 100 / colors.length;
+  return `linear-gradient(90deg, ${colors.map((c, i) => `${c} ${i * w}% ${(i + 1) * w}%`).join(", ")})`;
+}
+
 /**
  * Gym days, coloured by the body region trained: one colour for one
  * region, split in two for the two most trained. A legend filters to one
@@ -95,9 +102,7 @@ export function BodyHeatmap({
                     const top = regions ? ranked(regions) : [];
                     const dim = focus && !regions?.has(focus);
                     const colors =
-                      focus && regions?.has(focus)
-                        ? [regionInfo(focus).color]
-                        : top.slice(0, 2).map(([r]) => regionInfo(r).color);
+                      focus && regions?.has(focus) ? [regionInfo(focus).color] : top.map(([r]) => regionInfo(r).color);
                     return (
                       <button
                         key={d}
@@ -114,11 +119,7 @@ export function BodyHeatmap({
                         style={{
                           width: cell,
                           height: cell,
-                          background: colors.length
-                            ? colors.length === 2
-                              ? `linear-gradient(90deg, ${colors[0]} 50%, ${colors[1]} 50%)`
-                              : colors[0]
-                            : "var(--surface-muted)",
+                          background: colors.length ? stripes(colors) : "var(--surface-muted)",
                           opacity: dim ? 0.18 : undefined,
                         }}
                       />
@@ -178,8 +179,8 @@ export function BodyHeatmap({
         </div>
       </div>
       <p className="text-muted-foreground text-[12px]">
-        Working sets per region over the last three months. A split square had two regions; tap a region to see only its
-        days.
+        Working sets per region over the last three months. A striped square trained several regions, the most worked
+        first; tap a region to see only its days.
       </p>
     </div>
   );
