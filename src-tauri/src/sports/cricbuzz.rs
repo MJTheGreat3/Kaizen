@@ -4,6 +4,7 @@
 
 use std::collections::HashSet;
 
+use chrono::Datelike;
 use regex::Regex;
 use serde_json::Value as JsonValue;
 
@@ -100,8 +101,25 @@ pub fn parse_teams(html: &str) -> Vec<(String, String, String)> {
         .collect()
 }
 
-/// Players linked from a page: (id, name).
-pub fn parse_players(html: &str) -> Vec<(String, String)> {
+/// The page slug Cricbuzz builds from a name: `M S Dhoni` → `m-s-dhoni`.
+pub fn slugify(name: &str) -> String {
+    name.to_lowercase()
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+/// Cricbuzz's blank silhouettes, shown for players without a photo.
+const NO_PHOTO: [i64; 2] = [174146, 182026];
+
+fn photo(id: Option<i64>) -> Option<String> {
+    id.filter(|i| !NO_PHOTO.contains(i))
+        .map(|i| format!("https://static.cricbuzz.com/a/img/v1/152x152/i1/c{i}/i.jpg"))
+}
+
+/// Players linked from a page: (id, slug, name).
+pub fn parse_players(html: &str) -> Vec<(String, String, String)> {
     let link = Regex::new(r#"/profiles/(\d+)/([a-z0-9-]+)(?:"\s+title="([^"]+)")?"#).unwrap();
     let mut seen = HashSet::new();
     link.captures_iter(html)
@@ -111,12 +129,122 @@ pub fn parse_players(html: &str) -> Vec<(String, String)> {
                 .map(|t| t.as_str().to_string())
                 .unwrap_or_else(|| title_from_slug(&c[2]));
             seen.insert(c[1].to_string())
-                .then(|| (c[1].to_string(), name))
+                .then(|| (c[1].to_string(), c[2].to_string(), name))
         })
         .collect()
 }
 
-/// Every team and a few hundred current players, for local search.
+/// Franchise leagues whose latest squads join the search index, by the
+/// start of their series slugs.
+const LEAGUES: [&str; 11] = [
+    "indian-premier-league-",
+    "pakistan-super-league-",
+    "big-bash-league-",
+    "sa20",
+    "the-hundred-mens-competition-",
+    "caribbean-premier-league-",
+    "major-league-cricket-",
+    "international-league-t20-",
+    "lanka-premier-league-",
+    "bangladesh-premier-league-",
+    "super-smash-",
+];
+
+/// Series linked from a page: (id, slug), newest (highest id) first.
+pub fn parse_series(html: &str) -> Vec<(i64, String)> {
+    let link = Regex::new(r"/cricket-series/(\d+)/([a-z0-9-]+)").unwrap();
+    let mut out: Vec<(i64, String)> = link
+        .captures_iter(html)
+        .filter_map(|c| Some((c[1].parse().ok()?, c[2].to_string())))
+        .collect();
+    out.sort_by(|a, b| b.0.cmp(&a.0));
+    out.dedup_by_key(|s| s.0);
+    out
+}
+
+/// The squads on a series' squads page: (squad id, team name).
+pub fn parse_squads(text: &str) -> Vec<(i64, String)> {
+    let Some(JsonValue::Array(squads)) = value_of(text, "squads") else {
+        return Vec::new();
+    };
+    squads
+        .iter()
+        .filter_map(|s| {
+            let team = s["squadType"].as_str()?;
+            // The Hundred calls them "Welsh Fire Squad".
+            let team = team.strip_suffix(" Squad").unwrap_or(team);
+            Some((number(&s["squadId"])?, team.to_string()))
+        })
+        .collect()
+}
+
+/// One squad's players from Cricbuzz's squad endpoint, labelled with the team.
+pub fn parse_squad(squad: &JsonValue, team: &str) -> Vec<Candidate> {
+    squad["player"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|p| {
+            let id = p["id"]
+                .as_str()
+                .map(String::from)
+                .or_else(|| number(&p["id"]).map(|i| i.to_string()))?;
+            let name = p["name"].as_str()?.to_string();
+            let subtitle = [Some(team), p["role"].as_str()]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(" · ");
+            Some(Candidate {
+                id: follow_id(Sport::Cricket, Kind::Player, &id),
+                sport: "cricket".into(),
+                kind: "player".into(),
+                r#ref: id,
+                league: Some(slugify(&name)),
+                name,
+                subtitle: Some(subtitle),
+                image: photo(number(&p["imageId"])),
+            })
+        })
+        .collect()
+}
+
+/// Players in a league's latest season with published squads.
+fn league_players(http: &Http, series: &[(i64, String)], league: &str) -> Vec<Candidate> {
+    let seasons = series
+        .iter()
+        .filter(|(_, slug)| slug.starts_with(league) && !slug.contains("women"));
+    for (id, slug) in seasons.take(2) {
+        let Ok(html) = page(http, &format!("/cricket-series/{id}/{slug}/squads")) else {
+            continue;
+        };
+        let mut out = Vec::new();
+        for (squad, team) in parse_squads(&flight(&html)) {
+            pause(150);
+            if let Ok(json) = page(
+                http,
+                &format!("/api/cricket-series/series-squads/{id}/{squad}"),
+            )
+            .and_then(|b| Ok(serde_json::from_str::<JsonValue>(&b)?))
+            {
+                out.extend(parse_squad(&json, &team));
+            }
+            // A season whose squads are not out yet: try the one before.
+            if out.is_empty() {
+                break;
+            }
+        }
+        if !out.is_empty() {
+            return out;
+        }
+    }
+    Vec::new()
+}
+
+const SITEMAP: &str = "T20 leagues";
+
+/// Every team and the players of international and franchise squads, for
+/// local search.
 pub fn index(http: &Http) -> Result<Vec<Candidate>> {
     let mut out = Vec::new();
     let team = |id: &str, slug: &str, name: &str, subtitle: &str| Candidate {
@@ -141,36 +269,90 @@ pub fn index(http: &Http) -> Result<Vec<Candidate>> {
             }
         }
     }
-    let mut players: Vec<(String, String, String)> = Vec::new();
-    for (slug, id) in SQUADS {
+
+    let year = chrono::Utc::now().year();
+    let mut series = Vec::new();
+    for path in [
+        "/cricket-schedule/series/league".to_string(),
+        format!("/cricket-scorecard-archives/{year}"),
+        format!("/cricket-scorecard-archives/{}", year - 1),
+    ] {
         pause(300);
-        if let Ok(html) = page(http, &format!("/cricket-team/{slug}/{id}/players")) {
-            for (pid, name) in parse_players(&html) {
-                players.push((pid, name, title_from_slug(slug)));
+        if let Ok(html) = page(http, &path) {
+            series.extend(parse_series(&html));
+        }
+    }
+    series.sort_by(|a, b| b.0.cmp(&a.0));
+    series.dedup_by_key(|s| s.0);
+
+    let player = |pid: &str, slug: &str, name: &str, subtitle: &str| Candidate {
+        id: follow_id(Sport::Cricket, Kind::Player, pid),
+        sport: "cricket".into(),
+        kind: "player".into(),
+        r#ref: pid.to_string(),
+        name: name.to_string(),
+        subtitle: Some(subtitle.into()),
+        // The profile slug; profile pages need it.
+        league: Some(slug.to_string()),
+        image: None,
+    };
+    let (national, leagues) = std::thread::scope(|scope| {
+        let national = scope.spawn(|| {
+            let mut found = Vec::new();
+            for (slug, id) in SQUADS {
+                if let Ok(html) = page(http, &format!("/cricket-team/{slug}/{id}/players")) {
+                    for (pid, pslug, name) in parse_players(&html) {
+                        found.push(player(&pid, &pslug, &name, &title_from_slug(slug)));
+                    }
+                }
+                pause(300);
+            }
+            if let Ok(xml) = page(http, "/sitemap/cricket-player-profile.xml") {
+                for (pid, pslug, name) in parse_players(&xml) {
+                    found.push(player(&pid, &pslug, &name, SITEMAP));
+                }
+            }
+            found
+        });
+        let leagues: Vec<_> = LEAGUES
+            .iter()
+            .map(|league| {
+                let series = &series;
+                scope.spawn(move || league_players(http, series, league))
+            })
+            .collect();
+        (
+            national.join().unwrap_or_default(),
+            leagues
+                .into_iter()
+                .flat_map(|h| h.join().unwrap_or_default())
+                .collect::<Vec<_>>(),
+        )
+    });
+
+    // National squads name a player's country; franchise squads add photos
+    // and everyone else.
+    let mut players: Vec<Candidate> = Vec::new();
+    let mut at = std::collections::HashMap::new();
+    for c in national.into_iter().chain(leagues) {
+        match at.get(&c.r#ref) {
+            Some(&i) => {
+                let known: &mut Candidate = &mut players[i];
+                if known.image.is_none() {
+                    known.image = c.image;
+                }
+                // The sitemap only knows they play somewhere.
+                if known.subtitle.as_deref() == Some(SITEMAP) {
+                    known.subtitle = c.subtitle;
+                }
+            }
+            None => {
+                at.insert(c.r#ref.clone(), players.len());
+                players.push(c);
             }
         }
     }
-    pause(300);
-    if let Ok(xml) = page(http, "/sitemap/cricket-player-profile.xml") {
-        for (pid, name) in parse_players(&xml) {
-            players.push((pid, name, "T20 leagues".into()));
-        }
-    }
-    let mut seen = HashSet::new();
-    for (pid, name, subtitle) in players {
-        if seen.insert(pid.clone()) {
-            out.push(Candidate {
-                id: follow_id(Sport::Cricket, Kind::Player, &pid),
-                sport: "cricket".into(),
-                kind: "player".into(),
-                r#ref: pid,
-                name,
-                subtitle: Some(subtitle),
-                league: None,
-                image: None,
-            });
-        }
-    }
+    out.extend(players);
     if out.is_empty() {
         return Err(Error::Invalid("Cricbuzz's team list has changed".into()));
     }
@@ -188,6 +370,7 @@ pub fn filter(index: &[Candidate], kind: Kind, query: &str) -> Vec<Candidate> {
             kind: "player".into(),
             r#ref: c[1].to_string(),
             name: title_from_slug(&c[2]),
+            league: Some(c[2].to_string()),
             ..Default::default()
         }];
     }
@@ -323,7 +506,16 @@ fn by_format(table: &JsonValue, title: &str, keep: &[&str]) -> Option<StatTable>
         .as_array()?
         .iter()
         .skip(1)
-        .filter_map(|h| h.as_str().map(String::from))
+        // Cricbuzz's "T20" column is T20 internationals.
+        .filter_map(|h| {
+            h.as_str().map(|f| {
+                if f == "T20" {
+                    "T20I".into()
+                } else {
+                    f.to_string()
+                }
+            })
+        })
         .collect();
     let stats: Vec<(String, Vec<String>)> = table["values"]
         .as_array()?
@@ -399,11 +591,8 @@ pub fn parse_player(text: &str) -> Result<PlayerStats> {
         name: info["name"].as_str().unwrap_or_default().to_string(),
         team: info["intlTeam"].as_str().map(String::from),
         position: info["role"].as_str().map(String::from),
-        image: value_of(text, "faceImageId")
-            .as_ref()
-            .and_then(number)
-            .map(|i| format!("https://static.cricbuzz.com/a/img/v1/152x152/i1/c{i}/i.jpg")),
-        season_label: "Recent form".into(),
+        image: photo(value_of(text, "faceImageId").as_ref().and_then(number)),
+        season_label: "International career".into(),
         ..Default::default()
     };
 
@@ -463,49 +652,91 @@ pub fn parse_player(text: &str) -> Result<PlayerStats> {
         )
     });
 
-    // Headline numbers over international formats.
-    let sum = |t: &Option<StatTable>, col: &str| -> i64 {
+    // Headline numbers over international formats, or over the league
+    // the player has played most in when they have no international caps.
+    let sum = |t: &Option<StatTable>, col: &str, formats: &[&str]| -> i64 {
         let Some(t) = t else { return 0 };
         let Some(i) = t.columns.iter().position(|c| c == col) else {
             return 0;
         };
         t.rows
             .iter()
-            .filter(|r| matches!(r.label.as_str(), "Test" | "ODI" | "T20" | "T20I"))
+            .filter(|r| formats.contains(&r.label.as_str()))
             .filter_map(|r| r.values.get(i)?.parse::<i64>().ok())
             .sum()
     };
-    let matches = sum(&bat, "Matches");
-    let runs = sum(&bat, "Runs");
-    let wickets = sum(&bowl, "Wickets");
+    const INTL: [&str; 4] = ["Test", "ODI", "T20", "T20I"];
+    let played = |r: &StatRow| -> i64 {
+        bat.as_ref()
+            .and_then(|b| b.columns.iter().position(|c| c == "Matches"))
+            .and_then(|i| r.values.get(i)?.parse().ok())
+            .unwrap_or(0)
+    };
+    let league = bat.as_ref().and_then(|b| {
+        b.rows
+            .iter()
+            .filter(|r| !INTL.contains(&r.label.as_str()))
+            .max_by_key(|r| played(r))
+            .map(|r| r.label.clone())
+    });
+    let (formats, prefix): (Vec<&str>, String) = match &league {
+        Some(l) if sum(&bat, "Matches", &INTL) == 0 && sum(&bat, "Matches", &[l]) > 0 => {
+            (vec![l.as_str()], l.clone())
+        }
+        _ => (INTL.to_vec(), "Intl".into()),
+    };
+    stats.season_label = if prefix == "Intl" {
+        "International career".into()
+    } else {
+        format!("{prefix} career")
+    };
+    let matches = sum(&bat, "Matches", &formats);
+    let runs = sum(&bat, "Runs", &formats);
+    let wickets = sum(&bowl, "Wickets", &formats);
     stats.highlights = vec![
         Highlight {
-            label: "Intl matches".into(),
+            label: format!("{prefix} matches"),
             value: matches.to_string(),
         },
         Highlight {
-            label: "Intl runs".into(),
+            label: format!("{prefix} runs"),
             value: runs.to_string(),
         },
     ];
-    if wickets > runs / 25 {
+    let bowler = wickets > runs / 25;
+    if bowler {
         stats.highlights.push(Highlight {
-            label: "Intl wickets".into(),
+            label: format!("{prefix} wickets"),
             value: wickets.to_string(),
         });
     } else {
         stats.highlights.push(Highlight {
-            label: "Intl 100s".into(),
-            value: sum(&bat, "100s").to_string(),
+            label: format!("{prefix} 100s"),
+            value: sum(&bat, "100s", &formats).to_string(),
         });
     }
-    if let Some(b) = &bat
-        && let Some(i) = b.columns.iter().position(|c| c == "Average")
-        && let Some(odi) = b.rows.iter().find(|r| r.label == "ODI")
+    // Average in the format they have played most: bowling for bowlers.
+    let (table, column, what) = if bowler {
+        (&bowl, "Avg", "bowling avg")
+    } else {
+        (&bat, "Average", "average")
+    };
+    let most = bat
+        .as_ref()
+        .and_then(|b| {
+            b.rows
+                .iter()
+                .filter(|r| formats.contains(&r.label.as_str()))
+                .max_by_key(|r| played(r))
+        })
+        .map(|r| r.label.clone());
+    if let (Some(t), Some(format)) = (table, most)
+        && let Some(i) = t.columns.iter().position(|c| c == column)
+        && let Some(row) = t.rows.iter().find(|r| r.label == format)
     {
         stats.highlights.push(Highlight {
-            label: "ODI average".into(),
-            value: odi.values.get(i).cloned().unwrap_or_default(),
+            label: format!("{format} {what}"),
+            value: row.values.get(i).cloned().unwrap_or_default(),
         });
     }
     stats.career.extend(bat);
@@ -513,6 +744,13 @@ pub fn parse_player(text: &str) -> Result<PlayerStats> {
     Ok(stats)
 }
 
-pub fn player_stats(http: &Http, player: &str) -> Result<PlayerStats> {
-    parse_player(&flight(&page(http, &format!("/profiles/{player}/x"))?))
+/// A player's profile. Cricbuzz needs the name slug in the address; a
+/// made-up one only sometimes works.
+pub fn player_stats(http: &Http, player: &str, slug: &str) -> Result<PlayerStats> {
+    let path = format!("/profiles/{player}/{slug}");
+    let html = page(http, &path).or_else(|_| {
+        pause(500);
+        page(http, &path)
+    })?;
+    parse_player(&flight(&html))
 }

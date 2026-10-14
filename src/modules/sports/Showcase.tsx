@@ -29,7 +29,7 @@ function PlayerCard({ player, stat, hue, onOpen }: { player: SportFollow; stat: 
           <span className="truncate text-[12px] text-muted-foreground">{s ? [s.team, s.position].filter(Boolean).join(" · ") : (player.subtitle ?? "")}</span>
         </span>
       </span>
-      <span className="relative mt-4 text-[12px] font-medium text-muted-foreground">{s ? (player.sport === "cricket" ? "International career" : s.seasonLabel) : player.error ? "" : "Fetching stats…"}</span>
+      <span className="relative mt-4 text-[12px] font-medium text-muted-foreground">{s ? s.seasonLabel : player.error ? "" : "Fetching stats…"}</span>
       {s?.highlights.length ? (
         <span className="relative mt-1.5 grid grid-cols-2 gap-x-3 gap-y-2">
           {s.highlights.slice(0, 4).map((h) => (

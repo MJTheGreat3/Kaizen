@@ -10,6 +10,7 @@
 
 pub mod cricbuzz;
 pub mod espn;
+pub mod photo;
 
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
@@ -156,13 +157,15 @@ pub struct Follow {
     pub sport: Sport,
     pub kind: Kind,
     pub r#ref: String,
+    pub name: String,
+    /// ESPN league slug, or the Cricbuzz page slug.
     pub league: Option<String>,
     pub stats_at: Option<i64>,
 }
 
 pub fn follows(conn: &Connection) -> Result<Vec<Follow>> {
     let mut stmt = conn.prepare(
-        "SELECT f.id, f.sport, f.kind, f.ref, f.league, s.fetched_at
+        "SELECT f.id, f.sport, f.kind, f.ref, f.league, s.fetched_at, f.name
          FROM sport_follows f LEFT JOIN sport_stats s ON s.id = f.id
          WHERE f.deleted_at IS NULL ORDER BY f.sort",
     )?;
@@ -175,17 +178,19 @@ pub fn follows(conn: &Connection) -> Result<Vec<Follow>> {
                 r.get::<_, String>(3)?,
                 r.get::<_, Option<String>>(4)?,
                 r.get::<_, Option<i64>>(5)?,
+                r.get::<_, String>(6)?,
             ))
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(rows
         .into_iter()
-        .filter_map(|(id, sport, kind, r, league, stats_at)| {
+        .filter_map(|(id, sport, kind, r, league, stats_at, name)| {
             Some(Follow {
                 id,
                 sport: Sport::from_id(&sport)?,
                 kind: Kind::from_id(&kind)?,
                 r#ref: r,
+                name,
                 league,
                 stats_at,
             })
@@ -199,6 +204,21 @@ pub enum Fetched {
 }
 
 pub fn fetch(http: &Http, follow: &Follow) -> Result<Fetched> {
+    let mut fetched = fetch_from_source(http, follow)?;
+    if let Fetched::Stats(stats) = &mut fetched
+        && stats.image.is_none()
+    {
+        let name = if stats.name.is_empty() {
+            &follow.name
+        } else {
+            &stats.name
+        };
+        stats.image = photo::wikipedia(http, name, follow.sport);
+    }
+    Ok(fetched)
+}
+
+fn fetch_from_source(http: &Http, follow: &Follow) -> Result<Fetched> {
     Ok(match (follow.sport, follow.kind) {
         (Sport::Cricket, Kind::Team) => Fetched::Games(cricbuzz::team_games(
             http,
@@ -206,7 +226,16 @@ pub fn fetch(http: &Http, follow: &Follow) -> Result<Fetched> {
             follow.league.as_deref(),
         )?),
         (Sport::Cricket, Kind::Player) => {
-            Fetched::Stats(Box::new(cricbuzz::player_stats(http, &follow.r#ref)?))
+            // Follows from before slugs were kept fall back to the name's.
+            let slug = follow
+                .league
+                .clone()
+                .unwrap_or_else(|| cricbuzz::slugify(&follow.name));
+            Fetched::Stats(Box::new(cricbuzz::player_stats(
+                http,
+                &follow.r#ref,
+                &slug,
+            )?))
         }
         (sport, Kind::Team) => Fetched::Games(espn::team_games(
             http,
@@ -256,6 +285,19 @@ pub fn store(conn: &Connection, follow: &Follow, fetched: &Fetched) -> Result<()
                         g.status,
                         g.url
                     ],
+                )?;
+            }
+            // Cricbuzz teams come without a logo; take it from their games.
+            let logo = games.iter().find_map(|g| {
+                [&g.home, &g.away]
+                    .into_iter()
+                    .find(|s| s.name == follow.name)
+                    .and_then(|s| s.logo.clone())
+            });
+            if let Some(logo) = logo {
+                tx.execute(
+                    "UPDATE sport_follows SET image = ?2, updated_at = ?3 WHERE id = ?1 AND image IS NULL",
+                    params![follow.id, logo, now_ms()],
                 )?;
             }
         }
@@ -324,7 +366,13 @@ pub fn cricket_index(conn: &Connection) -> Result<Vec<Candidate>> {
         )
         .optional()?
         .flatten();
-    if fetched_at.is_none_or(|t| now_ms() - t > 7 * 86_400_000) {
+    // Indexes from before franchise squads were added have no photos.
+    let photos: i64 = conn.query_row(
+        "SELECT count(*) FROM sport_index WHERE sport = 'cricket' AND kind = 'player' AND image IS NOT NULL",
+        [],
+        |r| r.get(0),
+    )?;
+    if photos == 0 || fetched_at.is_none_or(|t| now_ms() - t > 7 * 86_400_000) {
         return Ok(Vec::new());
     }
     let mut stmt = conn.prepare(

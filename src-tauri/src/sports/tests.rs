@@ -60,6 +60,35 @@ fn reads_cricbuzz_payloads() {
     };
     assert_eq!(get("Intl runs").as_deref(), Some("28527"));
     assert_eq!(get("Intl 100s").as_deref(), Some("86"));
+    assert_eq!(get("ODI average").as_deref(), Some("58.79"));
+    assert_eq!(stats.season_label, "International career");
+
+    // A player without caps gets their league's numbers instead.
+    let uncapped = r#"a:{"playerInfo":{"bat":"Right Handed Bat","name":"Ayush Mhatre","role":"Batsman"},"faceImageId":174146,"battingStats":{"headers":["ROWHEADER","Test","ODI","T20","IPL"],"values":[{"values":["Matches","0","0","0","13"]},{"values":["Runs","0","0","0","412"]},{"values":["Average","0","0","0","31.69"]},{"values":["100s","0","0","0","1"]}]}}"#;
+    let stats = cricbuzz::parse_player(&cricbuzz::flight(&page(uncapped))).unwrap();
+    assert!(stats.image.is_none());
+    assert_eq!(stats.season_label, "IPL career");
+    let labels: Vec<_> = stats
+        .highlights
+        .iter()
+        .map(|h| (h.label.as_str(), h.value.as_str()))
+        .collect();
+    assert_eq!(
+        labels,
+        [
+            ("IPL matches", "13"),
+            ("IPL runs", "412"),
+            ("IPL 100s", "1"),
+            ("IPL average", "31.69")
+        ]
+    );
+}
+
+#[test]
+fn matches_wikipedia_titles() {
+    assert!(photo::names("Luka Dončić", "Luka Doncic"));
+    assert!(photo::names("Lamine Yamal", "Lamine Yamal"));
+    assert!(!photo::names("Ayush Badoni", "Ayush Mhatre"));
 }
 
 #[test]
@@ -75,14 +104,14 @@ fn reads_cricbuzz_lists_and_searches_them() {
     assert_eq!(
         players,
         vec![
-            ("11808".into(), "Shubman Gill".into()),
-            ("1413".into(), "Virat Kohli".into())
+            ("11808".into(), "shubman-gill".into(), "Shubman Gill".into()),
+            ("1413".into(), "virat-kohli".into(), "Virat Kohli".into())
         ]
     );
 
     let index: Vec<Candidate> = players
         .iter()
-        .map(|(id, name)| Candidate {
+        .map(|(id, _, name)| Candidate {
             id: follow_id(Sport::Cricket, Kind::Player, id),
             kind: "player".into(),
             r#ref: id.clone(),
@@ -108,6 +137,35 @@ fn reads_cricbuzz_lists_and_searches_them() {
         (pasted[0].id.as_str(), pasted[0].name.as_str()),
         ("cricket:player:265", "Ms Dhoni")
     );
+    assert_eq!(pasted[0].league.as_deref(), Some("ms-dhoni"));
+    assert_eq!(cricbuzz::slugify("M S Dhoni"), "m-s-dhoni");
+
+    // Franchise squads, from the series list down to the players.
+    let series = cricbuzz::parse_series(
+        r#"<a href="/cricket-series/9241/indian-premier-league-2026">IPL</a><a href="/cricket-series/9249/indian-premier-league-2027">"#,
+    );
+    assert_eq!(series[0], (9249, "indian-premier-league-2027".into()));
+    let squads = cricbuzz::parse_squads(
+        r#"26:[{"data":{"squads":[{"squadType":"T20","isHeader":true},{"squadId":99705,"squadType":"Chennai Super Kings","imageId":860038,"teamId":58}]}}]"#,
+    );
+    assert_eq!(squads, [(99705, "Chennai Super Kings".to_string())]);
+    let squad = cricbuzz::parse_squad(
+        &json!({ "player": [
+            { "name": "BATTERS", "isHeader": true },
+            { "id": "20538", "name": "Dewald Brevis", "role": "Batsman", "imageId": 846104 },
+            { "id": "50444", "name": "Dian Forrester", "role": "Batting Allrounder", "imageId": 174146 }
+        ]}),
+        "Chennai Super Kings",
+    );
+    assert_eq!(squad.len(), 2);
+    assert_eq!(
+        squad[0].subtitle.as_deref(),
+        Some("Chennai Super Kings · Batsman")
+    );
+    assert_eq!(squad[0].league.as_deref(), Some("dewald-brevis"));
+    assert!(squad[0].image.as_deref().unwrap().contains("c846104"));
+    // The blank silhouette counts as no photo.
+    assert!(squad[1].image.is_none());
 }
 
 #[test]
@@ -260,6 +318,7 @@ fn live() {
         (Sport::Nba, Kind::Player, "curry"),
         (Sport::Football, Kind::Team, "manchester city"),
         (Sport::Football, Kind::Player, "haaland"),
+        (Sport::Football, Kind::Player, "lamine yamal"),
     ] {
         let found = espn::search(&http, sport, kind, q).unwrap();
         let first = found.first().unwrap();
@@ -276,12 +335,21 @@ fn live() {
             sport,
             kind,
             r#ref: first.r#ref.clone(),
+            name: first.name.clone(),
             league: first.league.clone(),
             stats_at: None,
         };
         report(fetch(&http, &follow));
     }
     let index = cricbuzz::index(&http).unwrap();
+    let mut teams = std::collections::BTreeMap::new();
+    for c in index.iter().filter(|c| c.kind == "player") {
+        let team = c.subtitle.clone().unwrap_or_default();
+        *teams
+            .entry(team.split(" · ").next().unwrap_or_default().to_string())
+            .or_insert(0) += 1;
+    }
+    println!("cricket squads: {teams:?}");
     println!(
         "cricket index: {} teams, {} players",
         index.iter().filter(|c| c.kind == "team").count(),
@@ -292,6 +360,9 @@ fn live() {
         (Kind::Team, "royal challengers"),
         (Kind::Player, "kohli"),
         (Kind::Player, "bumrah"),
+        (Kind::Player, "ayush mhatre"),
+        (Kind::Player, "tim david"),
+        (Kind::Team, "lahore qalandars"),
     ] {
         let found = cricbuzz::filter(&index, kind, q);
         let first = found.first().unwrap();
@@ -306,6 +377,7 @@ fn live() {
             sport: Sport::Cricket,
             kind,
             r#ref: first.r#ref.clone(),
+            name: first.name.clone(),
             league: first.league.clone(),
             stats_at: None,
         };
