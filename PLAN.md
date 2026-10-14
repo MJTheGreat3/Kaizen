@@ -488,7 +488,7 @@ kaizen/
 | 2. Sync (done) | Encrypted sync core with QR pairing; Google Drive transport first, then direct LAN / Tailscale; the phone is usable daily from here on |
 | 3. Focus and activity (done) | Forest-style focus timer (Android strict mode), activity heatmap with filters, streaks, universal search + command palette |
 | 4. Practice (done) | Codeforces, LeetCode, AtCoder and CodeChef connectors, CP analytics, contest reminders, revisit queue |
-| 5. Fitness and sports | Done: sports (sessions, NBA, football and cricket following, favourite players) and gym (logging, routines, records, charts, body metrics); match reminders still to do |
+| 5. Fitness and sports | Done: sports (sessions, NBA, football and cricket following, favourite players, game reminders) and gym (logging, routines, records, charts, body metrics) |
 | 6. Canvas | Whiteboard (Excalidraw), linking ideas to boards |
 | 7. Music | Spotify connection, remote-control player and mini player, local listening history, stats and summaries |
 | 8. Polish and extras | Android widgets, global quick capture, share sheet, weekly / monthly review, LLM features; maybe Health Connect sleep and health metrics |
@@ -669,7 +669,11 @@ Built and tested (Rust unit tests with sample payloads, a live test against ESPN
 - **Storage** (migration v10): `sport_sessions` and `sport_follows` (synced; follow ids are `{sport}:{kind}:{source id}` so both devices agree), and device-local caches `sport_games`, `sport_stats` and `sport_index`. Sessions and follows are in search (`in:sports`).
 - Games refresh 25 s after unlock and every half hour when over an hour old; player stats at most every six hours (or on demand from the player page).
 
-Known limits: cricket has no per-season numbers on Cricbuzz, so "this season" is recent form; ESPN has no football appearances count (starts instead) and few football headshots; the Cricbuzz adapter depends on its pages and may need fixing when they change. Match reminders are still to come in Phase 5.
+Known limits: cricket has no per-season numbers on Cricbuzz, so "this season" is recent form; ESPN has no football appearances count (starts instead) and few football headshots; the Cricbuzz adapter depends on its pages and may need fixing when they change. Game reminders followed in part 3 (below).
+
+### 6.9 Phase 5, part 3: Game reminders (2026-10-14)
+
+Followed teams' games are announced before they start (30 minutes by default; Settings > Notifications, "Games", with 10 minutes to 2 hours), through the same notification plan as contests, so Android schedules them as alarms and the desktop as timers. A game between two followed teams is announced once. Today's "Up next" lists games that are live or start within two days, with the home team's crest, alongside contests and important dates. This finishes Phase 5.
 
 ### 6.8 Phase 5, part 2: Gym (2026-10-14)
 

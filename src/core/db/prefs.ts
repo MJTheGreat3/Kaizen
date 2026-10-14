@@ -58,6 +58,10 @@ export interface Prefs {
   "notify.contests": boolean;
   /** Minutes before a contest to notify. */
   "notify.contestsLead": number;
+  /** Notify before followed teams' games. */
+  "notify.matches": boolean;
+  /** Minutes before a game to notify. */
+  "notify.matchesLead": number;
   /** Last searches typed in the palette, newest first. */
   "search.recent": string[];
   /** Items last opened from search, newest first. */
@@ -95,6 +99,8 @@ export const defaultPrefs: Prefs = {
   "practice.contestPlatforms": ["codeforces", "leetcode", "atcoder", "codechef"],
   "notify.contests": true,
   "notify.contestsLead": 60,
+  "notify.matches": true,
+  "notify.matchesLead": 30,
   "search.recent": [],
   "search.opened": [],
 };

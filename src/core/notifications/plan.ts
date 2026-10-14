@@ -32,6 +32,8 @@ export interface PlanInput {
   streaks?: { name: string; current: number; doneToday: boolean; unit: "days" | "weeks" }[];
   /** Upcoming programming contests (already filtered to the chosen sites). */
   contests?: { id: string; name: string; startAt: number; site: string }[];
+  /** Upcoming games of followed teams: "India v West Indies". */
+  matches?: { id: string; title: string; startAt: number; detail: string }[];
   /** Active goals with a finish date, and what is left. */
   goals?: { id: string; title: string; targetDate: DateKey; left: string }[];
 }
@@ -146,6 +148,18 @@ export function buildPlan(input: PlanInput, horizonDays = 3): PlannedNotificatio
         at: new Date(c.startAt - lead * 60_000),
         title: `${c.name} starts ${lead >= 60 ? `in ${lead / 60} h` : `in ${lead} min`}`,
         body: c.site,
+      });
+    }
+  }
+
+  if (prefs["notify.matches"]) {
+    const lead = prefs["notify.matchesLead"];
+    for (const g of input.matches ?? []) {
+      push({
+        key: `match:${g.id}:${g.startAt}`,
+        at: new Date(g.startAt - lead * 60_000),
+        title: `${g.title} starts ${lead >= 60 ? `in ${lead / 60} h` : `in ${lead} min`}`,
+        body: g.detail,
       });
     }
   }

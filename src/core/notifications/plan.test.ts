@@ -84,6 +84,12 @@ describe("buildPlan", () => {
     expect(n.map((x) => [x.title, x.at.getHours()])).toEqual([["Starters 260 starts in 1 h", 19]]);
   });
 
+  it("announces followed teams' games ahead of their start", () => {
+    const start = new Date(2026, 9, 14, 19, 30).getTime();
+    const n = plan({ matches: [{ id: "151598", title: "India v West Indies", startAt: start, detail: "West Indies tour of India · 4th T20I" }] }).filter((x) => x.key.startsWith("match:"));
+    expect(n.map((x) => [x.title, x.body, x.at.getHours(), x.at.getMinutes()])).toEqual([["India v West Indies starts in 30 min", "West Indies tour of India · 4th T20I", 19, 0]]);
+  });
+
   it("makes stable positive ids", () => {
     expect(notificationId("class:x")).toBe(notificationId("class:x"));
     expect(notificationId("class:x")).toBeGreaterThan(0);

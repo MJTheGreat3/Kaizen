@@ -51,6 +51,8 @@ import { useGoals } from "@/modules/goals/data";
 import { activeGoals } from "@/modules/goals/format";
 import { GoalsGlance } from "@/modules/goals/Glance";
 import { loadContests } from "@/modules/practice/data";
+import { loadMatches } from "@/modules/sports/data";
+import { Avatar } from "@/modules/sports/parts";
 import { platformOf } from "@/modules/practice/logic";
 import { getPref } from "@/core/db/prefs";
 import { openUrl } from "@/lib/native";
@@ -61,7 +63,7 @@ const CALENDAR_PATH: string = "/calendar";
 const hueOf = (id: string) => modules.find((m) => m.id === id)?.hue ?? "var(--accent)";
 
 async function loadToday() {
-  const [tasks, habits, calendar, dates, debts, ideas, contests, contestPlatforms] = await Promise.all([
+  const [tasks, habits, calendar, dates, debts, ideas, contests, contestPlatforms, games] = await Promise.all([
     loadTasks("todo"),
     loadHabits(14),
     loadCalendar(),
@@ -70,10 +72,13 @@ async function loadToday() {
     db.select().from(schema.ideas).where(isNull(schema.ideas.deletedAt)),
     loadContests(),
     getPref("practice.contestPlatforms"),
+    loadMatches(),
   ]);
   // Contests in the next week on the sites chosen in Practice.
   const soon = contests.filter((c) => contestPlatforms.includes(c.platform) && c.startAt < Date.now() + 7 * 86_400_000).slice(0, 3);
-  return { tasks, habits, calendar, dates, debts, ideas, contests: soon };
+  // Followed teams' games that are live or start within two days.
+  const matches = games.filter((g) => g.startAt < Date.now() + 2 * 86_400_000).slice(0, 3);
+  return { tasks, habits, calendar, dates, debts, ideas, contests: soon, matches };
 }
 
 function Card({ to, title, icon, hue, className, children, action }: { to: string; title: string; icon: Icon; hue: string; className?: string; children: ReactNode; action?: ReactNode }) {
@@ -212,7 +217,7 @@ export function TodayPage() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[15px] font-semibold">Turn on reminders</p>
-              <p className="text-[13px] text-muted-foreground">Class alerts, attendance checks, tasks, habits and dates.</p>
+              <p className="text-[13px] text-muted-foreground">Class alerts, attendance checks, tasks, habits, dates, contests and games.</p>
             </div>
             <Button size="sm" loading={enable.isPending} onClick={() => enable.mutate()}>
               Turn on
@@ -289,10 +294,23 @@ export function TodayPage() {
             </Card>
 
             <Card to="/calendar" title="Up next" icon={Hourglass} hue={hueOf("practice")} className="md:col-span-2">
-              {!upcoming.length && !data.contests.length ? (
+              {!upcoming.length && !data.contests.length && !data.matches.length ? (
                 <Muted>Nothing in the next two weeks. Contests and matches will appear here too.</Muted>
               ) : (
                 <ul className="grid gap-2.5">
+                  {data.matches.map((g) => (
+                    <li key={g.id}>
+                      <button type="button" onClick={() => (g.url ? void openUrl(g.url) : undefined)} className="flex w-full items-center gap-3 text-left">
+                        <Avatar src={g.homeLogo} name={g.home} square className="size-[18px] text-[8px]" />
+                        <span className="min-w-0 flex-1 truncate text-[14px]">
+                          {g.homeShort || g.home} v {g.awayShort || g.away}
+                        </span>
+                        <span className={cn("shrink-0 text-[12px] font-medium", g.state === "in" ? "text-danger" : "text-muted-foreground")}>
+                          {g.state === "in" ? "Live" : `${todayKey(new Date(g.startAt)) === today ? "" : `${new Date(g.startAt).toLocaleDateString([], { weekday: "short" })} `}${new Date(g.startAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
                   {data.contests.map((c) => (
                     <li key={c.id}>
                       <button type="button" onClick={() => void openUrl(c.url)} className="flex w-full items-center gap-3 text-left">

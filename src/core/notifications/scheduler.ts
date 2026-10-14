@@ -14,6 +14,7 @@ import { loadDebts } from "@/modules/debts/data";
 import { currentStreaks } from "@/modules/activity/milestones";
 import { goalReminders } from "@/modules/goals/watch";
 import { loadContests } from "@/modules/practice/data";
+import { loadMatches } from "@/modules/sports/data";
 import { platformOf } from "@/modules/practice/logic";
 import { loadHabits } from "@/modules/habits/data";
 import { loadTasks } from "@/modules/lists/data";
@@ -111,7 +112,7 @@ async function applyDesktop(plan: PlannedNotification[]) {
 /** Rebuilds the plan from the database and (re)schedules everything. */
 export async function syncNotifications(platform: Platform) {
   if (!(await notificationsAllowed())) return;
-  const [prefs, tasks, habits, calendar, dates, debts, streaks, goals, contests] = await Promise.all([
+  const [prefs, tasks, habits, calendar, dates, debts, streaks, goals, contests, games] = await Promise.all([
     getAllPrefs(),
     loadTasks(),
     loadHabits(14),
@@ -121,11 +122,15 @@ export async function syncNotifications(platform: Platform) {
     currentStreaks(),
     goalReminders(),
     loadContests(),
+    loadMatches(),
   ]);
   const chosen = contests
     .filter((c) => prefs["practice.contestPlatforms"].includes(c.platform))
     .map((c) => ({ id: c.id, name: c.name, startAt: c.startAt, site: platformOf(c.platform)?.name ?? c.platform }));
-  const plan = buildPlan({ now: new Date(), prefs, tasks, habits, calendar, dates, debts, streaks, goals, contests: chosen });
+  const matches = games
+    .filter((g) => g.state === "pre")
+    .map((g) => ({ id: g.id, title: `${g.home} v ${g.away}`, startAt: g.startAt, detail: [g.league, g.title].filter(Boolean).join(" · ") }));
+  const plan = buildPlan({ now: new Date(), prefs, tasks, habits, calendar, dates, debts, streaks, goals, contests: chosen, matches });
   if (platform === "android") await applyAndroid(plan);
   else await applyDesktop(plan);
   log.info(`scheduled ${plan.length} notifications`);

@@ -12,7 +12,7 @@ import { ipc, type SportCandidate, type SportsReport } from "@/lib/ipc";
 import type { DateKey } from "@/lib/dates";
 import { log } from "@/lib/log";
 import { ruleFor, type ActiveRule } from "@/modules/activity/logic";
-import { MAX_FAVOURITES } from "./logic";
+import { MAX_FAVOURITES, splitGames } from "./logic";
 
 const s = schema.sportSessions;
 const f = schema.sportFollows;
@@ -43,6 +43,13 @@ export async function loadSports(): Promise<SportsData> {
     stats: new Map(stats.map((x) => [x.id, x])),
     rule: ruleFor("sports", type?.activeDayRule),
   };
+}
+
+/** Live and upcoming games of followed teams, each once, soonest first. */
+export async function loadMatches(now = Date.now()) {
+  const games = await db.select().from(schema.sportGames).orderBy(asc(schema.sportGames.startAt));
+  const { live, upcoming } = splitGames(games, now);
+  return [...live, ...upcoming.filter((g) => g.startAt > now)];
 }
 
 export function useSports() {
