@@ -58,7 +58,7 @@ export function PracticePage() {
   const [query, setQuery] = useState("");
   const [platform, setPlatform] = useState<string>("all");
   const [show, setShow] = useState<Show>("solved");
-  const [limit, setLimit] = useState(25);
+  const [limit, setLimit] = useState(5);
   const [contestPlatforms, setContestPlatforms] = usePref("practice.contestPlatforms");
 
   useOpenTarget(["problems"], !!data, ({ id }) => setOpenId(id));
