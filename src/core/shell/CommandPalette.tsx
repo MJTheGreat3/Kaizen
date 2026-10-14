@@ -60,6 +60,8 @@ const STATUS_LABEL: Record<string, string> = {
   archived: "Archived",
   pinned: "Pinned",
   owed_to_me: "Owes you",
+  solved: "Solved",
+  attempted: "Not solved",
   i_owe: "You owe",
 };
 
@@ -67,7 +69,7 @@ function subtitle(r: Result) {
   const { row } = r;
   const parts: string[] = [];
   if (row.status && STATUS_LABEL[row.status]) parts.push(STATUS_LABEL[row.status]);
-  if (row.amount !== null) parts.push(formatPaise(Math.round(row.amount * 100)));
+  if (row.amount !== null) parts.push(row.src === "debts" ? formatPaise(Math.round(row.amount * 100)) : `${Math.round(row.amount)}`);
   if (row.src === "debts" && row.body) parts.push(row.body.split(" ")[0]);
   // Books and shows: the author or medium says more than when they were added.
   if ((row.module === "read" || row.module === "watch") && row.body) parts.push(row.body.slice(0, 60));
@@ -375,7 +377,7 @@ export function CommandPalette() {
             </Command.List>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
               <Plus size={12} className="-mr-2" />
-              {["in:ideas", "tag:college", "#dsa", "amount:>500", "before:2026-09", "is:done"].map((hint) => (
+              {["in:ideas", "tag:college", "#dsa", "amount:>500", "rating:>1600", "before:2026-09", "is:done"].map((hint) => (
                 <button
                   key={hint}
                   type="button"

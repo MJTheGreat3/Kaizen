@@ -15,6 +15,11 @@
   --foreground: oklch(0.22 0.012 260);
   --surface: oklch(1 0 0);
   --surface-muted: oklch(0.965 0.003 260);
+  /* Practice platforms: categorical slots 1-4, checked for colour blindness and contrast. */
+  --cp-codeforces: #2a78d6;
+  --cp-codechef: #eb6834;
+  --cp-atcoder: #1baf7a;
+  --cp-leetcode: #eda100;
   --muted-foreground: oklch(0.5 0.012 260);
   --border: oklch(0.91 0.004 260);
   --input: oklch(0.88 0.005 260);
@@ -47,6 +52,10 @@
   --foreground: oklch(0.95 0.004 260);
   --surface: oklch(0.195 0.007 260);
   --surface-muted: oklch(0.225 0.008 260);
+  --cp-codeforces: #3987e5;
+  --cp-codechef: #d95926;
+  --cp-atcoder: #199e70;
+  --cp-leetcode: #c98500;
   --muted-foreground: oklch(0.68 0.01 260);
   --border: oklch(0.28 0.008 260);
   --input: oklch(0.32 0.009 260);

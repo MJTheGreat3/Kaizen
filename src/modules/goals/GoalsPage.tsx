@@ -17,6 +17,7 @@ import { PALETTE } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 import { isMinutes, UNITS } from "@/modules/activity/format";
 import { useSetDone } from "@/modules/lists/data";
+import { platformOf } from "@/modules/practice/logic";
 import { modules } from "@/modules/registry";
 import {
   useDeleteEntry,
@@ -240,7 +241,9 @@ function GoalDetail({ v, onClose, onEdit }: { v: GoalView; onClose: () => void; 
           ) : null}
         </div>
 
-        {goal.kind === "manual" ? (
+        {goal.metric?.startsWith("rating:") ? (
+          <p className="text-[13px] text-muted-foreground">Follows your {platformOf(goal.metric.slice("rating:".length))?.name} rating after each contest.</p>
+        ) : goal.kind === "manual" ? (
           <section className="grid gap-3">
             <SectionTitle>Log a value</SectionTitle>
             <form
@@ -335,7 +338,7 @@ export interface GoalDraft {
 }
 
 const KIND_HELP: Record<GoalKind, string> = {
-  manual: "A number you update yourself, like a rating, a lift or your weight.",
+  manual: "A number: a contest rating, a lift or your weight. Ratings can update themselves.",
   activity: "Counts what you already track: focus time, problems solved, books read…",
   habits: "Check-ins of the habits it is made of.",
   tasks: "Done when its tasks are done.",
@@ -356,6 +359,7 @@ function GoalEditor({ v, draft, onClose, defaultColor }: { v: GoalView | null; d
   const [target, setTarget] = useState(initialTarget !== null ? String(initialTarget) : "");
   const [start, setStart] = useState(goal ? String(goal.startValue) : "");
   const [unit, setUnit] = useState(goal?.unit ?? "");
+  const [metric, setMetric] = useState(goal?.metric ?? "");
   const [startDate, setStartDate] = useState(goal?.startDate ?? todayKey());
   const [targetDate, setTargetDate] = useState(goal?.targetDate ?? "");
   const [habitIds, setHabitIds] = useState<string[]>(v?.links.filter((l) => l.kind === "habit").map((l) => l.refId) ?? []);
@@ -392,6 +396,7 @@ function GoalEditor({ v, draft, onClose, defaultColor }: { v: GoalView | null; d
       targetDate: targetDate || null,
       activityType: kind === "activity" ? activityType : null,
       activityTag: kind === "activity" && activityTag ? activityTag : null,
+      metric: kind === "manual" && metric ? metric : null,
       color,
       habitIds: kind === "habits" ? habitIds : [],
       taskIds: kind === "tasks" ? taskIds : [],
@@ -455,6 +460,32 @@ function GoalEditor({ v, draft, onClose, defaultColor }: { v: GoalView | null; d
                 </Field>
               ) : null}
             </div>
+          ) : null}
+
+          {kind === "manual" && options.data?.accounts.length ? (
+            <Field label="Updated" htmlFor="goal-metric">
+              <NativeSelect
+                id="goal-metric"
+                className="h-11 w-full text-[14px]"
+                value={metric}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setMetric(next);
+                  const account = options.data?.accounts.find((a) => `rating:${a.id}` === next);
+                  if (account) {
+                    setUnit("rating");
+                    if (account.rating !== null && !start) setStart(String(Math.round(account.rating)));
+                  }
+                }}
+              >
+                <option value="">By me, logging values</option>
+                {options.data.accounts.map((a) => (
+                  <option key={a.id} value={`rating:${a.id}`}>
+                    From my {platformOf(a.id)?.name} rating
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
           ) : null}
 
           {kind === "manual" ? (

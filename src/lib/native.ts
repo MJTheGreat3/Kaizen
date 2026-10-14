@@ -60,3 +60,14 @@ export async function scanQr(): Promise<string | null> {
     return null;
   }
 }
+
+/** Opens a web page in the system browser. */
+export async function openUrl(url: string): Promise<void> {
+  try {
+    const { openUrl: open } = await import("@tauri-apps/plugin-opener");
+    await open(url);
+  } catch (e) {
+    log.warn(`opening ${url} failed: ${String(e)}`);
+    window.open(url, "_blank", "noreferrer");
+  }
+}

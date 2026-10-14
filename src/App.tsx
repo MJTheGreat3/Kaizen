@@ -13,6 +13,7 @@ import { useAutoSync } from "@/core/sync/autosync";
 import { useFocusEngine } from "@/modules/focus/engine";
 import { useStreakMilestones } from "@/modules/activity/milestones";
 import { useGoalCompletion } from "@/modules/goals/watch";
+import { usePracticeAutoRefresh } from "@/modules/practice/data";
 import { setNativePlatform } from "@/modules/focus/native";
 import { useTheme } from "@/core/theme";
 import { log } from "@/lib/log";
@@ -45,6 +46,7 @@ export function App() {
   useFocusEngine(unlocked, platform);
   useStreakMilestones(unlocked);
   useGoalCompletion(unlocked);
+  usePracticeAutoRefresh(unlocked);
 
   return (
     <>

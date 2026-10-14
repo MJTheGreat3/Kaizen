@@ -17,6 +17,7 @@ import {
   Plus,
   Shuffle,
   Target,
+  Trophy,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -34,7 +35,7 @@ import { formatMinutes, relativeDay, timeToMinutes, todayKey } from "@/lib/dates
 import { rise, stagger } from "@/lib/motion";
 import { formatPaise } from "@/lib/money";
 import { formatClock, formatDayMonth, formatWeekday, greeting, useNow } from "@/lib/time";
-import { cn } from "@/lib/utils";
+import { cn, timeUntil } from "@/lib/utils";
 import { dayOff, occurrencesOn } from "@/modules/calendar/attendance";
 import { ClassList } from "@/modules/calendar/ClassList";
 import { loadCalendar, loadDates, upcomingDates } from "@/modules/calendar/data";
@@ -49,6 +50,10 @@ import { ActivityGlance } from "@/modules/activity/Glance";
 import { useGoals } from "@/modules/goals/data";
 import { activeGoals } from "@/modules/goals/format";
 import { GoalsGlance } from "@/modules/goals/Glance";
+import { loadContests } from "@/modules/practice/data";
+import { platformOf } from "@/modules/practice/logic";
+import { getPref } from "@/core/db/prefs";
+import { openUrl } from "@/lib/native";
 
 /** Module routes are built from the registry, so their paths are plain strings. */
 const CALENDAR_PATH: string = "/calendar";
@@ -56,15 +61,19 @@ const CALENDAR_PATH: string = "/calendar";
 const hueOf = (id: string) => modules.find((m) => m.id === id)?.hue ?? "var(--accent)";
 
 async function loadToday() {
-  const [tasks, habits, calendar, dates, debts, ideas] = await Promise.all([
+  const [tasks, habits, calendar, dates, debts, ideas, contests, contestPlatforms] = await Promise.all([
     loadTasks("todo"),
     loadHabits(14),
     loadCalendar(),
     loadDates(),
     loadDebts(),
     db.select().from(schema.ideas).where(isNull(schema.ideas.deletedAt)),
+    loadContests(),
+    getPref("practice.contestPlatforms"),
   ]);
-  return { tasks, habits, calendar, dates, debts, ideas };
+  // Contests in the next week on the sites chosen in Practice.
+  const soon = contests.filter((c) => contestPlatforms.includes(c.platform) && c.startAt < Date.now() + 7 * 86_400_000).slice(0, 3);
+  return { tasks, habits, calendar, dates, debts, ideas, contests: soon };
 }
 
 function Card({ to, title, icon, hue, className, children, action }: { to: string; title: string; icon: Icon; hue: string; className?: string; children: ReactNode; action?: ReactNode }) {
@@ -280,10 +289,19 @@ export function TodayPage() {
             </Card>
 
             <Card to="/calendar" title="Up next" icon={Hourglass} hue={hueOf("practice")} className="md:col-span-2">
-              {!upcoming.length ? (
+              {!upcoming.length && !data.contests.length ? (
                 <Muted>Nothing in the next two weeks. Contests and matches will appear here too.</Muted>
               ) : (
                 <ul className="grid gap-2.5">
+                  {data.contests.map((c) => (
+                    <li key={c.id}>
+                      <button type="button" onClick={() => void openUrl(c.url)} className="flex w-full items-center gap-3 text-left">
+                        <Trophy size={18} weight="duotone" style={{ color: platformOf(c.platform)?.color }} />
+                        <span className="min-w-0 flex-1 truncate text-[14px]">{c.name}</span>
+                        <span className="shrink-0 text-[12px] font-medium text-muted-foreground">{c.startAt <= now.getTime() ? "Live" : timeUntil(c.startAt, now.getTime())}</span>
+                      </button>
+                    </li>
+                  ))}
                   {upcoming.map(({ item, date }) => {
                     const st = DATE_STYLE[item.kind] ?? DATE_STYLE.other;
                     return (

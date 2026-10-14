@@ -361,7 +361,13 @@ fn seed_activity_types(conn: &Connection) -> Result<()> {
 /// Every synced table, parents before children so rows referencing other
 /// rows can be applied in order.
 pub fn synced_tables() -> impl Iterator<Item = &'static str> {
-    V1_SYNCED.iter().chain(V2_SYNCED).chain(V6_SYNCED).chain(V7_SYNCED).copied()
+    V1_SYNCED
+        .iter()
+        .chain(V2_SYNCED)
+        .chain(V6_SYNCED)
+        .chain(V7_SYNCED)
+        .chain(V8_SYNCED)
+        .copied()
 }
 
 /// Synced tables that existed when v3/v4 ran; those migrations must not see
@@ -787,7 +793,110 @@ CREATE VIRTUAL TABLE search_index USING fts5 (
     Ok(())
 }
 
-pub const LATEST: i64 = 7;
+const V8_SYNCED: &[&str] = &["cp_accounts", "cp_problems", "cp_revisit"];
+
+/// Phase 4: competitive programming.
+///
+/// `cp_accounts` holds one row per platform (`id` is the platform), so the
+/// handle set on one device reaches the other. `cp_problems` keeps one row per
+/// problem rather than every submission: attempts, first solve and the
+/// user's notes, with ids derived from the platform's problem id so both
+/// devices fetching the same history agree. `cursor` is the time of the
+/// newest submission already counted. Rating history and upcoming contests
+/// are caches each device fetches for itself, so they are not synced.
+///
+/// Manual goals can follow a platform's rating (`goals.metric`).
+fn v8(conn: &Connection) -> Result<()> {
+    conn.execute_batch(&format!(
+        "
+CREATE TABLE cp_accounts (
+  id         TEXT PRIMARY KEY CHECK (id IN ('codeforces', 'leetcode', 'atcoder', 'codechef')),
+  handle     TEXT NOT NULL,
+  rating     REAL,
+  max_rating REAL,
+  rank_title TEXT,
+  solved     INTEGER NOT NULL DEFAULT 0,
+  contests   INTEGER NOT NULL DEFAULT 0,
+  meta       TEXT NOT NULL DEFAULT '{{}}',
+  cursor     INTEGER NOT NULL DEFAULT 0,
+  synced_at  INTEGER,
+  error      TEXT,{BASE_COLUMNS}
+) STRICT;
+
+CREATE TABLE cp_problems (
+  id            TEXT PRIMARY KEY,
+  platform      TEXT NOT NULL,
+  code          TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  url           TEXT,
+  rating        REAL,
+  difficulty    TEXT,
+  tags          TEXT NOT NULL DEFAULT '[]',
+  contest_id    TEXT,
+  attempts      INTEGER NOT NULL DEFAULT 0,
+  first_at      INTEGER,
+  last_at       INTEGER,
+  solved_at     INTEGER,
+  notes         TEXT,
+  minutes       INTEGER,
+  solution_url  TEXT,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX cp_problems_solved ON cp_problems (solved_at);
+
+-- Spaced repetition; `id` is the problem id.
+CREATE TABLE cp_revisit (
+  id         TEXT PRIMARY KEY,
+  problem_id TEXT NOT NULL,
+  stage      INTEGER NOT NULL DEFAULT 0,
+  due_date   TEXT NOT NULL,
+  reviewed_at INTEGER,
+  status     TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'done')),{BASE_COLUMNS}
+) STRICT;
+
+-- Device-local caches.
+CREATE TABLE cp_ratings (
+  id       TEXT PRIMARY KEY,
+  platform TEXT NOT NULL,
+  contest  TEXT NOT NULL,
+  at       INTEGER NOT NULL,
+  rating   REAL NOT NULL,
+  rank     INTEGER
+) STRICT;
+CREATE INDEX cp_ratings_platform ON cp_ratings (platform, at);
+
+CREATE TABLE cp_contests (
+  id           TEXT PRIMARY KEY,
+  platform     TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  url          TEXT NOT NULL,
+  start_at     INTEGER NOT NULL,
+  duration_min INTEGER NOT NULL
+) STRICT;
+CREATE INDEX cp_contests_start ON cp_contests (start_at);
+
+ALTER TABLE goals ADD COLUMN metric TEXT;
+"
+    ))?;
+    for table in V8_SYNCED {
+        install_clock_triggers(conn, table)?;
+    }
+    install_clock_triggers(conn, "goals")?;
+    install_search_triggers(
+        conn,
+        &SearchSource {
+            table: "cp_problems",
+            module: "'problems'",
+            title: "R.name",
+            body: "concat_ws(' ', R.platform, R.code, R.difficulty, R.notes)",
+            tags: "(SELECT group_concat(value, ' ') FROM json_each(R.tags))",
+            date: "date(coalesce(R.solved_at, R.last_at, R.created_at) / 1000, 'unixepoch', 'localtime')",
+            amount: "R.rating",
+            status: "CASE WHEN R.solved_at IS NOT NULL THEN 'solved' ELSE 'attempted' END",
+        },
+    )
+}
+
+pub const LATEST: i64 = 8;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -822,6 +931,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             5 => v5(&tx)?,
             6 => v6(&tx)?,
             7 => v7(&tx)?,
+            8 => v8(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;
@@ -898,17 +1008,29 @@ mod tests {
                VALUES ('d1', 'p1', 'owed_to_me', 45000, '2026-10-01', 'Swiggy dinner', 1, 1, 'd');",
         )
         .unwrap();
-        assert_eq!(find(&conn, "herbert"), vec![("read".into(), "Dune".into(), "scifi novel".into())]);
+        assert_eq!(
+            find(&conn, "herbert"),
+            vec![("read".into(), "Dune".into(), "scifi novel".into())]
+        );
         let amount: f64 = conn
-            .query_row("SELECT amount FROM search_index WHERE ref_id = 'd1'", [], |r| r.get(0))
+            .query_row(
+                "SELECT amount FROM search_index WHERE ref_id = 'd1'",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(amount, 450.0);
         assert_eq!(find(&conn, "rahul").len(), 2);
 
-        conn.execute("UPDATE tasks SET title = 'Dune Messiah' WHERE id = 't1'", []).unwrap();
+        conn.execute(
+            "UPDATE tasks SET title = 'Dune Messiah' WHERE id = 't1'",
+            [],
+        )
+        .unwrap();
         assert_eq!(find(&conn, "messiah").len(), 1);
         assert_eq!(find(&conn, "dune").len(), 1);
-        conn.execute("UPDATE tasks SET deleted_at = 2 WHERE id = 't1'", []).unwrap();
+        conn.execute("UPDATE tasks SET deleted_at = 2 WHERE id = 't1'", [])
+            .unwrap();
         assert!(find(&conn, "dune").is_empty());
     }
 

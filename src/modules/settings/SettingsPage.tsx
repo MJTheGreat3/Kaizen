@@ -137,7 +137,24 @@ function SecuritySection() {
   );
 }
 
-function NotifyToggle({ prefKey, label, description }: { prefKey: "notify.classes" | "notify.attendance" | "notify.habits" | "notify.tasks" | "notify.dates" | "notify.debts" | "notify.streaks" | "notify.goals"; label: string; description: string }) {
+function ContestLead() {
+  const [lead, setLead] = usePref("notify.contestsLead");
+  const [on] = usePref("notify.contests");
+  if (!on) return null;
+  return (
+    <Row label="Contest reminder" description="How long before the start." inline>
+      <NativeSelect aria-label="Contest reminder" value={String(lead)} onChange={(e) => void setLead(Number(e.target.value))}>
+        {[10, 15, 30, 60, 120].map((m) => (
+          <option key={m} value={m}>
+            {m >= 60 ? `${m / 60} h before` : `${m} min before`}
+          </option>
+        ))}
+      </NativeSelect>
+    </Row>
+  );
+}
+
+function NotifyToggle({ prefKey, label, description }: { prefKey: "notify.classes" | "notify.attendance" | "notify.habits" | "notify.tasks" | "notify.dates" | "notify.debts" | "notify.streaks" | "notify.goals" | "notify.contests"; label: string; description: string }) {
   const [value, setValue] = usePref(prefKey);
   return (
     <Row label={label} description={description} inline>
@@ -192,6 +209,8 @@ function NotificationsSection() {
       <NotifyToggle prefKey="notify.debts" label="Debts due" description="On the due date." />
       <NotifyToggle prefKey="notify.streaks" label="Streaks" description="At 8:30 pm if a streak of 3+ days isn't done yet." />
       <NotifyToggle prefKey="notify.goals" label="Goals" description="A week and a day before a goal's finish date." />
+      <NotifyToggle prefKey="notify.contests" label="Contests" description="Before contests on the sites chosen in Practice." />
+      <ContestLead />
       <Row label="Morning summary" description="Classes, tasks and habits for the day.">
         <DateTimeInput type="time" aria-label="Morning summary time" className="h-9 w-32" value={digest} onChange={(e) => setDigest(e.target.value)} />
         {digest ? (

@@ -4,7 +4,7 @@
  *
  * Query syntax: plain words must all match (title, tags or body), plus
  * filters `in:finance`, `tag:college`, `before:2026-09-01`, `after:2026-09`,
- * `amount:>500` and `is:done`.
+ * `amount:>500` (or `rating:>1600` for problems) and `is:done`.
  */
 import type { SearchRow } from "@/core/db/schema";
 
@@ -15,7 +15,8 @@ export interface Filters {
   tags: string[];
   before: string | null;
   after: string | null;
-  amount: { op: Op; value: number } | null;
+  /** `amount:` (money) or `rating:` (problem difficulty); both live in the amount column. */
+  amount: { op: Op; value: number; rating: boolean } | null;
   is: string[];
 }
 
@@ -44,6 +45,9 @@ const MODULE_ALIASES: Record<string, string[]> = {
   debts: ["debts", "people"],
   people: ["people"],
   goals: ["goals"],
+  practice: ["problems"],
+  problems: ["problems"],
+  cp: ["problems"],
 };
 
 const STATUS_ALIASES: Record<string, string[]> = {
@@ -52,6 +56,8 @@ const STATUS_ALIASES: Record<string, string[]> = {
   active: ["active"],
   pinned: ["pinned"],
   archived: ["archived"],
+  solved: ["solved"],
+  unsolved: ["attempted"],
 };
 
 /** Lower case without accents, so "café" finds "cafe". */
@@ -65,7 +71,7 @@ export function parseQuery(input: string): ParsedQuery {
   let filtered = false;
   for (const raw of input.trim().split(/\s+/)) {
     if (!raw) continue;
-    const m = /^(in|tag|before|after|amount|is):(.+)$/i.exec(raw);
+    const m = /^(in|tag|before|after|amount|rating|is):(.+)$/i.exec(raw);
     if (!m) {
       // `#tag` works like `tag:`.
       if (raw.length > 1 && raw.startsWith("#")) {
@@ -91,9 +97,10 @@ export function parseQuery(input: string): ParsedQuery {
       case "after":
         filters.after = v;
         break;
+      case "rating":
       case "amount": {
         const a = /^(<=|>=|<|>|=)?(\d+(?:\.\d+)?)$/.exec(v);
-        if (a) filters.amount = { op: (a[1] as Op | undefined) ?? "=", value: Number(a[2]) };
+        if (a) filters.amount = { op: (a[1] as Op | undefined) ?? "=", value: Number(a[2]), rating: key.toLowerCase() === "rating" };
         break;
       }
       case "is":
@@ -115,7 +122,7 @@ function passes(row: SearchRow, f: Filters): boolean {
   if (f.before && !(row.date && row.date < f.before)) return false;
   if (f.after && !(row.date && row.date > f.after)) return false;
   if (f.amount) {
-    if (row.amount === null) return false;
+    if (row.amount === null || f.amount.rating !== (row.src === "cp_problems")) return false;
     const { op, value } = f.amount;
     const a = row.amount;
     const ok = op === "<" ? a < value : op === ">" ? a > value : op === "<=" ? a <= value : op === ">=" ? a >= value : Math.abs(a - value) < 0.005;

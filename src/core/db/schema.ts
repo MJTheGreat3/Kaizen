@@ -418,6 +418,8 @@ export const goals = sqliteTable("goals", {
     .default("active"),
   completedAt: integer("completed_at"),
   sortOrder: real("sort_order").notNull().default(0),
+  /** Manual goals filled automatically, e.g. `rating:codeforces` (migration v8). */
+  metric: text("metric"),
   ...base,
 });
 
@@ -461,3 +463,89 @@ export type Goal = typeof goals.$inferSelect;
 export type GoalLink = typeof goalLinks.$inferSelect;
 export type GoalEntry = typeof goalEntries.$inferSelect;
 export type SearchRow = typeof searchIndex.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Phase 4 (migration v8): competitive programming
+// ---------------------------------------------------------------------------
+
+export type CpPlatform = "codeforces" | "leetcode" | "atcoder" | "codechef";
+
+/** One row per platform; `id` is the platform. */
+export const cpAccounts = sqliteTable("cp_accounts", {
+  id: text("id").$type<CpPlatform>().primaryKey(),
+  handle: text("handle").notNull(),
+  rating: real("rating"),
+  maxRating: real("max_rating"),
+  rankTitle: text("rank_title"),
+  solved: integer("solved").notNull().default(0),
+  contests: integer("contests").notNull().default(0),
+  meta: json<Record<string, unknown>>("meta").notNull().default({}),
+  /** Time of the newest submission already counted (ms). */
+  cursor: integer("cursor").notNull().default(0),
+  syncedAt: integer("synced_at"),
+  error: text("error"),
+  ...base,
+});
+
+export const cpProblems = sqliteTable("cp_problems", {
+  /** `cf:1520A`, `lc:two-sum`, `ac:abc300_a`, `cc:CODE`, or `x:<uuid>` for logged ones. */
+  id: id(),
+  /** A platform id, or "other" for problems logged by hand. */
+  platform: text("platform").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  url: text("url"),
+  /** Numeric difficulty (Codeforces rating, AtCoder difficulty). */
+  rating: real("rating"),
+  /** Shown difficulty: "1500", "Medium"... */
+  difficulty: text("difficulty"),
+  tags: json<string[]>("tags").notNull().default([]),
+  contestId: text("contest_id"),
+  attempts: integer("attempts").notNull().default(0),
+  firstAt: integer("first_at"),
+  lastAt: integer("last_at"),
+  solvedAt: integer("solved_at"),
+  notes: text("notes"),
+  minutes: integer("minutes"),
+  solutionUrl: text("solution_url"),
+  ...base,
+});
+
+/** Spaced repetition; `id` is the problem id. */
+export const cpRevisit = sqliteTable("cp_revisit", {
+  id: text("id").primaryKey(),
+  problemId: text("problem_id").notNull(),
+  stage: integer("stage").notNull().default(0),
+  dueDate: text("due_date").notNull(),
+  reviewedAt: integer("reviewed_at"),
+  status: text("status", { enum: ["active", "done"] })
+    .notNull()
+    .default("active"),
+  ...base,
+});
+
+/** Device-local cache of rating history. */
+export const cpRatings = sqliteTable("cp_ratings", {
+  id: text("id").primaryKey(),
+  platform: text("platform").$type<CpPlatform>().notNull(),
+  contest: text("contest").notNull(),
+  at: integer("at").notNull(),
+  rating: real("rating").notNull(),
+  rank: integer("rank"),
+});
+
+/** Device-local cache of upcoming contests. */
+export const cpContests = sqliteTable("cp_contests", {
+  id: text("id").primaryKey(),
+  platform: text("platform").$type<CpPlatform>().notNull(),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  startAt: integer("start_at").notNull(),
+  durationMin: integer("duration_min").notNull(),
+});
+
+export type CpAccount = typeof cpAccounts.$inferSelect;
+export type CpProblem = typeof cpProblems.$inferSelect;
+export type CpRevisit = typeof cpRevisit.$inferSelect;
+export type CpRating = typeof cpRatings.$inferSelect;
+export type CpContest = typeof cpContests.$inferSelect;

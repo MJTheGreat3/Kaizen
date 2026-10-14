@@ -115,6 +115,12 @@ export interface LanInfo {
 
 export type QueryMethod = "run" | "all" | "values" | "get";
 
+export interface PracticeReport {
+  platform: string;
+  newSolves: number;
+  error: string | null;
+}
+
 export const ipc = {
   appInfo: () => call<AppInfo>("app_info"),
 
@@ -149,6 +155,9 @@ export const ipc = {
   syncLan: (host: string | null) => call<SyncReport>("sync_lan", { host }),
   syncLanInfo: () => call<LanInfo>("sync_lan_info"),
   syncBackgroundSet: (enabled: boolean) => call<void>("sync_background_set", { enabled }),
+
+  practiceRefresh: (platforms?: string[]) => call<PracticeReport[]>("practice_refresh", { platforms: platforms ?? null }),
+  practiceContests: () => call<number>("practice_contests"),
 
   logsTail: (lines: number) => call<string>("logs_tail", { lines }),
   logFrontend: (level: "debug" | "info" | "warn" | "error", message: string) =>

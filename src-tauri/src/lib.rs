@@ -3,6 +3,7 @@ mod commands;
 mod db;
 mod error;
 mod logging;
+mod practice;
 mod sync;
 #[cfg(target_os = "macos")]
 mod touchid;
@@ -88,6 +89,8 @@ pub fn run() {
             commands::sync_lan,
             commands::sync_lan_info,
             commands::sync_background_set,
+            commands::practice_refresh,
+            commands::practice_contests,
             commands::sync_drive,
             commands::sync_drive_connect,
             commands::sync_drive_disconnect,

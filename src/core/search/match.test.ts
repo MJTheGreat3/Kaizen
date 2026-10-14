@@ -21,6 +21,7 @@ const rows: SearchRow[] = [
   row({ title: "Swiggy dinner", src: "debts", module: "debts", body: "Rahul", amount: 450, date: "2026-09-12", status: "owed_to_me" }),
   row({ title: "Café ideas for the weekend", module: "ideas", date: "2026-08-01" }),
   row({ title: "OS lab record", tags: "college", status: "done", date: "2026-09-02" }),
+  row({ title: "Knapsack for Beginners", src: "cp_problems", module: "problems", body: "codeforces 1700A", tags: "dp", amount: 1700, status: "solved" }),
 ];
 const titles = (q: string) => search(rows, parseQuery(q)).map((r) => r.row.title);
 
@@ -56,6 +57,8 @@ describe("search", () => {
     expect(titles("amount:<400")).toEqual([]);
     expect(titles("is:done")).toEqual(["OS lab record"]);
     expect(titles("in:lists")).toHaveLength(3);
+    expect(titles("in:cp rating:>=1600 #dp")).toEqual(["Knapsack for Beginners"]);
+    expect(titles("is:solved")).toEqual(["Knapsack for Beginners"]);
   });
 
   it("highlights the matched parts of the title", () => {

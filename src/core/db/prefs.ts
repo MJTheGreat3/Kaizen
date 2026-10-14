@@ -44,6 +44,14 @@ export interface Prefs {
   "focus.dnd": boolean;
   /** Seconds allowed away before the tree withers. */
   "focus.grace": number;
+  /** When this device last fetched upcoming contests. */
+  "practice.contestsAt": number;
+  /** Platforms whose contests are shown and announced. */
+  "practice.contestPlatforms": string[];
+  /** Notify before contests start. */
+  "notify.contests": boolean;
+  /** Minutes before a contest to notify. */
+  "notify.contestsLead": number;
   /** Last searches typed in the palette, newest first. */
   "search.recent": string[];
   /** Items last opened from search, newest first. */
@@ -74,6 +82,10 @@ export const defaultPrefs: Prefs = {
   "focus.strict": true,
   "focus.dnd": true,
   "focus.grace": 10,
+  "practice.contestsAt": 0,
+  "practice.contestPlatforms": ["codeforces", "leetcode", "atcoder", "codechef"],
+  "notify.contests": true,
+  "notify.contestsLead": 60,
   "search.recent": [],
   "search.opened": [],
 };

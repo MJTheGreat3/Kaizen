@@ -29,7 +29,7 @@ Status: planning (updated 2026-10-13)
 ### 2.1 DSA / Competitive Programming tracker
 
 **What it does**
-- Pulls my solved problems, submissions, contest history and rating from Codeforces and LeetCode.
+- Pulls my solved problems, submissions, contest history and rating from Codeforces, LeetCode, AtCoder and CodeChef.
 - Shows rating graphs, solved count by difficulty and tag, daily heatmap, streaks.
 - Weak-topic analysis: tags where my acceptance rate or solve count is low.
 - Manual log for problems from other sources (AtCoder, CSES, books) with notes, solution link and "time taken".
@@ -40,7 +40,8 @@ Status: planning (updated 2026-10-13)
 - Codeforces official public API (no key needed for public data):
   - `user.info`, `user.rating`, `user.status` (all submissions), `contest.list` (upcoming contests).
 - LeetCode: no official public API. Use the GraphQL endpoint `https://leetcode.com/graphql` that the website uses (queries such as `userProfile`, `recentAcSubmissionList`, `userContestRankingHistory`, `upcoming contests`). It is unofficial and may change, so wrap it in an adapter that fails gracefully.
-- Optional later: AtCoder (via community APIs like kenkoooo AtCoder Problems), CodeChef.
+- AtCoder: rating history from `atcoder.jp/users/<name>/history/json`, submissions, problem names and difficulty from the community AtCoder Problems API (kenkoooo.com), upcoming contests from the atcoder.jp contests page.
+- CodeChef (no public API any more): rating, stars, totals and rating history from the profile page, submissions from the profile's recent-activity feed, contests from the JSON the contests page loads.
 
 **Sync strategy**: incremental fetch on app open and every few hours; store raw submissions locally so analytics work offline.
 
@@ -485,8 +486,8 @@ kaizen/
 | 0. Foundation (done) | Tauri 2 project (desktop + Android), design system, navigation shell, SQLite + migrations, encryption, settings, backup/export, `activity_events` table, search index skeleton |
 | 1. Daily core (done) | To-do / watch / read with NL parsing, notification service, habits, idea scrapbook, important dates, college timetable with attendance, debt recorder, Today dashboard |
 | 2. Sync (done) | Encrypted sync core with QR pairing; Google Drive transport first, then direct LAN / Tailscale; the phone is usable daily from here on |
-| 3. Focus and activity | Forest-style focus timer (Android strict mode), activity heatmap with filters, streaks, universal search + command palette |
-| 4. Practice | Codeforces + LeetCode connectors, CP analytics, contest reminders, revisit queue |
+| 3. Focus and activity (done) | Forest-style focus timer (Android strict mode), activity heatmap with filters, streaks, universal search + command palette |
+| 4. Practice (done) | Codeforces, LeetCode, AtCoder and CodeChef connectors, CP analytics, contest reminders, revisit queue |
 | 5. Fitness and sports | Gym logging, templates, PRs, charts, sports sessions, body metrics; NBA and football team and player following |
 | 6. Canvas | Whiteboard (Excalidraw), linking ideas to boards |
 | 7. Music | Spotify connection, remote-control player and mini player, local listening history, stats and summaries |
@@ -644,6 +645,18 @@ Still to check: end-of-session notifications on the laptop, which need the bundl
 **Goals** (built 2026-10-14): `goals`, `goal_links` and `goal_entries` (synced). Four kinds: a number logged by hand (rating, weight; may go down), an activity total since the start date (optionally one tag, focus in hours), check-ins of linked habits, or linked tasks done. Cards show progress, a step chart against the planned pace, ahead / on track / behind, days left and what is needed per day or week. Goals are marked reached automatically (toast and notification); reminders a week and a day before the finish date (Settings → Notifications → Goals). Ideas can become a task or a goal; Today shows the active goals.
 
 Phase 3 is complete; the laptop end-of-session notification still needs checking with the bundled app.
+
+### 6.6 Phase 4 outcome: Practice (2026-10-14)
+
+Built and tested (Rust unit tests with saved responses, a live test against all four sites, browser preview of the UI):
+- **Connectors** (Rust, `src-tauri/src/practice/`): one adapter per site turns its data into the same shapes (account, submissions newer than a cursor, rating history, upcoming contests). Codeforces uses the official API, paged until known submissions; LeetCode the website's GraphQL (only the 20 most recent accepted submissions are public, so history builds up from the first refresh; totals by difficulty are complete); AtCoder the official history JSON plus AtCoder Problems; CodeChef the profile page and its recent-activity feed. Sites are fetched in parallel without holding the database, at a polite pace, and a failure shows a readable message on that site's card.
+- **Storage** (migration v8): `cp_accounts` (one row per site, synced, so a handle set on the laptop reaches the phone), `cp_problems` (one row per problem, not per submission: attempts, first and latest try, first solve, plus my notes, time taken and solution link, which refreshes never overwrite; ids come from the site's problem id so both devices agree), `cp_revisit` (synced), and device-local caches `cp_ratings` and `cp_contests`. Each first solve records a `cp` activity event, so problems feed the heatmap, streaks and activity goals. Problems are in the search index (`in:cp`, `rating:>1600`, `is:solved`, `#dp`).
+- **Practice page**: a card per site (rating coloured by rank, max, solved, last update), totals (all sites, this week, last 30 days, solving streak), rating history across sites with a hover tooltip, solved by difficulty (Codeforces and AtCoder in 200-point bands, LeetCode by Easy/Medium/Hard), topics with solved vs tried and weak spots (topics whose solve rate is well below the overall one; topic names from different sites are merged), revisit queue (1, 3, 7 and 21 days; "Struggled" starts over), upcoming contests with a per-site filter, and a filterable problem list with notes, time taken and a solution link per problem. Problems from elsewhere (CSES, books) can be logged by hand.
+- Refreshes run 20 s after unlock and every half hour for sites not updated in 3 hours; contests every 6 hours; the Refresh button does both now.
+- Contest reminders (Settings → Notifications → Contests, 10 min to 2 h before) and contests in Today's "Up next" card.
+- Goals: a number goal can follow a site's rating after each contest ("Reach CF Expert").
+
+Known limits: LeetCode history only from the first refresh on (its topic stats cover only those problems); CodeChef shows problem codes, not names, and reads at most 300 past submissions on the first refresh; the LeetCode and CodeChef adapters depend on their websites and may need fixing when those change.
 
 ## 7. Open questions
 

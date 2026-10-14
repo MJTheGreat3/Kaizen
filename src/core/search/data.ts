@@ -24,6 +24,7 @@ export interface ModuleInfo {
 export const SEARCH_MODULES: Record<string, ModuleInfo> = {
   todo: { label: "Tasks", moduleId: "lists" },
   goals: { label: "Goals", moduleId: "goals" },
+  problems: { label: "Problems", moduleId: "practice" },
   habits: { label: "Habits", moduleId: "habits" },
   ideas: { label: "Ideas", moduleId: "ideas" },
   dates: { label: "Dates", moduleId: "calendar" },

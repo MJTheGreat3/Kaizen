@@ -30,6 +30,8 @@ export interface PlanInput {
   debts: DebtsData;
   /** Streaks at risk today: current length and whether today already counts. */
   streaks?: { name: string; current: number; doneToday: boolean; unit: "days" | "weeks" }[];
+  /** Upcoming programming contests (already filtered to the chosen sites). */
+  contests?: { id: string; name: string; startAt: number; site: string }[];
   /** Active goals with a finish date, and what is left. */
   goals?: { id: string; title: string; targetDate: DateKey; left: string }[];
 }
@@ -132,6 +134,18 @@ export function buildPlan(input: PlanInput, horizonDays = 3): PlannedNotificatio
         at: atTime(today, 20 * 60 + 30),
         title: `Keep your ${st.current}-day ${st.name} streak`,
         body: "A little today keeps it going.",
+      });
+    }
+  }
+
+  if (prefs["notify.contests"]) {
+    const lead = prefs["notify.contestsLead"];
+    for (const c of input.contests ?? []) {
+      push({
+        key: `contest:${c.id}:${c.startAt}`,
+        at: new Date(c.startAt - lead * 60_000),
+        title: `${c.name} starts ${lead >= 60 ? `in ${lead / 60} h` : `in ${lead} min`}`,
+        body: c.site,
       });
     }
   }

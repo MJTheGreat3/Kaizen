@@ -13,6 +13,8 @@ import { loadCalendar, loadDates } from "@/modules/calendar/data";
 import { loadDebts } from "@/modules/debts/data";
 import { currentStreaks } from "@/modules/activity/milestones";
 import { goalReminders } from "@/modules/goals/watch";
+import { loadContests } from "@/modules/practice/data";
+import { platformOf } from "@/modules/practice/logic";
 import { loadHabits } from "@/modules/habits/data";
 import { loadTasks } from "@/modules/lists/data";
 import { buildPlan, notificationId, type PlannedNotification } from "./plan";
@@ -109,7 +111,7 @@ async function applyDesktop(plan: PlannedNotification[]) {
 /** Rebuilds the plan from the database and (re)schedules everything. */
 export async function syncNotifications(platform: Platform) {
   if (!(await notificationsAllowed())) return;
-  const [prefs, tasks, habits, calendar, dates, debts, streaks, goals] = await Promise.all([
+  const [prefs, tasks, habits, calendar, dates, debts, streaks, goals, contests] = await Promise.all([
     getAllPrefs(),
     loadTasks(),
     loadHabits(14),
@@ -118,8 +120,12 @@ export async function syncNotifications(platform: Platform) {
     loadDebts(),
     currentStreaks(),
     goalReminders(),
+    loadContests(),
   ]);
-  const plan = buildPlan({ now: new Date(), prefs, tasks, habits, calendar, dates, debts, streaks, goals });
+  const chosen = contests
+    .filter((c) => prefs["practice.contestPlatforms"].includes(c.platform))
+    .map((c) => ({ id: c.id, name: c.name, startAt: c.startAt, site: platformOf(c.platform)?.name ?? c.platform }));
+  const plan = buildPlan({ now: new Date(), prefs, tasks, habits, calendar, dates, debts, streaks, goals, contests: chosen });
   if (platform === "android") await applyAndroid(plan);
   else await applyDesktop(plan);
   log.info(`scheduled ${plan.length} notifications`);

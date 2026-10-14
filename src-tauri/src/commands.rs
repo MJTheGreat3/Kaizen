@@ -7,6 +7,7 @@ use tauri::{Emitter, Manager, State};
 use crate::backup::{self, BackupInfo};
 use crate::db::{DB_FILE, Database, QueryMethod};
 use crate::error::{Error, Result};
+use crate::practice;
 use crate::sync::{
     self, Report, Status, drive,
     mailbox::{FolderMailbox, Mailbox},
@@ -471,4 +472,130 @@ pub async fn sync_drive_connect(app: tauri::AppHandle) -> Result<String> {
 #[tauri::command]
 pub async fn sync_drive_disconnect(state: State<'_, AppState>) -> Result<()> {
     with_session(&state, |s| drive::forget_account(s.db.conn()))
+}
+
+// ---------------------------------------------------------------------------
+// Practice (competitive programming)
+// ---------------------------------------------------------------------------
+
+/// One practice refresh at a time.
+static PRACTICE_RUNNING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Fetches new solves, ratings and totals for the given platforms (all
+/// accounts when empty). Sites are fetched in parallel without holding the
+/// database; each result is stored as it is merged.
+#[tauri::command]
+pub async fn practice_refresh(
+    app: tauri::AppHandle,
+    platforms: Option<Vec<String>>,
+) -> Result<Vec<practice::RefreshReport>> {
+    blocking(move || {
+        let _running = PRACTICE_RUNNING.lock().unwrap_or_else(|e| e.into_inner());
+        let state = app.state::<AppState>();
+        let jobs = with_session(&state, |s| {
+            let conn = s.db.conn();
+            let mut jobs = Vec::new();
+            for (platform, handle, cursor) in practice::accounts(conn)? {
+                if platforms
+                    .as_ref()
+                    .is_some_and(|p| !p.iter().any(|x| x == platform.id()))
+                {
+                    continue;
+                }
+                jobs.push((
+                    platform,
+                    handle,
+                    cursor,
+                    practice::known_codes(conn, platform)?,
+                ));
+            }
+            Ok(jobs)
+        })?;
+        let http = practice::http::Http::new();
+        let results: Vec<_> = std::thread::scope(|scope| {
+            let handles: Vec<_> = jobs
+                .iter()
+                .map(|(platform, handle, cursor, known)| {
+                    let http = &http;
+                    scope.spawn(move || {
+                        (
+                            *platform,
+                            *cursor,
+                            platform.fetch(http, handle, *cursor, known),
+                        )
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|h| h.join().expect("practice fetch panicked"))
+                .collect()
+        });
+        let mut reports = Vec::new();
+        for (platform, cursor, result) in results {
+            let report = with_session(&state, |s| match result {
+                Ok(fetched) => {
+                    let new_solves = practice::store(s.db.conn(), platform, &fetched, cursor)?;
+                    tracing::info!(platform = platform.id(), new_solves, "practice refreshed");
+                    Ok(practice::RefreshReport {
+                        platform: platform.id(),
+                        new_solves,
+                        error: None,
+                    })
+                }
+                Err(e) => {
+                    let message = practice::describe(platform, &e);
+                    tracing::warn!(platform = platform.id(), %message, "practice refresh failed");
+                    practice::store_error(s.db.conn(), platform, &message)?;
+                    Ok(practice::RefreshReport {
+                        platform: platform.id(),
+                        new_solves: 0,
+                        error: Some(message),
+                    })
+                }
+            })?;
+            reports.push(report);
+        }
+        Ok(reports)
+    })
+    .await
+}
+
+/// Refreshes upcoming contests on every platform; returns how many there are.
+#[tauri::command]
+pub async fn practice_contests(app: tauri::AppHandle) -> Result<usize> {
+    blocking(move || {
+        let http = practice::http::Http::new();
+        let results: Vec<_> = std::thread::scope(|scope| {
+            let handles: Vec<_> = practice::Platform::ALL
+                .iter()
+                .map(|p| {
+                    let http = &http;
+                    scope.spawn(move || (*p, p.upcoming(http)))
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|h| h.join().expect("contest fetch panicked"))
+                .collect()
+        });
+        let state = app.state::<AppState>();
+        let mut total = 0;
+        for (platform, result) in results {
+            match result {
+                Ok(contests) => {
+                    total += contests.len();
+                    with_session(&state, |s| {
+                        practice::store_contests(s.db.conn(), platform, &contests)
+                    })?;
+                }
+                // Keep the last list for a site that is down.
+                Err(e) => {
+                    tracing::warn!(platform = platform.id(), error = %e, "contest list failed")
+                }
+            }
+        }
+        Ok(total)
+    })
+    .await
 }

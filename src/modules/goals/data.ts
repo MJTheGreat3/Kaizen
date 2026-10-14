@@ -7,7 +7,7 @@ import type { Goal, GoalEntry, GoalLink, Habit, Task } from "@/core/db/schema";
 import { todayKey, toKey, type DateKey } from "@/lib/dates";
 import { loadActivity } from "@/modules/activity/data";
 import { isDone } from "@/modules/habits/streaks";
-import { progress, type GoalInputs, type Progress } from "./logic";
+import { progress, type GoalInputs, type Point, type Progress } from "./logic";
 
 const g = schema.goals;
 const gl = schema.goalLinks;
@@ -33,7 +33,8 @@ export async function loadGoals(): Promise<GoalView[]> {
   const habitIds = links.filter((l) => l.kind === "habit").map((l) => l.refId);
   const taskIds = links.filter((l) => l.kind === "task").map((l) => l.refId);
   const needsActivity = goals.some((x) => x.kind === "activity");
-  const [habits, logs, tasks, activity] = await Promise.all([
+  const needsRatings = goals.some((x) => x.metric?.startsWith("rating:"));
+  const [habits, logs, tasks, activity, ratings] = await Promise.all([
     habitIds.length ? db.select().from(schema.habits).where(and(isNull(schema.habits.deletedAt), inArray(schema.habits.id, habitIds))) : [],
     habitIds.length
       ? db
@@ -43,6 +44,7 @@ export async function loadGoals(): Promise<GoalView[]> {
       : [],
     taskIds.length ? db.select().from(schema.tasks).where(and(isNull(schema.tasks.deletedAt), inArray(schema.tasks.id, taskIds))) : [],
     needsActivity ? loadActivity() : null,
+    needsRatings ? loadRatingSeries() : null,
   ]);
   const today = todayKey();
 
@@ -52,7 +54,10 @@ export async function loadGoals(): Promise<GoalView[]> {
     const myTasks = tasks.filter((t) => mine.some((l) => l.kind === "task" && l.refId === t.id));
     const myEntries = entries.filter((e) => e.goalId === goal.id);
     const inputs: GoalInputs = {
-      entries: myEntries.map((e) => ({ date: e.date, value: e.value })),
+      // A goal following a site's rating reads its contest history instead of logged values.
+      entries: goal.metric?.startsWith("rating:")
+        ? (ratings?.get(goal.metric.slice("rating:".length)) ?? [])
+        : myEntries.map((e) => ({ date: e.date, value: e.value })),
       activity:
         activity && goal.activityType
           ? activity.events
@@ -69,6 +74,26 @@ export async function loadGoals(): Promise<GoalView[]> {
     };
     return { goal, links: mine, entries: myEntries, habits: myHabits, tasks: myTasks, progress: progress(goal, inputs, today) };
   });
+}
+
+/** Rating after each contest per platform, plus today's rating, as goal points. */
+async function loadRatingSeries(): Promise<Map<string, Point[]>> {
+  const [history, accounts] = await Promise.all([
+    db.select().from(schema.cpRatings).orderBy(asc(schema.cpRatings.at)),
+    db.select().from(schema.cpAccounts).where(isNull(schema.cpAccounts.deletedAt)),
+  ]);
+  const out = new Map<string, Point[]>();
+  for (const r of history) {
+    if (!out.has(r.platform)) out.set(r.platform, []);
+    out.get(r.platform)!.push({ date: toKey(new Date(r.at)), value: r.rating });
+  }
+  for (const a of accounts) {
+    if (a.rating === null) continue;
+    const points = out.get(a.id) ?? [];
+    if (points.at(-1)?.value !== a.rating) points.push({ date: todayKey(), value: a.rating });
+    out.set(a.id, points);
+  }
+  return out;
 }
 
 export function useGoals() {
@@ -89,7 +114,7 @@ function useGoalMutation<A>(fn: (a: A) => Promise<unknown>) {
 
 export type GoalInput = Pick<
   Goal,
-  "title" | "notes" | "kind" | "unit" | "startValue" | "targetValue" | "startDate" | "targetDate" | "activityType" | "activityTag" | "color"
+  "title" | "notes" | "kind" | "unit" | "startValue" | "targetValue" | "startDate" | "targetDate" | "activityType" | "activityTag" | "color" | "metric"
 >;
 
 export interface SaveGoal extends GoalInput {
@@ -154,7 +179,7 @@ export function useDeleteEntry() {
 
 /** Habits and open-or-recent tasks offered when linking. */
 export async function loadLinkOptions() {
-  const [habits, tasks, activity] = await Promise.all([
+  const [habits, tasks, activity, accounts] = await Promise.all([
     db
       .select()
       .from(schema.habits)
@@ -165,8 +190,9 @@ export async function loadLinkOptions() {
       .from(schema.tasks)
       .where(and(isNull(schema.tasks.deletedAt), eq(schema.tasks.list, "todo"))),
     loadActivity(),
+    db.select().from(schema.cpAccounts).where(isNull(schema.cpAccounts.deletedAt)),
   ]);
-  return { habits, tasks, types: activity.types, tags: activity.allTags };
+  return { habits, tasks, types: activity.types, tags: activity.allTags, accounts };
 }
 
 export function useLinkOptions(enabled: boolean) {

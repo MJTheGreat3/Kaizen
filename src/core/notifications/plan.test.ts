@@ -78,6 +78,12 @@ describe("buildPlan", () => {
     expect(goals.map((n) => [n.title, n.body])).toEqual([["100 h focus: due tomorrow", "Behind: 12 h to go"]]);
   });
 
+  it("announces contests ahead of their start", () => {
+    const start = new Date(2026, 9, 14, 20, 0).getTime();
+    const n = plan({ contests: [{ id: "cc:START260", name: "Starters 260", startAt: start, site: "CodeChef" }] }).filter((x) => x.key.startsWith("contest:"));
+    expect(n.map((x) => [x.title, x.at.getHours()])).toEqual([["Starters 260 starts in 1 h", 19]]);
+  });
+
   it("makes stable positive ids", () => {
     expect(notificationId("class:x")).toBe(notificationId("class:x"));
     expect(notificationId("class:x")).toBeGreaterThan(0);
