@@ -39,7 +39,7 @@ import { cn, timeUntil } from "@/lib/utils";
 import { dayOff, occurrencesOn } from "@/modules/calendar/attendance";
 import { ClassList } from "@/modules/calendar/ClassList";
 import { loadCalendar, loadDates, upcomingDates } from "@/modules/calendar/data";
-import { countdown, DATE_STYLE } from "@/modules/calendar/labels";
+import { DATE_STYLE } from "@/modules/calendar/labels";
 import { totals } from "@/modules/debts/balances";
 import { loadDebts } from "@/modules/debts/data";
 import { loadHabits, logHabit } from "@/modules/habits/data";
@@ -79,6 +79,21 @@ async function loadToday() {
   // Followed teams' games that are live or start within two days.
   const matches = games.filter((g) => g.startAt < Date.now() + 2 * 86_400_000).slice(0, 3);
   return { tasks, habits, calendar, dates, debts, ideas, contests: soon, matches };
+}
+
+/**
+ * When an Up next item happens, the same way for everything: "Live",
+ * "in 3 h 20 min" within twelve hours, otherwise "Thu 15 Oct, 7:30 pm".
+ * Dates without a time read "Today" or "Sat 17 Oct".
+ */
+function upNextWhen(at: number, now: number, { live, allDay }: { live: boolean; allDay: boolean }) {
+  if (live) return "Live";
+  const d = new Date(at);
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  const day = d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) });
+  if (allDay) return todayKey(d) === todayKey(new Date(now)) ? "Today" : day;
+  if (at - now <= 12 * 3_600_000) return timeUntil(at, now);
+  return `${day}, ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 }
 
 function Card({ to, title, icon, hue, className, children, action }: { to: string; title: string; icon: Icon; hue: string; className?: string; children: ReactNode; action?: ReactNode }) {
@@ -299,38 +314,48 @@ export function TodayPage() {
               ) : (
                 // One shrinkable column, so long names truncate instead of pushing the times out.
                 <ul className="grid min-w-0 grid-cols-1 gap-2.5">
-                  {data.matches.map((g) => (
-                    <li key={g.id}>
-                      <button type="button" onClick={() => (g.url ? void openUrl(g.url) : undefined)} className="flex w-full items-center gap-3 text-left">
-                        <Avatar src={g.homeLogo} name={g.home} square className="size-[18px] text-[8px]" />
-                        <span className="min-w-0 flex-1 truncate text-[14px]">
-                          {g.homeShort || g.home} v {g.awayShort || g.away}
-                        </span>
-                        <span className={cn("shrink-0 text-[12px] font-medium", g.state === "in" ? "text-danger" : "text-muted-foreground")}>
-                          {g.state === "in" ? "Live" : `${todayKey(new Date(g.startAt)) === today ? "" : `${new Date(g.startAt).toLocaleDateString([], { weekday: "short" })} `}${new Date(g.startAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                  {data.contests.map((c) => (
-                    <li key={c.id}>
-                      <button type="button" onClick={() => void openUrl(c.url)} className="flex w-full items-center gap-3 text-left">
-                        <Trophy size={18} weight="duotone" style={{ color: platformOf(c.platform)?.color }} />
-                        <span className="min-w-0 flex-1 truncate text-[14px]">{c.name}</span>
-                        <span className="shrink-0 text-[12px] font-medium text-muted-foreground">{c.startAt <= now.getTime() ? "Live" : timeUntil(c.startAt, now.getTime())}</span>
-                      </button>
-                    </li>
-                  ))}
-                  {upcoming.map(({ item, date }) => {
-                    const st = DATE_STYLE[item.kind] ?? DATE_STYLE.other;
-                    return (
-                      <li key={item.id} className="flex items-center gap-3">
-                        <st.icon size={18} weight="duotone" style={{ color: st.hue }} />
-                        <span className="min-w-0 flex-1 truncate text-[14px]">{item.title}</span>
-                        <span className="shrink-0 text-[12px] font-medium text-muted-foreground">{countdown(date, today)}</span>
+                  {[
+                    ...data.matches.map((g) => ({
+                      key: `m:${g.id}`,
+                      at: g.startAt,
+                      live: g.state === "in",
+                      allDay: false,
+                      title: `${g.homeShort || g.home} v ${g.awayShort || g.away}`,
+                      icon: <Avatar src={g.homeLogo} name={g.home} square className="size-[18px] text-[8px]" />,
+                      open: g.url ? () => void openUrl(g.url!) : undefined,
+                    })),
+                    ...data.contests.map((c) => ({
+                      key: `c:${c.id}`,
+                      at: c.startAt,
+                      live: c.startAt <= now.getTime(),
+                      allDay: false,
+                      title: c.name,
+                      icon: <Trophy size={18} weight="duotone" style={{ color: platformOf(c.platform)?.color }} />,
+                      open: () => void openUrl(c.url),
+                    })),
+                    ...upcoming.map(({ item, date }) => {
+                      const st = DATE_STYLE[item.kind] ?? DATE_STYLE.other;
+                      return {
+                        key: `d:${item.id}`,
+                        at: new Date(`${date}T00:00:00`).getTime(),
+                        live: false,
+                        allDay: true,
+                        title: item.title,
+                        icon: <st.icon size={18} weight="duotone" style={{ color: st.hue }} />,
+                        open: undefined,
+                      };
+                    }),
+                  ]
+                    .sort((a, b) => Number(b.live) - Number(a.live) || a.at - b.at)
+                    .map((x) => (
+                      <li key={x.key}>
+                        <button type="button" onClick={x.open} disabled={!x.open} className="flex w-full items-center gap-3 text-left disabled:cursor-default">
+                          {x.icon}
+                          <span className="min-w-0 flex-1 truncate text-[14px]">{x.title}</span>
+                          <span className={cn("shrink-0 text-[12px] font-medium tabular-nums", x.live ? "text-danger" : "text-muted-foreground")}>{upNextWhen(x.at, now.getTime(), x)}</span>
+                        </button>
                       </li>
-                    );
-                  })}
+                    ))}
                 </ul>
               )}
             </Card>
