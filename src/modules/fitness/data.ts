@@ -84,9 +84,21 @@ function useGymMutation<A, R = unknown>(fn: (a: A) => Promise<R>) {
 // Workouts
 // ---------------------------------------------------------------------------
 
-/** New sets for an exercise, prefilled from the last time it was done. */
-function setsFor(workoutId: string, exerciseId: string, position: number, count: number, reps: number | null, history: { sets: WorkoutSet[]; workouts: Workout[] }, measure: Measure) {
-  const prev = previousSets(exerciseId, history.sets, history.workouts, Date.now(), workoutId).filter((s) => !s.warmup);
+/**
+ * New sets for an exercise, prefilled from the last time it was done before
+ * `before`. Sets of a finished (past) workout start ticked.
+ */
+function setsFor(
+  workoutId: string,
+  exerciseId: string,
+  position: number,
+  count: number,
+  reps: number | null,
+  history: { sets: WorkoutSet[]; workouts: Workout[] },
+  measure: Measure,
+  { before = Date.now(), done = false }: { before?: number; done?: boolean } = {},
+) {
+  const prev = previousSets(exerciseId, history.sets, history.workouts, before, workoutId).filter((s) => !s.warmup);
   return Array.from({ length: Math.max(1, count) }, (_, i) => {
     const p = prev[Math.min(i, prev.length - 1)];
     return {
@@ -99,6 +111,7 @@ function setsFor(workoutId: string, exerciseId: string, position: number, count:
       reps: p?.reps ?? (measure === "time" || measure === "cardio" ? null : reps),
       seconds: p?.seconds ?? (measure === "time" ? reps : null),
       distance: p?.distance ?? null,
+      done,
     };
   });
 }
@@ -151,10 +164,13 @@ export function useAddExercises() {
       .from(ws)
       .where(and(eq(ws.workoutId, workoutId), isNull(ws.deletedAt)));
     let position = Math.max(-1, ...existing.map((s) => s.position)) + 1;
+    const w = await db.select().from(wo).where(eq(wo.id, workoutId)).get();
     const h = await history();
+    const options = { before: w?.startedAt ?? Date.now(), done: !!w?.endedAt };
     for (const exerciseId of exerciseIds) {
-      await db.insert(ws).values(setsFor(workoutId, exerciseId, position++, 3, null, h, await measureOf(exerciseId)));
+      await db.insert(ws).values(setsFor(workoutId, exerciseId, position++, 3, null, h, await measureOf(exerciseId), options));
     }
+    await refreshVolume(workoutId);
   });
 }
 
@@ -174,7 +190,9 @@ export function useAddSet() {
       .where(and(eq(ws.workoutId, workoutId), eq(ws.position, position), isNull(ws.deletedAt)))
       .orderBy(asc(ws.setIndex));
     const last = sets.at(-1);
+    const w = await db.select({ endedAt: wo.endedAt }).from(wo).where(eq(wo.id, workoutId)).get();
     await db.insert(ws).values({
+      done: !!w?.endedAt,
       workoutId,
       exerciseId,
       position,
@@ -184,6 +202,7 @@ export function useAddSet() {
       seconds: last?.seconds ?? null,
       distance: last?.distance ?? null,
     });
+    await refreshVolume(workoutId);
   });
 }
 
@@ -257,11 +276,31 @@ export function useDeleteWorkout() {
 }
 
 /** Logs a past workout by hand; it opens for its sets to be filled in. */
+export interface PastWorkoutInput {
+  name: string;
+  date: DateKey;
+  /** Start time, `HH:MM`. */
+  time: string;
+  minutes: number;
+  /** Fills the workout with this routine's exercises, sets already ticked. */
+  template: WorkoutTemplate | null;
+}
+
+/** Logs a workout done earlier; it opens next for its sets to be adjusted. */
 export function useLogPastWorkout() {
-  return useGymMutation(async ({ name, date, minutes }: { name: string; date: DateKey; minutes: number }) => {
+  return useGymMutation(async ({ name, date, time, minutes, template }: PastWorkoutInput) => {
     const id = uuidv7();
-    const startedAt = new Date(`${date}T18:00:00`).getTime();
-    await db.insert(wo).values({ id, name, date, startedAt, endedAt: startedAt + minutes * 60_000 });
+    const startedAt = new Date(`${date}T${time || "18:00"}:00`).getTime();
+    await db.insert(wo).values({ id, name, templateId: template?.id ?? null, date, startedAt, endedAt: startedAt + minutes * 60_000 });
+    if (template?.exercises.length) {
+      const h = await history();
+      const rows = [];
+      for (const [position, item] of template.exercises.entries()) {
+        rows.push(...setsFor(id, item.exerciseId, position, item.sets, item.reps, h, await measureOf(item.exerciseId), { before: startedAt, done: true }));
+      }
+      await db.insert(ws).values(rows);
+      await refreshVolume(id);
+    }
     await recordActivity("gym", date, "workouts", id, 1);
     return id;
   });

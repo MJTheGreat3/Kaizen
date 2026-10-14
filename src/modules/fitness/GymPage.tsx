@@ -185,6 +185,11 @@ export function GymPage() {
             <Button size="sm" variant="ghost" aria-label="Gym settings" onClick={() => setSettings(true)}>
               <Gear />
             </Button>
+            <Button size="sm" variant="secondary" onClick={() => setPast(true)}>
+              <CalendarPlus />
+              <span className="hidden sm:inline">Log past</span>
+              <span className="sm:hidden">Past</span>
+            </Button>
             {data?.active ? (
               <Button size="sm" onClick={() => open(data.active!.id)}>
                 <Play weight="fill" />
@@ -338,7 +343,7 @@ export function GymPage() {
                   ) : null}
                 </ul>
               ) : (
-                <p className="py-6 text-center text-[14px] text-muted-foreground">Finished workouts show here and on the heatmap.</p>
+                <p className="py-6 text-center text-[14px] text-muted-foreground">Finished workouts show here and on the heatmap. Earlier ones can be added with Log past.</p>
               )}
             </Card>
 
@@ -375,6 +380,7 @@ export function GymPage() {
       {editing ? <TemplateDialog template={editing === "new" ? null : editing} exercises={data?.byId ?? new Map()} onClose={() => setEditing(null)} /> : null}
       {past ? (
         <PastWorkoutDialog
+          templates={data?.templates ?? []}
           onClose={() => setPast(false)}
           onCreated={(id) => {
             setPast(false);

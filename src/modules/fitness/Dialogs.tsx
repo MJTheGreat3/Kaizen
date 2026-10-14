@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, Input } from "@/components/ui/input";
 import { DateTimeInput, Textarea } from "@/components/ui/kit";
 import type { BodyMetric, Exercise, Measure, Muscle, TemplateItem, WorkoutTemplate } from "@/core/db/schema";
-import { todayKey } from "@/lib/dates";
+import { addDaysKey, todayKey } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { useDeleteExercise, useDeleteMetric, useDeleteTemplate, useLogPastWorkout, useSaveExercise, useSaveMetric, useSaveTemplate, useUnit, type MetricInput } from "./data";
 import { EQUIPMENT, fromUnit, MEASUREMENTS, MEASURES, MUSCLES, muscleName, toUnit } from "./logic";
@@ -420,26 +420,55 @@ export function MetricDialog({ metric, onClose }: { metric: BodyMetric | null; o
 // A past workout
 // ---------------------------------------------------------------------------
 
-export function PastWorkoutDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+export function PastWorkoutDialog({ templates, onClose, onCreated }: { templates: WorkoutTemplate[]; onClose: () => void; onCreated: (id: string) => void }) {
   const log = useLogPastWorkout();
+  const [templateId, setTemplateId] = useState("");
   const [name, setName] = useState("Workout");
-  const [date, setDate] = useState(todayKey());
+  const [date, setDate] = useState(addDaysKey(todayKey(), -1));
+  const [time, setTime] = useState("18:00");
   const [minutes, setMinutes] = useState("60");
   const mins = Math.round(Number(minutes));
+  const template = templates.find((t) => t.id === templateId) ?? null;
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Log a past workout</DialogTitle>
-          <DialogDescription>It opens next, for its exercises and sets.</DialogDescription>
+          <DialogDescription>
+            {template ? "Its sets come in ticked, with your weights from before that day; adjust what differed next." : "It opens next, for its exercises and sets. Sets you add count as done."}
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
+          {templates.length ? (
+            <Field label="From a routine (optional)" htmlFor="past-template">
+              <NativeSelect
+                id="past-template"
+                className="w-full"
+                value={templateId}
+                onChange={(e) => {
+                  setTemplateId(e.target.value);
+                  const t = templates.find((x) => x.id === e.target.value);
+                  if (t) setName(t.name);
+                }}
+              >
+                <option value="">None, I'll add exercises</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
+          ) : null}
           <Field label="Name" htmlFor="past-name">
             <Input id="past-name" value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <Field label="Date" htmlFor="past-date">
               <DateTimeInput id="past-date" type="date" value={date} max={todayKey()} onChange={(e) => setDate(e.target.value || todayKey())} />
+            </Field>
+            <Field label="Started" htmlFor="past-time">
+              <DateTimeInput id="past-time" type="time" value={time} onChange={(e) => setTime(e.target.value || "18:00")} />
             </Field>
             <Field label="Minutes" htmlFor="past-minutes">
               <Input id="past-minutes" inputMode="numeric" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
@@ -454,7 +483,7 @@ export function PastWorkoutDialog({ onClose, onCreated }: { onClose: () => void;
             disabled={!name.trim() || !(mins > 0)}
             loading={log.isPending}
             onClick={async () => {
-              onCreated(await log.mutateAsync({ name: name.trim(), date, minutes: mins }));
+              onCreated(await log.mutateAsync({ name: name.trim(), date, time, minutes: mins, template }));
             }}
           >
             Continue
