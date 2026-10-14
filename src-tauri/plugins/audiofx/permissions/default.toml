@@ -1,0 +1,11 @@
+[default]
+description = "Everything the visualiser and equaliser need."
+permissions = [
+  "allow-state",
+  "allow-check-permissions",
+  "allow-request-permissions",
+  "allow-visualizer-start",
+  "allow-visualizer-stop",
+  "allow-visualizer-frame",
+  "allow-eq-set",
+]

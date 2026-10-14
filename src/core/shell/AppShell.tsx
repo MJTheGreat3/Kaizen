@@ -14,6 +14,7 @@ import { SyncButton } from "@/core/sync/SyncButton";
 import { CommandPalette } from "./CommandPalette";
 import { usePalette } from "./palette";
 import { PullToSearch } from "./PullToSearch";
+import { MiniPlayer, MusicHost } from "@/modules/music/MiniPlayer";
 
 const groups: ModuleGroup[] = ["daily", "track", "create"];
 const SETTINGS_HUE = "#7d8696";
@@ -112,6 +113,7 @@ function Sidebar() {
         ))}
       </nav>
 
+      <MiniPlayer variant="sidebar" />
       <div className="grid gap-0.5 border-t border-border/80 py-3 pb-safe">
         <SidebarLink
           to="/settings"
@@ -268,6 +270,8 @@ export function AppShell() {
         </motion.main>
       </div>
       <BottomNav />
+      <MiniPlayer variant="bar" />
+      <MusicHost />
       <SyncButton variant="floating" />
       <CommandPalette />
       <PullToSearch />

@@ -40,6 +40,21 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
   }
 }
 
+export interface MusicStatus {
+  /** This build has a Spotify Client ID. */
+  configured: boolean;
+  connected: boolean;
+  name: string | null;
+  redirectUri: string;
+}
+
+export interface Lyrics {
+  /** LRC text, when timed lyrics exist. */
+  synced: string | null;
+  plain: string | null;
+  instrumental: boolean;
+}
+
 export type Platform = "macos" | "windows" | "linux" | "android" | "ios";
 
 export interface AppInfo {
@@ -213,6 +228,16 @@ export const ipc = {
   attachmentRemove: (id: string) => call<void>("attachment_remove", { id }),
   /** Saves base64 data to Downloads (Download/Kaizen on Android); returns the path. */
   exportSave: (name: string, data: string) => call<string>("export_save", { name, data }),
+  musicStatus: () => call<MusicStatus>("music_status"),
+  /** Opens Spotify's sign-in in the browser; resolves with the display name. */
+  musicConnect: () => call<string>("music_connect"),
+  musicDisconnect: () => call<void>("music_disconnect"),
+  /** Spotify Web API call; `path` like `/me/player`. */
+  musicApi: <T = unknown>(method: "GET" | "PUT" | "POST" | "DELETE", path: string, body?: unknown) =>
+    call<T>("music_api", { method, path, body: body ?? null }),
+  musicHistorySync: () => call<number>("music_history_sync"),
+  musicLyrics: (track: string, artist: string, album: string, durationMs: number) =>
+    call<Lyrics>("music_lyrics", { track, artist, album, durationMs }),
 
   logsTail: (lines: number) => call<string>("logs_tail", { lines }),
   logFrontend: (level: "debug" | "info" | "warn" | "error", message: string) =>

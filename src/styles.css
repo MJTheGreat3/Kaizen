@@ -171,3 +171,10 @@
 @utility pr-safe {
   padding-right: env(safe-area-inset-right);
 }
+
+/* The phone's mini player sits above the bottom bar; pages scroll clear of it. */
+@media (width < 48rem) {
+  :root[data-mini-player] main {
+    padding-bottom: calc(9.5rem + env(safe-area-inset-bottom));
+  }
+}

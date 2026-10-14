@@ -8,6 +8,7 @@ use crate::attachments;
 use crate::backup::{self, BackupInfo};
 use crate::db::{DB_FILE, Database, QueryMethod};
 use crate::error::{Error, Result};
+use crate::music;
 use crate::practice;
 use crate::sports;
 use crate::sync::{
@@ -906,6 +907,141 @@ pub async fn export_save(app: tauri::AppHandle, name: String, data: String) -> R
         }
         std::fs::write(&target, bytes)?;
         Ok(target.to_string_lossy().into_owned())
+    })
+    .await
+}
+
+// ---------------------------------------------------------------------------
+// Music (Spotify)
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn music_status(state: State<'_, AppState>) -> Result<music::Status> {
+    with_session(&state, |s| music::status(s.db.conn()))
+}
+
+/// A working access token. Network calls happen without holding the
+/// database, which is only touched to read or rotate the refresh token.
+fn music_token(app: &tauri::AppHandle) -> Result<String> {
+    if let Some(token) = music::cached_access() {
+        return Ok(token);
+    }
+    let state = app.state::<AppState>();
+    let refresh = with_session(&state, |s| music::refresh_token(s.db.conn()))?;
+    let (access, rotated) = music::refresh_access(&refresh)?;
+    if let Some(r) = rotated {
+        with_session(&state, |s| music::save_account(s.db.conn(), &r))?;
+    }
+    Ok(access)
+}
+
+/// Signs in with Spotify in the browser; returns the display name.
+#[tauri::command]
+pub async fn music_connect(app: tauri::AppHandle) -> Result<String> {
+    use tauri_plugin_opener::OpenerExt;
+    let sign_in = music::start_sign_in()?;
+    app.opener()
+        .open_url(sign_in.url.clone(), None::<&str>)
+        .map_err(|e| Error::Invalid(format!("could not open the browser: {e}")))?;
+    let refresh = blocking(move || music::finish_sign_in(sign_in))
+        .await
+        .inspect_err(|e| tracing::warn!(error = %e, "Spotify sign-in failed"))?;
+    let state = app.state::<AppState>();
+    with_session(&state, |s| music::save_account(s.db.conn(), &refresh))?;
+    let handle = app.clone();
+    let me = blocking(move || {
+        let token = music_token(&handle)?;
+        music::call(&token, "GET", "/me", None)
+    })
+    .await?;
+    let name = me.1["display_name"].as_str().unwrap_or("").to_string();
+    with_session(&state, |s| music::remember_name(s.db.conn(), &name))?;
+    Ok(name)
+}
+
+#[tauri::command]
+pub async fn music_disconnect(state: State<'_, AppState>) -> Result<()> {
+    with_session(&state, |s| music::forget_account(s.db.conn()))
+}
+
+/// Calls the Spotify Web API (`path` like `/me/player`), refreshing the
+/// token once if Spotify rejects it.
+#[tauri::command]
+pub async fn music_api(
+    app: tauri::AppHandle,
+    method: String,
+    path: String,
+    body: Option<JsonValue>,
+) -> Result<JsonValue> {
+    blocking(move || {
+        let mut retried = false;
+        loop {
+            let token = music_token(&app)?;
+            let (status, json) = music::call(&token, &method, &path, body.as_ref())?;
+            if status == 401 && !retried {
+                music::drop_access();
+                retried = true;
+                continue;
+            }
+            if status >= 400 {
+                return Err(music::api_error(status, &json));
+            }
+            return Ok(json);
+        }
+    })
+    .await
+}
+
+/// Adds Spotify's recently played to the local history; returns how many
+/// plays were new.
+#[tauri::command]
+pub async fn music_history_sync(app: tauri::AppHandle) -> Result<usize> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let after = with_session(&state, |s| music::history_after(s.db.conn()))?;
+        let token = music_token(&app)?;
+        let path = match after {
+            Some(ms) => format!("/me/player/recently-played?limit=50&after={ms}"),
+            None => "/me/player/recently-played?limit=50".to_string(),
+        };
+        let (status, json) = music::call(&token, "GET", &path, None)?;
+        if status >= 400 {
+            return Err(music::api_error(status, &json));
+        }
+        let plays = music::parse_recent(&json);
+        with_session(&state, |s| {
+            let device = s.db.device_id()?;
+            music::store_plays(s.db.conn(), &plays, &device)
+        })
+    })
+    .await
+}
+
+/// Lyrics for a track, from the cache or LRCLIB.
+#[tauri::command]
+pub async fn music_lyrics(
+    app: tauri::AppHandle,
+    track: String,
+    artist: String,
+    album: String,
+    duration_ms: i64,
+) -> Result<music::lyrics::Lyrics> {
+    use music::lyrics::{self, Query};
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let q = Query {
+            track: &track,
+            artist: &artist,
+            album: &album,
+            duration_ms,
+        };
+        let now = chrono::Utc::now().timestamp_millis();
+        if let Some(hit) = with_session(&state, |s| lyrics::cached(s.db.conn(), &q, now))? {
+            return Ok(hit);
+        }
+        let found = lyrics::lookup(&q)?;
+        with_session(&state, |s| lyrics::store(s.db.conn(), &q, &found, now))?;
+        Ok(found)
     })
     .await
 }

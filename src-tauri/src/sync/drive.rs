@@ -12,28 +12,24 @@
 
 use std::cell::RefCell;
 use std::collections::BTreeSet;
-use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::time::{Duration, Instant};
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use rand::RngCore;
-use rand::rngs::OsRng;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Deserialize;
 use serde_json::{Value as JsonValue, json};
-use sha2::{Digest, Sha256};
 
 use super::mailbox::Mailbox;
 use crate::error::{Error, Result};
+use crate::oauth::{self, percent_encode, random_token};
 
 const AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const FILES_URL: &str = "https://www.googleapis.com/drive/v3/files";
 const UPLOAD_URL: &str = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
 const SCOPES: &str = "openid email https://www.googleapis.com/auth/drive.appdata";
-const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(600);
 
 const REFRESH_META: &str = "sync.drive.refresh";
 const EMAIL_META: &str = "sync.drive.email";
@@ -89,23 +85,6 @@ fn json_response(mut resp: ureq::http::Response<ureq::Body>) -> Result<JsonValue
     Ok(body)
 }
 
-fn percent_encode(s: &str) -> String {
-    s.bytes()
-        .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
-                (b as char).to_string()
-            }
-            _ => format!("%{b:02X}"),
-        })
-        .collect()
-}
-
-fn random_token() -> String {
-    let mut bytes = [0u8; 32];
-    OsRng.fill_bytes(&mut bytes);
-    URL_SAFE_NO_PAD.encode(bytes)
-}
-
 /// Email from an ID token's payload (already trusted: it came straight from
 /// Google's token endpoint over TLS).
 fn email_from_id_token(token: &str) -> Option<String> {
@@ -128,7 +107,7 @@ pub fn start_sign_in() -> Result<SignIn> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let redirect_uri = format!("http://127.0.0.1:{}", listener.local_addr()?.port());
     let verifier = random_token();
-    let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
+    let challenge = oauth::challenge(&verifier);
     let state = random_token();
     let url = format!(
         "{AUTH_URL}?client_id={}&redirect_uri={}&response_type=code&scope={}&code_challenge={challenge}&code_challenge_method=S256&access_type=offline&prompt=consent&state={state}",
@@ -145,69 +124,11 @@ pub fn start_sign_in() -> Result<SignIn> {
     })
 }
 
-const DONE_PAGE: &str = "<!doctype html><meta name=viewport content='width=device-width'><title>Kaizen</title>\
-<body style='font-family:system-ui;display:grid;place-items:center;height:90vh;margin:0'>\
-<div style='text-align:center'><h2>Kaizen is connected</h2><p>You can close this tab and go back to the app.</p></div>";
-
 /// Waits for the browser to come back with the code (blocking), then trades
 /// it for tokens. Returns `(refresh_token, email)`.
 pub fn finish_sign_in(sign_in: SignIn) -> Result<(String, Option<String>)> {
     let client = client()?;
-    sign_in.listener.set_nonblocking(true)?;
-    let deadline = Instant::now() + SIGN_IN_TIMEOUT;
-    let code = loop {
-        if Instant::now() > deadline {
-            return Err(Error::Invalid("sign-in timed out".into()));
-        }
-        let (mut stream, _) = match sign_in.listener.accept() {
-            Ok(conn) => conn,
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                std::thread::sleep(Duration::from_millis(200));
-                continue;
-            }
-            Err(e) => return Err(e.into()),
-        };
-        stream.set_nonblocking(false)?;
-        stream.set_read_timeout(Some(Duration::from_secs(10)))?;
-        let mut buf = [0u8; 4096];
-        let n = stream.read(&mut buf).unwrap_or(0);
-        let request = String::from_utf8_lossy(&buf[..n]);
-        let target = request.split_whitespace().nth(1).unwrap_or("");
-        let query = target.split_once('?').map(|(_, q)| q).unwrap_or("");
-        let param = |name: &str| {
-            query.split('&').find_map(|pair| {
-                let (k, v) = pair.split_once('=')?;
-                (k == name).then(|| v.to_string())
-            })
-        };
-        // Browsers also ask for /favicon.ico and the like.
-        if param("state").is_none() {
-            let _ = stream.write_all(
-                b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-            );
-            continue;
-        }
-        let page = if param("code").is_some() {
-            DONE_PAGE
-        } else {
-            "Sign-in was cancelled. You can close this tab."
-        };
-        let _ = stream.write_all(
-            format!("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{page}", page.len()).as_bytes(),
-        );
-        if param("state").as_deref() != Some(sign_in.state.as_str()) {
-            return Err(Error::Invalid("sign-in response did not match".into()));
-        }
-        match param("code") {
-            Some(code) => break code,
-            None => {
-                return Err(Error::Invalid(format!(
-                    "sign-in failed: {}",
-                    param("error").unwrap_or_default()
-                )));
-            }
-        }
-    };
+    let code = oauth::wait_for_code(&sign_in.listener, &sign_in.state, "Google Drive")?;
 
     // The browser hands the code back while it is still in front, and
     // Android blocks network access for background apps; keep trying until

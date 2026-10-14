@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-visualizer-stop"
+description = "Enables the visualizer_stop command without any pre-configured scope."
+commands.allow = ["visualizer_stop"]
+
+[[permission]]
+identifier = "deny-visualizer-stop"
+description = "Denies the visualizer_stop command without any pre-configured scope."
+commands.deny = ["visualizer_stop"]

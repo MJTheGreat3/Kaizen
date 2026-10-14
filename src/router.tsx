@@ -22,6 +22,7 @@ import { GymPage } from "@/modules/fitness/GymPage";
 import { WorkoutPage } from "@/modules/fitness/WorkoutPage";
 import { BoardPage } from "@/modules/canvas/BoardPage";
 import { CanvasPage } from "@/modules/canvas/CanvasPage";
+import { MusicPage } from "@/modules/music/MusicPage";
 
 /** Built modules; the rest show their placeholder. */
 const pages: Record<string, () => React.ReactNode> = {
@@ -38,6 +39,7 @@ const pages: Record<string, () => React.ReactNode> = {
   sports: SportsPage,
   fitness: GymPage,
   canvas: CanvasPage,
+  music: MusicPage,
 };
 
 const rootRoute = createRootRoute({ component: AppShell });

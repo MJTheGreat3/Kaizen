@@ -16,6 +16,7 @@ import { useGoalCompletion } from "@/modules/goals/watch";
 import { usePracticeAutoRefresh } from "@/modules/practice/data";
 import { useSportsAutoRefresh } from "@/modules/sports/data";
 import { setNativePlatform } from "@/modules/focus/native";
+import { setAudioFxPlatform } from "@/modules/music/native";
 import { useTheme } from "@/core/theme";
 import { log } from "@/lib/log";
 import { ease } from "@/lib/motion";
@@ -43,7 +44,10 @@ export function App() {
   const platform = info?.platform === "android" ? "android" : "desktop";
   useNotificationSync(unlocked, platform);
   useAutoSync(unlocked, platform);
-  useEffect(() => setNativePlatform(platform === "android"), [platform]);
+  useEffect(() => {
+    setNativePlatform(platform === "android");
+    setAudioFxPlatform(platform === "android");
+  }, [platform]);
   useFocusEngine(unlocked, platform);
   useStreakMilestones(unlocked);
   useGoalCompletion(unlocked);

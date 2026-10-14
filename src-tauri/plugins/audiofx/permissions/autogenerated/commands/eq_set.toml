@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-eq-set"
+description = "Enables the eq_set command without any pre-configured scope."
+commands.allow = ["eq_set"]
+
+[[permission]]
+identifier = "deny-eq-set"
+description = "Denies the eq_set command without any pre-configured scope."
+commands.deny = ["eq_set"]

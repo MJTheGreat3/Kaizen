@@ -372,6 +372,7 @@ pub fn synced_tables() -> impl Iterator<Item = &'static str> {
         .chain(V11_SYNCED)
         .chain(V12_SYNCED)
         .chain(V15_SYNCED)
+        .chain(V16_SYNCED)
         .copied()
 }
 
@@ -1713,7 +1714,47 @@ CREATE INDEX board_files_board ON board_files (board_id);
     Ok(())
 }
 
-pub const LATEST: i64 = 15;
+const V16_SYNCED: &[&str] = &["music_plays"];
+
+/// Phase 7: music. `music_plays` is the listening history read from
+/// Spotify's recently played (which only goes back 50 tracks), so it grows
+/// richer than Spotify's own; ids are `{played_at ms}:{track id}`, so both
+/// devices store the same play under the same id. `lyrics` caches LRCLIB
+/// answers on this device, "none found" included.
+fn v16(conn: &Connection) -> Result<()> {
+    conn.execute_batch(&format!(
+        "
+CREATE TABLE music_plays (
+  id          TEXT PRIMARY KEY,
+  played_at   INTEGER NOT NULL,
+  track_id    TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  artists     TEXT NOT NULL DEFAULT '[]',
+  artist_ids  TEXT NOT NULL DEFAULT '[]',
+  album       TEXT NOT NULL DEFAULT '',
+  album_id    TEXT NOT NULL DEFAULT '',
+  image       TEXT,
+  duration_ms INTEGER NOT NULL DEFAULT 0,
+  context     TEXT,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX music_plays_at ON music_plays (played_at);
+
+CREATE TABLE lyrics (
+  key          TEXT PRIMARY KEY,
+  synced       TEXT,
+  plain        TEXT,
+  instrumental INTEGER NOT NULL DEFAULT 0,
+  at           INTEGER NOT NULL
+) STRICT;
+"
+    ))?;
+    for table in V16_SYNCED {
+        install_clock_triggers(conn, table)?;
+    }
+    Ok(())
+}
+
+pub const LATEST: i64 = 16;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -1756,6 +1797,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             13 => v13(&tx)?,
             14 => v14(&tx)?,
             15 => v15(&tx)?,
+            16 => v16(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;

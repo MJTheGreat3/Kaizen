@@ -1,0 +1,13 @@
+[package]
+name = "tauri-plugin-audiofx"
+version = "0.1.0"
+description = "Kaizen's Android audio effects: a visualiser and equaliser for what Spotify plays"
+authors = ["MJTheGreat3"]
+edition = "2024"
+links = "tauri-plugin-audiofx"
+
+[dependencies]
+tauri = "2"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

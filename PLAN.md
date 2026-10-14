@@ -250,8 +250,8 @@ Connect my Spotify account to play music from Kaizen and see listening stats.
 - Listening minutes can appear on the heatmap as a `music` activity type (off by default).
 
 **Connection and limits (Spotify developer rules as of 2026)**
-- I register my own app in the Spotify developer dashboard and paste its Client ID into Kaizen. Development Mode is enough for personal use (up to 5 users), but **the app owner needs Spotify Premium**, and playback control also needs Premium.
-- OAuth Authorization Code with PKCE (no client secret in the app). Redirect: a loopback URL (`http://127.0.0.1:<port>/callback`) on desktop and a custom scheme (`kaizen://spotify/callback`, Tauri deep-link plugin) on Android.
+- I register my own app in the Spotify developer dashboard; its Client ID is built in from `KAIZEN_SPOTIFY_CLIENT_ID` (like the Google client). Development Mode is enough for personal use (up to 5 users), but **the app owner needs Spotify Premium**, and playback control also needs Premium.
+- OAuth Authorization Code with PKCE (no client secret in the app). Redirect: the fixed loopback URL `http://127.0.0.1:43821/callback` on both the laptop and the phone (Kaizen listens on it during sign-in, as for Google Drive).
 - Refresh token stored in the encrypted database; the account is connected once per device (tokens are device-local and not synced).
 - Some catalogue endpoints were removed or limited for Development Mode apps in 2026 (e.g. batch track/album lookups, browse, artist top tracks; search returns at most 10 results per call), so features rely only on top items, recently played, playlists, library, search and player endpoints.
 
@@ -490,7 +490,7 @@ kaizen/
 | 4. Practice (done) | Codeforces, LeetCode, AtCoder and CodeChef connectors, CP analytics, contest reminders, revisit queue |
 | 5. Fitness and sports (done) | Done: sports (sessions, NBA, football and cricket following, favourite players, game reminders) and gym (logging, routines, records, charts, body metrics) |
 | 6. Canvas (done) | Whiteboard (Excalidraw), linking ideas to boards |
-| 7. Music | Spotify connection, remote-control player and mini player, local listening history, stats and summaries |
+| 7. Music (built; waiting on the Spotify app) | Spotify connection, disc player with lyrics, visualiser and equaliser, mini player, local listening history, stats |
 | 8. Polish and extras | Android widgets, global quick capture, share sheet, weekly / monthly review, LLM features; maybe Health Connect sleep and health metrics |
 | 9. Finance (last) | PNB statement import, categorisation, insights, budgets; debt settle-up matching; spending added to the weekly review |
 
@@ -704,6 +704,23 @@ Built and tested (unit tests for merging scenes and for the migration's search a
 - **Export**: PNG (2x) and SVG from the board's menu, saved to Downloads on the laptop (with "Show") and `Download/Kaizen` on the phone.
 
 Known limits: two devices editing the same element at once keep only one version of it; images sync with the board, so large photos make sync bundles bigger; Chinese and Japanese text uses a system font.
+
+### 6.11 Phase 7 outcome: Music (2026-10-15)
+
+Built and tested (Rust tests for history and lyrics, a live LRCLIB test, unit tests for lyrics timing, the disc, equaliser presets and cover colours, browser preview against a mocked Spotify on desktop and phone). Not yet tried against real Spotify: that needs the developer app (below).
+- **Player** (`/music`): a record that spins at 33⅓ rpm while the song plays, the cover on its label. Around it a progress ring and the visualiser. **Turning the disc moves the song, one full turn per minute** (a time bubble shows where it will land; a tap plays or pauses; arrow keys move 10 s). **Swiping across the player** (anywhere but the disc) skips forward or back, and the title slides with it. Controls: play, previous, next, shuffle, repeat, like, volume where the device allows it, and which device plays.
+- **Colours**: the page takes its background, text and accent colours from the cover (most common colour, deepened; the most vivid other colour as the accent, kept at 3:1 contrast; white or near-black text, whichever reads better) and fades between songs. The visualiser, ring and sliders use the accent.
+- **Lyrics** always on screen (beside the disc on the laptop, under the title on the phone): synced lyrics from LRCLIB highlight the line being sung and follow the song (tap a line to jump there; scrolling by hand pauses the following for 4 s); plain lyrics when there are no timed ones. Spotify's own lyrics are not open to other apps. Cached per device (`lyrics`, migration v16), "none found" retried after a week.
+- **Visualiser**: on the phone it reads the real audio (Android `Visualizer` on Spotify's audio session, which Spotify announces, or on the whole output until it does; needs the microphone permission, asked from a button under the disc). On the laptop it is an animation that only follows play and pause: Spotify's audio is DRM-protected and its audio-analysis API is closed to new apps. It can be hidden.
+- **Equaliser** (phone): 13 presets (Flat, Bass boost, Treble boost, Vocal, Rock, Pop, Hip-hop, Electronic, Jazz, Classical, Acoustic, Loudness, Late night) written for 10 bands and fitted to the phone's own bands, plus per-band sliders (Custom). Applied with Android's `Equalizer` on Spotify's session; a quiet foreground notification keeps it on while Kaizen is in the background, and it is put back when the app starts. On the laptop the dialog points to Spotify's own equaliser. New plugin `tauri-plugin-audiofx` (Kotlin).
+- **Audio quality** cannot be set through Spotify's API; the setup steps and the equaliser say where to set Very high or Lossless in Spotify.
+- **Library**: playlists and Liked Songs (play all or from a song), local history by day, and search (songs, artists, albums, playlists); any song can be queued. If no device is active, Kaizen starts playback on an open Spotify app (the phone's on the phone, the laptop's on the laptop).
+- **Stats**: minutes this week and in 30 days, most played artist and song, minutes a day for two weeks (all from Kaizen's history), and Spotify's top artists and songs for 4 weeks, 6 months and a year.
+- **History** (`music_plays`, synced, migration v16): recently played is read on open and every half hour, from where the last read stopped; ids are `{played_at}:{track id}`, so both devices store a play once.
+- **Mini player**: in the sidebar on the laptop and above the bottom bar on the phone (not on the Music page), with play/pause and next, in the cover's colours.
+- **Rust** (`src-tauri/src/music/`): PKCE sign-in on the fixed loopback port (shared OAuth code moved to `oauth.rs`, used by Drive too), refresh tokens per device in `local_meta`, access tokens in memory (refreshed without holding the database), a `music_api` proxy so tokens never reach the page, clear messages for "no active device", Premium and rate limits.
+
+To do to use it: create the Spotify developer app (steps on the Music page and below), put the Client ID in `~/.zshrc` as `KAIZEN_SPOTIFY_CLIENT_ID`, rebuild, then Connect on each device.
 
 ## 7. Open questions
 

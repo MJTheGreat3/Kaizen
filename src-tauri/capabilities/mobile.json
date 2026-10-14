@@ -12,6 +12,7 @@
   "permissions": [
     "biometric:default",
     "barcode-scanner:default",
-    "focus:default"
+    "focus:default",
+    "audiofx:default"
   ]
 }

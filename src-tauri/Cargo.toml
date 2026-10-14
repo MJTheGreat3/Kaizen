@@ -58,6 +58,7 @@ strip = true
 tauri-plugin-biometric = "2.4.2"
 tauri-plugin-barcode-scanner = "2"
 tauri-plugin-focus = { path = "plugins/focus" }
+tauri-plugin-audiofx = { path = "plugins/audiofx" }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"

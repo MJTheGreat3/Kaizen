@@ -70,6 +70,10 @@ export interface Prefs {
   "search.recent": string[];
   /** Items last opened from search, newest first. */
   "search.opened": { module: string; id: string; title: string }[];
+  /** Equaliser on this phone: on or off, preset id, and custom gains (dB per phone band). */
+  "music.eq": { on: boolean; preset: string; custom: number[] };
+  /** Visualiser around the disc. */
+  "music.visualizer": boolean;
 }
 
 export const defaultPrefs: Prefs = {
@@ -109,6 +113,8 @@ export const defaultPrefs: Prefs = {
   "notify.performances": true,
   "search.recent": [],
   "search.opened": [],
+  "music.eq": { on: false, preset: "flat", custom: [] },
+  "music.visualizer": true,
 };
 
 const PREFIX = "pref.";

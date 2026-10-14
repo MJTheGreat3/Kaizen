@@ -6,6 +6,8 @@ mod commands;
 mod db;
 mod error;
 mod logging;
+mod music;
+mod oauth;
 mod practice;
 mod sports;
 mod sync;
@@ -41,7 +43,8 @@ pub fn run() {
     let builder = builder
         .plugin(tauri_plugin_biometric::init())
         .plugin(tauri_plugin_barcode_scanner::init())
-        .plugin(tauri_plugin_focus::init());
+        .plugin(tauri_plugin_focus::init())
+        .plugin(tauri_plugin_audiofx::init());
 
     builder
         .setup(|app| {
@@ -104,6 +107,12 @@ pub fn run() {
             commands::attachment_read,
             commands::attachment_remove,
             commands::export_save,
+            commands::music_status,
+            commands::music_connect,
+            commands::music_disconnect,
+            commands::music_api,
+            commands::music_history_sync,
+            commands::music_lyrics,
             commands::sync_drive,
             commands::sync_drive_connect,
             commands::sync_drive_disconnect,

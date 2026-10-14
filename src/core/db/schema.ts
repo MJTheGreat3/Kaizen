@@ -844,3 +844,25 @@ export const boardFiles = sqliteTable("board_files", {
 
 export type Board = typeof boards.$inferSelect;
 export type BoardFile = typeof boardFiles.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Phase 7 (migration v16): music
+// ---------------------------------------------------------------------------
+
+/** A track played on Spotify, from recently played; id `{played_at}:{track id}`. */
+export const musicPlays = sqliteTable("music_plays", {
+  id: text("id").primaryKey(),
+  playedAt: integer("played_at").notNull(),
+  trackId: text("track_id").notNull(),
+  title: text("title").notNull(),
+  artists: json<string[]>("artists").notNull().default([]),
+  artistIds: json<string[]>("artist_ids").notNull().default([]),
+  album: text("album").notNull().default(""),
+  albumId: text("album_id").notNull().default(""),
+  image: text("image"),
+  durationMs: integer("duration_ms").notNull().default(0),
+  context: text("context"),
+  ...base,
+});
+
+export type MusicPlay = typeof musicPlays.$inferSelect;
