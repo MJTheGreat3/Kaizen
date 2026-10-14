@@ -24,6 +24,37 @@ export const MUSCLES: { id: Muscle; name: string }[] = [
 
 export const muscleName = (id: string) => MUSCLES.find((m) => m.id === id)?.name ?? id;
 
+/** Body regions for the heatmap: few enough to tell apart by colour. */
+export const REGIONS = [
+  { id: "chest", name: "Chest", color: "var(--body-chest)", muscles: ["chest"] },
+  { id: "back", name: "Back", color: "var(--body-back)", muscles: ["back"] },
+  { id: "shoulders", name: "Shoulders", color: "var(--body-shoulders)", muscles: ["shoulders"] },
+  { id: "arms", name: "Arms", color: "var(--body-arms)", muscles: ["biceps", "triceps", "forearms"] },
+  { id: "legs", name: "Legs", color: "var(--body-legs)", muscles: ["quads", "hamstrings", "glutes", "calves"] },
+  { id: "core", name: "Core", color: "var(--body-core)", muscles: ["abs"] },
+  { id: "other", name: "Other", color: "var(--body-other)", muscles: ["full_body", "cardio"] },
+] as const;
+
+export type RegionId = (typeof REGIONS)[number]["id"];
+
+export const regionOf = (muscle: string): RegionId => REGIONS.find((r) => (r.muscles as readonly string[]).includes(muscle))?.id ?? "other";
+
+/** Working sets per body region for each day with a finished workout. */
+export function regionsByDay(sets: WorkoutSet[], workouts: Workout[], exercises: Map<string, Exercise>) {
+  const dayOf = new Map(workouts.filter((w) => w.endedAt).map((w) => [w.id, w.date]));
+  const out = new Map<DateKey, Map<RegionId, number>>();
+  for (const s of sets) {
+    const day = dayOf.get(s.workoutId);
+    const ex = exercises.get(s.exerciseId);
+    if (!day || !ex || !isWorking(s)) continue;
+    const regions = out.get(day) ?? new Map<RegionId, number>();
+    const r = regionOf(ex.muscle);
+    regions.set(r, (regions.get(r) ?? 0) + 1);
+    out.set(day, regions);
+  }
+  return out;
+}
+
 export const EQUIPMENT = ["barbell", "dumbbell", "machine", "cable", "bodyweight", "kettlebell", "band", "other"] as const;
 
 export const MEASURES: { id: Measure; name: string }[] = [

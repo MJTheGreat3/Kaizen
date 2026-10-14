@@ -153,7 +153,15 @@ function ExerciseBlock({
   const startRest = useRest((s) => s.start);
   const cols = columnsFor(exercise, unit);
   const prev = useMemo(() => previousSets(exercise.id, data.sets, data.workouts, workout.startedAt, workout.id), [exercise.id, data, workout]);
-  const grid = cols.a ? "grid-cols-[32px_minmax(0,1fr)_64px_56px_44px_40px]" : "grid-cols-[32px_minmax(0,1fr)_88px_44px_40px]";
+  // Ticking sets off is for live workouts; in a finished one every set counts.
+  const live = !workout.endedAt;
+  const grid = cols.a
+    ? live
+      ? "grid-cols-[32px_minmax(0,1fr)_64px_56px_44px_40px]"
+      : "grid-cols-[32px_minmax(0,1fr)_64px_56px_44px]"
+    : live
+      ? "grid-cols-[32px_minmax(0,1fr)_88px_44px_40px]"
+      : "grid-cols-[32px_minmax(0,1fr)_88px_44px]";
   let working = 0;
 
   const patch = (s: WorkoutSet, p: Partial<WorkoutSet>) => update.mutate({ id: s.id, workoutId: workout.id, patch: p });
@@ -183,7 +191,7 @@ function ExerciseBlock({
         {cols.a ? <span className="text-center">{cols.a.label}</span> : null}
         <span className="text-center">{cols.b.label}</span>
         <span className="text-center">RPE</span>
-        <span className="sr-only">Done</span>
+        {live ? <span className="sr-only">Done</span> : null}
       </div>
       <ul className="grid gap-1">
         {sets.map((s) => {
@@ -191,12 +199,21 @@ function ExerciseBlock({
           const p = prev.filter((x) => x.warmup === s.warmup)[s.warmup ? 0 : working - 1];
           const pr = records.find((r) => r.setId === s.id);
           return (
-            <li key={s.id} className={cn("grid items-center gap-1.5 rounded-xl px-1 py-0.5 transition-colors", grid, s.done && "bg-[color-mix(in_srgb,var(--success)_10%,transparent)]")}>
-              <SetMenu set={s} number={working} onWarmup={() => patch(s, { warmup: !s.warmup })} onRemove={() => removeSet.mutate({ id: s.id, workoutId: workout.id })} />
+            <li key={s.id} className={cn("grid items-center gap-1.5 rounded-xl px-1 py-0.5 transition-colors", grid, live && s.done && "bg-[color-mix(in_srgb,var(--success)_10%,transparent)]")}>
+              <span className="relative">
+                <SetMenu set={s} number={working} onWarmup={() => patch(s, { warmup: !s.warmup })} onRemove={() => removeSet.mutate({ id: s.id, workoutId: workout.id })} />
+                {/* Finished workouts have no tick to carry the record badge. */}
+                {pr && !live ? (
+                  <span className="pointer-events-none absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-amber-500 text-white ring-2 ring-surface" title={`Record: ${recordLabelInline(pr.kind)}`}>
+                    <Trophy size={10} weight="fill" />
+                  </span>
+                ) : null}
+              </span>
               <span className="truncate text-[12px] text-muted-foreground">{p ? describeSet(p, exercise.measure, unit) : "–"}</span>
               {cols.a ? <Cell label={cols.a.label} value={cols.a.get(s)} placeholder={p ? String(cols.a.get(p) ?? "") : ""} onCommit={(v) => patch(s, cols.a!.set(v))} /> : null}
               <Cell label={cols.b.label} value={cols.b.get(s)} placeholder={p ? String(cols.b.get(p) ?? "") : ""} onCommit={(v) => patch(s, cols.b.set(v))} />
               <Cell label="RPE" value={s.rpe} placeholder="–" onCommit={(v) => patch(s, { rpe: v === null ? null : Math.min(10, Math.max(1, v)) })} className="text-[13px]" />
+              {live ? (
               <button
                 type="button"
                 aria-label={s.done ? "Mark not done" : "Mark done"}
@@ -222,6 +239,7 @@ function ExerciseBlock({
                   </span>
                 ) : null}
               </button>
+              ) : null}
             </li>
           );
         })}
@@ -446,9 +464,11 @@ export function WorkoutPage() {
                 {live ? formatSeconds(Math.floor(elapsed / 1000)) : formatDuration(elapsed)}
               </span>
               <span>{live ? "In progress" : formatLongDate(workout.date)}</span>
-              <span className="tabular-nums">{formatVolume(workout.volume, unit)}</span>
+              <span className="tabular-nums" title="Weight × reps over working sets">
+                {formatVolume(workout.volume, unit)} lifted
+              </span>
               <span className="tabular-nums">
-                {done} {done === 1 ? "set" : "sets"}
+                {live ? `${done} of ${sets.length} sets done` : `${sets.filter((x) => !x.warmup).length} ${sets.filter((x) => !x.warmup).length === 1 ? "set" : "sets"}`}
               </span>
               {records.length ? (
                 <span className="flex items-center gap-1 font-medium text-foreground">

@@ -176,7 +176,12 @@ export function useAddExercises() {
 
 export function useUpdateSet() {
   return useGymMutation(async ({ id, workoutId, patch }: { id: string; workoutId: string; patch: Partial<Pick<WorkoutSet, "weight" | "reps" | "seconds" | "distance" | "rpe" | "warmup" | "done">> }) => {
-    await db.update(ws).set(patch).where(eq(ws.id, id));
+    // In a finished workout every set counts; ticking is only for live ones.
+    const w = await db.select({ endedAt: wo.endedAt }).from(wo).where(eq(wo.id, workoutId)).get();
+    await db
+      .update(ws)
+      .set(w?.endedAt ? { ...patch, done: true } : patch)
+      .where(eq(ws.id, id));
     await refreshVolume(workoutId);
   });
 }

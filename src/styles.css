@@ -132,10 +132,25 @@
 :root {
   --wash-opacity: 1;
   --grain-opacity: 0.035;
+  /* Body regions on the gym heatmap (categorical slots, validated set). */
+  --body-chest: #2a78d6;
+  --body-back: #eb6834;
+  --body-shoulders: #1baf7a;
+  --body-arms: #eda100;
+  --body-legs: #e87ba4;
+  --body-core: #4a3aa7;
+  --body-other: #a3a29b;
 }
 .dark {
   --wash-opacity: 0.9;
   --grain-opacity: 0.05;
+  --body-chest: #3987e5;
+  --body-back: #d95926;
+  --body-shoulders: #199e70;
+  --body-arms: #c98500;
+  --body-legs: #d55181;
+  --body-core: #9085e9;
+  --body-other: #6f6e69;
 }
 
 /* Fine film grain, used for the app-wide overlay and inside the sky. */

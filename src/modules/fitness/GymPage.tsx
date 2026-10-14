@@ -18,6 +18,7 @@ import { useNow } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { activeDays, streak, weekStart } from "@/modules/activity/logic";
 import { modules } from "@/modules/registry";
+import { BodyHeatmap } from "./BodyHeatmap";
 import { BarChart, MuscleBars } from "./Charts";
 import { useAddTemplates, useGym, useStartWorkout, useUnit, type GymData } from "./data";
 import { PastWorkoutDialog, TemplateDialog } from "./Dialogs";
@@ -250,6 +251,10 @@ export function GymPage() {
             <Stat label="Bodyweight" value={view.lastWeight ? `${toUnit(view.lastWeight.weight!, unit)} ${unit}` : "–"} sub={view.lastWeight ? formatLongDate(view.lastWeight.date) : "Log it under Body"} />
           </motion.div>
 
+          <Card title="Body parts trained">
+            <BodyHeatmap workouts={data.workouts} sets={data.sets} exercises={data.byId} />
+          </Card>
+
           <Card
             title="Routines"
             action={
@@ -281,6 +286,7 @@ export function GymPage() {
             >
               <BarChart
                 label={range === "volume" ? "Weekly volume" : "Workouts per week"}
+                empty={range === "volume" ? "No weight lifted in these weeks yet." : "No workouts in these weeks yet."}
                 color={HUE}
                 format={(v) => (range === "volume" ? formatVolume(v, unit) : String(Math.round(v)))}
                 bars={view.weeks.map((w) => ({

@@ -1643,7 +1643,24 @@ fn v13(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub const LATEST: i64 = 13;
+/// Gym: sets of finished workouts all count. Ticking matters only while a
+/// workout is live (unticked sets are dropped when it is finished), but
+/// past workouts logged by hand could keep unticked sets that then counted
+/// for nothing; they are ticked and their volume recomputed.
+fn v14(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "UPDATE workout_sets SET done = 1
+         WHERE done = 0 AND deleted_at IS NULL
+           AND workout_id IN (SELECT id FROM workouts WHERE ended_at IS NOT NULL);
+         UPDATE workouts SET volume = (
+           SELECT coalesce(sum(coalesce(s.weight, 0) * coalesce(s.reps, 0)), 0) FROM workout_sets s
+           WHERE s.workout_id = workouts.id AND s.done = 1 AND s.warmup = 0 AND s.deleted_at IS NULL)
+         WHERE ended_at IS NOT NULL;",
+    )?;
+    Ok(())
+}
+
+pub const LATEST: i64 = 14;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -1684,6 +1701,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             11 => v11(&tx)?,
             12 => v12(&tx)?,
             13 => v13(&tx)?,
+            14 => v14(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;

@@ -115,9 +115,10 @@ export interface Bar {
 }
 
 /** Vertical bars (weeks), the last one highlighted, with a tooltip. */
-export function BarChart({ bars, color, format, label }: { bars: Bar[]; color: string; format: (v: number) => string; label: string }) {
+export function BarChart({ bars, color, format, label, empty }: { bars: Bar[]; color: string; format: (v: number) => string; label: string; empty: string }) {
   const [box, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
+  const none = bars.every((b) => b.value <= 0);
   const W = Math.max(260, width);
   const H = W < 480 ? 150 : 170;
   const padL = 44;
@@ -131,6 +132,13 @@ export function BarChart({ bars, color, format, label }: { bars: Bar[]; color: s
   const y = (v: number) => padT + (1 - v / top) * (H - padT - padB);
   const shown = hover === null ? null : bars[hover];
 
+  if (none) {
+    return (
+      <div ref={box}>
+        <p className="py-12 text-center text-[13px] text-muted-foreground">{empty}</p>
+      </div>
+    );
+  }
   return (
     <div ref={box} className="relative" onPointerLeave={() => setHover(null)}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full touch-pan-y" role="img" aria-label={label}>
