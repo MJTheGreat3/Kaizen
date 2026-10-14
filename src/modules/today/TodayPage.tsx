@@ -297,7 +297,8 @@ export function TodayPage() {
               {!upcoming.length && !data.contests.length && !data.matches.length ? (
                 <Muted>Nothing in the next two weeks. Contests and matches will appear here too.</Muted>
               ) : (
-                <ul className="grid gap-2.5">
+                // One shrinkable column, so long names truncate instead of pushing the times out.
+                <ul className="grid min-w-0 grid-cols-1 gap-2.5">
                   {data.matches.map((g) => (
                     <li key={g.id}>
                       <button type="button" onClick={() => (g.url ? void openUrl(g.url) : undefined)} className="flex w-full items-center gap-3 text-left">
