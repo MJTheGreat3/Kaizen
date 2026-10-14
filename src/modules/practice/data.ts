@@ -1,27 +1,31 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { and, asc, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { toast } from "sonner";
 import { uuidv7 } from "uuidv7";
 
 import { clearActivity, recordActivity } from "@/core/activity";
 import { db, schema } from "@/core/db/client";
 import { getPref, setPref } from "@/core/db/prefs";
-import type { CpAccount, CpContest, CpPlatform, CpProblem, CpRating, CpRevisit, GhAccount, GhIssue, GhRepo } from "@/core/db/schema";
+import type { CpAccount, CpContest, CpPlatform, CpProblem, CpRating, GhAccount, GhIssue, GhRepo } from "@/core/db/schema";
 import { ipc, type GitHubReport, type PracticeReport } from "@/lib/ipc";
-import { todayKey, toKey, type DateKey } from "@/lib/dates";
+import { toKey, type DateKey } from "@/lib/dates";
 import { log } from "@/lib/log";
-import { nextRevisit, startRevisit } from "./logic";
 
 const a = schema.cpAccounts;
 const p = schema.cpProblems;
-const r = schema.cpRevisit;
 const g = schema.ghAccount;
 
 export interface PracticeData {
   accounts: CpAccount[];
+  /** The most recent problems only (the rest are dropped). */
   problems: CpProblem[];
-  revisit: CpRevisit[];
+  /** Problems solved per day, from the heatmap's events (complete history). */
+  solvedByDay: Map<DateKey, number>;
+  /** Problems logged by hand and solved, ever. */
+  loggedSolved: number;
+  /** GitHub contributions per day. */
+  contributions: Map<DateKey, number>;
   ratings: CpRating[];
   contests: CpContest[];
   github: GhAccount | null;
@@ -30,17 +34,31 @@ export interface PracticeData {
 }
 
 export async function loadPractice(): Promise<PracticeData> {
-  const [accounts, problems, revisit, ratings, contests, github, repos, issues] = await Promise.all([
+  const e = schema.activityEvents;
+  const [accounts, problems, events, ratings, contests, github, repos, issues] = await Promise.all([
     db.select().from(a).where(isNull(a.deletedAt)),
     db.select().from(p).where(isNull(p.deletedAt)).orderBy(desc(p.solvedAt), desc(p.lastAt)),
-    db.select().from(r).where(isNull(r.deletedAt)).orderBy(asc(r.dueDate)),
+    db
+      .select({ typeId: e.typeId, date: e.date, quantity: e.quantity, sourceId: e.sourceId })
+      .from(e)
+      .where(and(isNull(e.deletedAt), sql`${e.typeId} IN ('cp', 'github')`)),
     db.select().from(schema.cpRatings).orderBy(asc(schema.cpRatings.at)),
     loadContests(),
     db.select().from(g).where(isNull(g.deletedAt)).get(),
     db.select().from(schema.ghRepos).orderBy(asc(schema.ghRepos.sort)),
     db.select().from(schema.ghIssues).orderBy(desc(schema.ghIssues.updatedAt)),
   ]);
-  return { accounts, problems, revisit, ratings, contests, github: github ?? null, repos, issues };
+  const solvedByDay = new Map<DateKey, number>();
+  const contributions = new Map<DateKey, number>();
+  let loggedSolved = 0;
+  for (const ev of events) {
+    if (ev.typeId === "github") contributions.set(ev.date, (contributions.get(ev.date) ?? 0) + ev.quantity);
+    else {
+      solvedByDay.set(ev.date, (solvedByDay.get(ev.date) ?? 0) + 1);
+      if (ev.sourceId?.startsWith("x:")) loggedSolved++;
+    }
+  }
+  return { accounts, problems, solvedByDay, loggedSolved, contributions, ratings, contests, github: github ?? null, repos, issues };
 }
 
 /** Contests not yet over, soonest first. */
@@ -229,7 +247,16 @@ export interface LogInput {
   solved: boolean;
   minutes: number | null;
   notes: string | null;
-  revisit: boolean;
+}
+
+/** Problems kept; older ones are dropped, as the Rust fetch does (`KEEP_PROBLEMS`). */
+const KEEP_PROBLEMS = 30;
+
+async function pruneProblems() {
+  await db.run(sql`DELETE FROM cp_problems WHERE id NOT IN (
+    SELECT id FROM cp_problems WHERE deleted_at IS NULL
+    ORDER BY coalesce(solved_at, last_at, first_at, 0) DESC LIMIT ${KEEP_PROBLEMS})`);
+  await db.run(sql`DELETE FROM sync_clock WHERE table_name = 'cp_problems' AND row_id NOT IN (SELECT id FROM cp_problems)`);
 }
 
 /** A problem from anywhere (CSES, a book, a contest on another site), logged by hand. */
@@ -253,7 +280,7 @@ export async function logProblem(input: LogInput) {
     notes: input.notes,
   });
   if (input.solved) await recordActivity("cp", input.date, "cp_problems", id);
-  if (input.revisit) await addRevisit(id);
+  await pruneProblems();
   return id;
 }
 
@@ -265,7 +292,6 @@ export function useDeleteProblem() {
   return usePracticeMutation(async (id: string) => {
     await db.update(p).set({ deletedAt: Date.now() }).where(eq(p.id, id));
     await clearActivity("cp_problems", id);
-    await db.update(r).set({ deletedAt: Date.now() }).where(eq(r.id, id));
   });
 }
 
@@ -277,33 +303,4 @@ export function useSetLoggedSolved() {
     if (at) await recordActivity("cp", toKey(new Date(at)), "cp_problems", problem.id);
     else await clearActivity("cp_problems", problem.id);
   });
-}
-
-// ---------------------------------------------------------------------------
-// Revisit queue
-// ---------------------------------------------------------------------------
-
-export async function addRevisit(problemId: string) {
-  const s = startRevisit(todayKey());
-  await db
-    .insert(r)
-    .values({ id: problemId, problemId, ...s })
-    .onConflictDoUpdate({ target: r.id, set: { ...s, deletedAt: null, updatedAt: Date.now() } });
-}
-
-export function useAddRevisit() {
-  return usePracticeMutation(addRevisit);
-}
-
-export function useReviewRevisit() {
-  return usePracticeMutation(({ item, solved }: { item: CpRevisit; solved: boolean }) =>
-    db
-      .update(r)
-      .set({ ...nextRevisit(item.stage, solved, todayKey()), reviewedAt: Date.now() })
-      .where(eq(r.id, item.id)),
-  );
-}
-
-export function useRemoveRevisit() {
-  return usePracticeMutation((id: string) => db.update(r).set({ deletedAt: Date.now() }).where(eq(r.id, id)));
 }

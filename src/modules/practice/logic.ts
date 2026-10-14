@@ -1,9 +1,9 @@
 /**
- * Pure competitive-programming maths: rank colours, topic strength,
- * difficulty spread and the revisit schedule.
+ * Pure competitive-programming maths: rank colours, tags, difficulty
+ * spread and totals.
  */
 import type { CpPlatform, CpProblem } from "@/core/db/schema";
-import { addDaysKey, toKey, type DateKey } from "@/lib/dates";
+import { addDaysKey, type DateKey } from "@/lib/dates";
 
 export interface PlatformInfo {
   id: CpPlatform;
@@ -114,42 +114,6 @@ export function normalizeTag(tag: string): string {
   return TAG_ALIASES[t] ?? t;
 }
 
-export interface TagStat {
-  tag: string;
-  attempted: number;
-  solved: number;
-  /** Solved / attempted. */
-  rate: number;
-}
-
-/** Per topic: problems tried and solved. */
-export function tagStats(problems: Pick<CpProblem, "tags" | "solvedAt" | "attempts">[]): TagStat[] {
-  const by = new Map<string, TagStat>();
-  for (const p of problems) {
-    for (const tag of new Set(p.tags.map(normalizeTag))) {
-      const s = by.get(tag) ?? { tag, attempted: 0, solved: 0, rate: 0 };
-      s.attempted++;
-      if (p.solvedAt) s.solved++;
-      by.set(tag, s);
-    }
-  }
-  return [...by.values()].map((s) => ({ ...s, rate: s.attempted ? s.solved / s.attempted : 0 })).sort((a, b) => b.solved - a.solved);
-}
-
-/**
- * Weak spots: topics tried often enough to judge whose solve rate is well
- * below the overall one, worst first.
- */
-export function weakTags(stats: TagStat[], minAttempted = 3, limit = 5): TagStat[] {
-  const tried = stats.filter((s) => s.attempted >= minAttempted);
-  const attempted = tried.reduce((n, s) => n + s.attempted, 0);
-  const overall = attempted ? tried.reduce((n, s) => n + s.solved, 0) / attempted : 0;
-  return tried
-    .filter((s) => s.rate < overall - 0.1)
-    .sort((a, b) => a.rate - b.rate || b.attempted - a.attempted)
-    .slice(0, limit);
-}
-
 // ---------------------------------------------------------------------------
 // Difficulty
 // ---------------------------------------------------------------------------
@@ -187,48 +151,26 @@ export function difficultyBuckets(platform: CpPlatform, problems: Pick<CpProblem
 }
 
 // ---------------------------------------------------------------------------
-// Revisit queue
-// ---------------------------------------------------------------------------
-
-/** Days until the next revisit after each successful one. */
-export const REVISIT_DAYS = [1, 3, 7, 21];
-
-export interface RevisitState {
-  stage: number;
-  dueDate: DateKey;
-  status: "active" | "done";
-}
-
-export function startRevisit(today: DateKey): RevisitState {
-  return { stage: 0, dueDate: addDaysKey(today, REVISIT_DAYS[0]), status: "active" };
-}
-
-/** After an attempt: solved moves to the next gap (done after the last), struggled starts over. */
-export function nextRevisit(stage: number, solved: boolean, today: DateKey): RevisitState {
-  if (!solved) return startRevisit(today);
-  const next = stage + 1;
-  if (next >= REVISIT_DAYS.length) return { stage: next, dueDate: today, status: "done" };
-  return { stage: next, dueDate: addDaysKey(today, REVISIT_DAYS[next]), status: "active" };
-}
-
-// ---------------------------------------------------------------------------
 // Totals
 // ---------------------------------------------------------------------------
 
-/** Problems first solved per local day. */
-export function solvesByDay(problems: Pick<CpProblem, "solvedAt">[]): Map<DateKey, number> {
-  const out = new Map<DateKey, number>();
-  for (const p of problems) {
-    if (!p.solvedAt) continue;
-    const d = toKey(new Date(p.solvedAt));
-    out.set(d, (out.get(d) ?? 0) + 1);
+/** Contributions per week (Monday first) from `from` to `to`, oldest first, empty weeks included. */
+export function weeklyContributions(byDay: Map<DateKey, number>, from: DateKey, to: DateKey) {
+  const monday = (d: DateKey) => addDaysKey(d, -((new Date(`${d}T12:00:00`).getDay() + 6) % 7));
+  const out: { week: DateKey; count: number }[] = [];
+  for (let w = monday(from); w <= to; w = addDaysKey(w, 7)) out.push({ week: w, count: 0 });
+  const at = new Map(out.map((x, i) => [x.week, i]));
+  for (const [d, n] of byDay) {
+    const i = at.get(monday(d));
+    if (i !== undefined && d >= from && d <= to) out[i]!.count += n;
   }
   return out;
 }
 
-export function solvedSince(problems: Pick<CpProblem, "solvedAt">[], from: DateKey): number {
+/** Solves on or after `from`, from problems solved per day. */
+export function solvedSince(byDay: Map<DateKey, number>, from: DateKey): number {
   let n = 0;
-  for (const p of problems) if (p.solvedAt && toKey(new Date(p.solvedAt)) >= from) n++;
+  for (const [d, count] of byDay) if (d >= from) n += count;
   return n;
 }
 

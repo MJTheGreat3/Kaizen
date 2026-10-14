@@ -19,6 +19,7 @@ import { amount, UNITS } from "./format";
 import {
   activeDays,
   activeRate,
+  activeWeeksRate,
   levels,
   ruleLabel,
   streak,
@@ -223,7 +224,7 @@ function StreakCard({
       </div>
       <p className="relative mt-2 text-[12px] text-muted-foreground">
         {s.current && !s.doneNow ? (s.unit === "weeks" ? "Not done this week yet · " : "Not done today yet · ") : ""}
-        Best {s.longest} · {Math.round(rate * 100)}% of days
+        Best {s.longest} · {Math.round(rate * 100)}% of {s.unit === "weeks" ? "weeks" : "days"}
       </p>
       {rule ? <p className="relative mt-0.5 text-[11px] text-muted-foreground/80">{rule}</p> : null}
     </motion.div>
@@ -337,7 +338,8 @@ export function ActivityPage() {
       const active = activeDays(totals.get(t.id), t.rule);
       let total = 0;
       for (const [d, q] of totals.get(t.id) ?? []) if (d >= from && d <= today) total += q;
-      return { t, active, total, s: streak(active, t.rule, today), rate: activeRate(active, from, today) };
+      const rate = t.rule.period === "week" ? activeWeeksRate(active, t.rule, from, today) : activeRate(active, from, today);
+      return { t, active, total, s: streak(active, t.rule, today), rate };
     });
     const anyActive = new Set(perType.filter((p) => !hidden.includes(p.t.id)).flatMap((p) => [...p.active]));
     const overall = streak(anyActive, { period: "day", min: 1, perWeek: 1, restDays: [], freezesPerMonth: 0 }, today);
@@ -490,7 +492,8 @@ export function ActivityPage() {
                 <motion.div variants={rise} className="grid grid-cols-2 gap-3 md:grid-cols-4">
                   <StreakCard label="Any activity" color={HUE} s={view.overall} rate={view.overallRate} big />
                   {view.perType
-                    .filter((p) => !hidden.includes(p.t.id) && view.withData.has(p.t.id))
+                    // Gym always shows: its streak counts weeks, so it matters before the first workout too.
+                    .filter((p) => !hidden.includes(p.t.id) && (view.withData.has(p.t.id) || p.t.id === "gym"))
                     .map((p) => (
                       <StreakCard
                         key={p.t.id}

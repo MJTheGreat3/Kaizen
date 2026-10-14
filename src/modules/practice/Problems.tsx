@@ -1,18 +1,18 @@
-import { useMemo, useState } from "react";
-import { ArrowClockwise, ArrowSquareOut, Bell, CheckCircle as CheckIcon, Clock, Trash, X } from "@phosphor-icons/react";
+import { useState } from "react";
+import { ArrowSquareOut, Bell, CheckCircle as CheckIcon, Clock, Trash } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import { NativeSelect, Switch } from "@/components/ui/controls";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, Input } from "@/components/ui/input";
 import { DateTimeInput, Textarea } from "@/components/ui/kit";
-import type { CpContest, CpProblem, CpRevisit } from "@/core/db/schema";
+import type { CpContest, CpProblem } from "@/core/db/schema";
 import { relativeDay, todayKey, toKey } from "@/lib/dates";
 import { openUrl } from "@/lib/native";
 import { useNow } from "@/lib/time";
 import { cn, timeUntil } from "@/lib/utils";
-import { useAddRevisit, useDeleteProblem, useLogProblem, useRemoveRevisit, useReviewRevisit, useSetLoggedSolved, useUpdateProblem } from "./data";
-import { difficultyColor, platformOf, REVISIT_DAYS, tagLabel } from "./logic";
+import { useDeleteProblem, useLogProblem, useSetLoggedSolved, useUpdateProblem } from "./data";
+import { difficultyColor, platformOf, tagLabel } from "./logic";
 
 const sourceName = (p: CpProblem) => platformOf(p.platform)?.name ?? p.code;
 const sourceColor = (platform: string) => platformOf(platform)?.color ?? "var(--muted-foreground)";
@@ -41,17 +41,14 @@ export function ProblemRow({ problem, onOpen }: { problem: CpProblem; onOpen: ()
   );
 }
 
-export function ProblemDialog({ problem, revisit, onClose }: { problem: CpProblem; revisit: CpRevisit | undefined; onClose: () => void }) {
+export function ProblemDialog({ problem, onClose }: { problem: CpProblem; onClose: () => void }) {
   const update = useUpdateProblem();
-  const addRevisit = useAddRevisit();
-  const removeRevisit = useRemoveRevisit();
   const remove = useDeleteProblem();
   const setSolved = useSetLoggedSolved();
   const [notes, setNotes] = useState(problem.notes ?? "");
   const [minutes, setMinutes] = useState(problem.minutes ? String(problem.minutes) : "");
   const [solution, setSolution] = useState(problem.solutionUrl ?? "");
   const logged = problem.platform === "other";
-  const queued = revisit && revisit.status === "active" && !revisit.deletedAt;
 
   async function save() {
     await update.mutateAsync({ id: problem.id, notes: notes.trim() || null, minutes: Number(minutes) > 0 ? Math.round(Number(minutes)) : null, solutionUrl: solution.trim() || null });
@@ -95,17 +92,6 @@ export function ProblemDialog({ problem, revisit, onClose }: { problem: CpProble
               Open problem
             </Button>
           ) : null}
-          {queued ? (
-            <Button variant="secondary" size="sm" onClick={() => removeRevisit.mutate(problem.id)}>
-              <X />
-              Remove from revisit
-            </Button>
-          ) : (
-            <Button variant="secondary" size="sm" onClick={() => addRevisit.mutate(problem.id)}>
-              <ArrowClockwise />
-              Revisit later
-            </Button>
-          )}
           {logged ? (
             <Button variant="secondary" size="sm" onClick={() => setSolved.mutate({ problem, solved: !problem.solvedAt })}>
               <CheckIcon />
@@ -113,11 +99,6 @@ export function ProblemDialog({ problem, revisit, onClose }: { problem: CpProble
             </Button>
           ) : null}
         </div>
-        {queued ? (
-          <p className="text-[13px] text-muted-foreground">
-            In the revisit queue, next {relativeDay(revisit.dueDate).toLowerCase()} (step {revisit.stage + 1} of {REVISIT_DAYS.length}).
-          </p>
-        ) : null}
         <div className="grid gap-3">
           <Field label="Notes" htmlFor="cp-notes" hint="The idea, the trick, what went wrong.">
             <Textarea id="cp-notes" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -169,7 +150,6 @@ export function LogDialog({ onClose }: { onClose: () => void }) {
   const [solved, setSolved] = useState(true);
   const [minutes, setMinutes] = useState("");
   const [notes, setNotes] = useState("");
-  const [revisit, setRevisit] = useState(false);
 
   async function submit() {
     if (!name.trim()) return;
@@ -186,7 +166,6 @@ export function LogDialog({ onClose }: { onClose: () => void }) {
       solved,
       minutes: Number(minutes) > 0 ? Math.round(Number(minutes)) : null,
       notes: notes.trim() || null,
-      revisit,
     });
     onClose();
   }
@@ -235,10 +214,6 @@ export function LogDialog({ onClose }: { onClose: () => void }) {
             Solved it
             <Switch checked={solved} onCheckedChange={setSolved} aria-label="Solved it" />
           </label>
-          <label className="flex items-center justify-between gap-3 text-[14px]">
-            Add to the revisit queue
-            <Switch checked={revisit} onCheckedChange={setRevisit} aria-label="Add to the revisit queue" />
-          </label>
         </div>
         <DialogFooter>
           <Button variant="secondary" onClick={onClose}>
@@ -250,54 +225,6 @@ export function LogDialog({ onClose }: { onClose: () => void }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-export function RevisitList({ items, problems, onOpen }: { items: CpRevisit[]; problems: CpProblem[]; onOpen: (p: CpProblem) => void }) {
-  const review = useReviewRevisit();
-  const today = todayKey();
-  const active = items.filter((r) => r.status === "active");
-  const due = active.filter((r) => r.dueDate <= today);
-  const later = active.filter((r) => r.dueDate > today);
-  const byId = useMemo(() => new Map(problems.map((p) => [p.id, p])), [problems]);
-  if (!active.length) {
-    return <p className="py-6 text-center text-[14px] text-muted-foreground">Problems worth redoing come back here after 1, 3, 7 and 21 days. Add one from its details.</p>;
-  }
-  return (
-    <div className="grid gap-1">
-      {due.length ? null : <p className="px-1 pb-2 text-[13px] text-muted-foreground">Nothing due today.</p>}
-      {due.map((r) => {
-        const p = byId.get(r.problemId);
-        if (!p) return null;
-        return (
-          <div key={r.id} className="flex items-center gap-2 rounded-xl px-1 py-1.5">
-            <button type="button" onClick={() => onOpen(p)} className="grid min-w-0 flex-1 text-left">
-              <span className="truncate text-[14px] font-medium">{p.name}</span>
-              <span className="text-[12px] text-muted-foreground">
-                {sourceName(p)} · step {r.stage + 1} of {REVISIT_DAYS.length}
-                {r.dueDate < today ? ` · due ${relativeDay(r.dueDate).toLowerCase()}` : ""}
-              </span>
-            </button>
-            {p.url ? (
-              <Button size="icon-sm" variant="ghost" aria-label="Open problem" onClick={() => void openUrl(p.url!)}>
-                <ArrowSquareOut />
-              </Button>
-            ) : null}
-            <Button size="sm" variant="secondary" onClick={() => review.mutate({ item: r, solved: false })}>
-              Struggled
-            </Button>
-            <Button size="sm" onClick={() => review.mutate({ item: r, solved: true })}>
-              Solved
-            </Button>
-          </div>
-        );
-      })}
-      {later.length ? (
-        <p className="px-1 pt-2 text-[12px] text-muted-foreground">
-          {later.length} more coming up, next {relativeDay(later[0].dueDate).toLowerCase()}.
-        </p>
-      ) : null}
-    </div>
   );
 }
 

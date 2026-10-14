@@ -1628,7 +1628,22 @@ CREATE TABLE sport_alerts (
     Ok(())
 }
 
-pub const LATEST: i64 = 12;
+/// Practice keeps only its 30 most recent problems (solves stay on the
+/// heatmap, totals come from the sites), and the revisit queue is gone.
+/// `crate::practice::prune_problems` keeps it that way after each fetch.
+fn v13(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "DELETE FROM cp_problems WHERE id NOT IN (
+           SELECT id FROM cp_problems WHERE deleted_at IS NULL
+           ORDER BY coalesce(solved_at, last_at, first_at, 0) DESC LIMIT 30);
+         DELETE FROM sync_clock WHERE table_name = 'cp_problems' AND row_id NOT IN (SELECT id FROM cp_problems);
+         DELETE FROM cp_revisit;
+         DELETE FROM sync_clock WHERE table_name = 'cp_revisit';",
+    )?;
+    Ok(())
+}
+
+pub const LATEST: i64 = 13;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -1668,6 +1683,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             10 => v10(&tx)?,
             11 => v11(&tx)?,
             12 => v12(&tx)?,
+            13 => v13(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;

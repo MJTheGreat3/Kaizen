@@ -16,11 +16,11 @@ import { cn } from "@/lib/utils";
 import { streak, weekStart } from "@/modules/activity/logic";
 import { modules } from "@/modules/registry";
 import { AccountCard, AccountDialog } from "./Accounts";
-import { DifficultyChart, RatingChart, TopicsChart } from "./Charts";
+import { DifficultyChart, ProgressChart } from "./Charts";
 import { reportToast, usePractice, useRefresh, useRefreshContests, useRefreshGithub } from "./data";
 import { GithubCard, GithubDialog, IssueList, RecentRepos } from "./GitHub";
-import { PLATFORMS, solvedSince, solvesByDay, type PlatformInfo } from "./logic";
-import { ContestList, LogDialog, ProblemDialog, ProblemRow, RevisitList } from "./Problems";
+import { PLATFORMS, solvedSince, type PlatformInfo } from "./logic";
+import { ContestList, LogDialog, ProblemDialog, ProblemRow } from "./Problems";
 
 const mod = modules.find((m) => m.id === "practice")!;
 const HUE = mod.hue;
@@ -66,14 +66,14 @@ export function PracticePage() {
   const today = todayKey();
   const stats = useMemo(() => {
     if (!data) return null;
-    const byDay = solvesByDay(data.problems);
+    // From the heatmap's events: only the latest problems are kept.
+    const byDay = data.solvedByDay;
     const s = streak(new Set(byDay.keys()), { period: "day", min: 1, perWeek: 1, restDays: [], freezesPerMonth: 0 }, today);
-    const logged = data.problems.filter((p) => p.platform === "other" && p.solvedAt).length;
     return {
-      total: data.accounts.reduce((n, a) => n + a.solved, 0) + logged,
-      week: solvedSince(data.problems, weekStart(today)),
-      month: solvedSince(data.problems, `${today.slice(0, 7)}-01`),
-      last30: solvedSince(data.problems, addDaysKey(today, -29)),
+      total: data.accounts.reduce((n, a) => n + a.solved, 0) + data.loggedSolved,
+      week: solvedSince(byDay, weekStart(today)),
+      month: solvedSince(byDay, `${today.slice(0, 7)}-01`),
+      last30: solvedSince(byDay, addDaysKey(today, -29)),
       streak: s,
     };
   }, [data, today]);
@@ -159,22 +159,13 @@ export function PracticePage() {
             />
           </motion.div>
 
-          <Card title="Rating">
-            <RatingChart ratings={data.ratings} />
+          <Card title="Ratings and contributions">
+            <ProgressChart ratings={data.ratings} contributions={data.contributions} />
           </Card>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <Card title="Solved by difficulty">
+            <Card title="Recent solves by difficulty">
               <DifficultyChart problems={data.problems} platforms={PLATFORMS.map((p) => p.id)} />
-            </Card>
-            <Card title="Topics">
-              <TopicsChart problems={data.problems} />
-            </Card>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card title="Revisit">
-              <RevisitList items={data.revisit} problems={data.problems} onOpen={(p) => setOpenId(p.id)} />
             </Card>
             <Card
               title="Upcoming contests"
@@ -256,7 +247,7 @@ export function PracticePage() {
       {editing ? <AccountDialog key={editing.id} platform={editing} account={data?.accounts.find((a) => a.id === editing.id) ?? null} onClose={() => setEditing(null)} /> : null}
       {editingGithub ? <GithubDialog account={data?.github ?? null} onClose={() => setEditingGithub(false)} /> : null}
       {logging ? <LogDialog onClose={() => setLogging(false)} /> : null}
-      {opened ? <ProblemDialog key={opened.id} problem={opened} revisit={data?.revisit.find((r) => r.id === opened.id)} onClose={() => setOpenId(null)} /> : null}
+      {opened ? <ProblemDialog key={opened.id} problem={opened} onClose={() => setOpenId(null)} /> : null}
     </Page>
   );
 }

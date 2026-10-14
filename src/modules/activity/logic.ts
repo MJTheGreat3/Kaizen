@@ -174,6 +174,19 @@ export function activeRate(active: Set<DateKey>, from: DateKey, to: DateKey) {
   return days > 0 ? n / days : 0;
 }
 
+/** Share of weeks in `from..to` with enough active days for a weekly rule. */
+export function activeWeeksRate(active: Set<DateKey>, rule: ActiveRule, from: DateKey, to: DateKey) {
+  const counts = new Map<DateKey, number>();
+  for (const d of active) if (d >= from && d <= to) counts.set(weekStart(d), (counts.get(weekStart(d)) ?? 0) + 1);
+  let weeks = 0;
+  let met = 0;
+  for (let w = weekStart(from); w <= to; w = addDaysKey(w, 7)) {
+    weeks++;
+    if ((counts.get(w) ?? 0) >= rule.perWeek) met++;
+  }
+  return weeks ? met / weeks : 0;
+}
+
 export const MILESTONES = [7, 30, 100, 365];
 
 /** The milestone just reached, if `current` sits exactly on one. */

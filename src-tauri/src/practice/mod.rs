@@ -211,6 +211,28 @@ fn device_id(conn: &Connection) -> Result<String> {
     )?)
 }
 
+/// Problems kept locally; older ones are dropped (their solves stay on the
+/// heatmap as activity events, and sites report solved totals).
+pub const KEEP_PROBLEMS: i64 = 30;
+
+/// Drops all but the most recent problems, with their sync clocks and
+/// revisit entries. Each device prunes the same way.
+pub fn prune_problems(conn: &Connection) -> Result<usize> {
+    let gone = conn.execute(
+        "DELETE FROM cp_problems WHERE id NOT IN (
+           SELECT id FROM cp_problems WHERE deleted_at IS NULL
+           ORDER BY coalesce(solved_at, last_at, first_at, 0) DESC LIMIT ?1)",
+        [KEEP_PROBLEMS],
+    )?;
+    if gone > 0 {
+        conn.execute_batch(
+            "DELETE FROM sync_clock WHERE table_name = 'cp_problems' AND row_id NOT IN (SELECT id FROM cp_problems);
+             DELETE FROM cp_revisit WHERE problem_id NOT IN (SELECT id FROM cp_problems);",
+        )?;
+    }
+    Ok(gone)
+}
+
 struct Stored {
     attempts: i64,
     first_at: Option<i64>,
@@ -268,6 +290,20 @@ pub fn store(
         let first_at = min_opt(old.as_ref().and_then(|o| o.first_at), first);
         let last_at = old.as_ref().and_then(|o| o.last_at).max(last);
         let solved_at = min_opt(old.as_ref().and_then(|o| o.solved_at), first_ac);
+        // A problem dropped earlier still has its solve on the heatmap.
+        let event_at: Option<i64> = tx
+            .query_row(
+                "SELECT occurred_at FROM activity_events WHERE id = ?1 AND deleted_at IS NULL",
+                [format!("ae:cp_problems:{id}")],
+                |r| r.get(0),
+            )
+            .optional()?;
+        let was_solved = old.as_ref().and_then(|o| o.solved_at).or(event_at);
+        // Keep the first solve's day when the problem was dropped in between.
+        let solved_at = match (old.as_ref().and_then(|o| o.solved_at), event_at) {
+            (None, Some(at)) => solved_at.map(|s| s.min(at)),
+            _ => solved_at,
+        };
         let tags = serde_json::to_string(&info.tags)?;
 
         // Only fetched columns are written, so notes and time taken stay.
@@ -307,7 +343,6 @@ pub fn store(
             ],
         )?;
 
-        let was_solved = old.as_ref().and_then(|o| o.solved_at);
         if let Some(at) = solved_at.filter(|at| Some(*at) != was_solved) {
             if was_solved.is_none() {
                 new_solves += 1;
@@ -337,13 +372,20 @@ pub fn store(
     }
 
     let a = &fetched.account;
+    // Sites without a total: add the new solves to the stored count, since
+    // older problems are no longer kept.
     let solved = match a.solved {
         Some(n) => n,
-        None => tx.query_row(
-            "SELECT count(*) FROM cp_problems WHERE platform = ?1 AND solved_at IS NOT NULL AND deleted_at IS NULL",
-            [platform.id()],
-            |r| r.get(0),
-        )?,
+        None => {
+            tx.query_row::<i64, _, _>(
+                "SELECT solved FROM cp_accounts WHERE id = ?1",
+                [platform.id()],
+                |r| r.get(0),
+            )
+            .optional()?
+            .unwrap_or(0)
+                + new_solves as i64
+        }
     };
     let new_cursor = fetched
         .submissions
@@ -368,6 +410,7 @@ pub fn store(
             now,
         ],
     )?;
+    prune_problems(&tx)?;
     tx.commit()?;
     Ok(new_solves)
 }

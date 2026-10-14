@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { addDaysKey } from "@/lib/dates";
-import { activeDays, levels, ruleFor, streak, totalsByDay, weekColumns, weekStart } from "./logic";
+import { activeDays, activeWeeksRate, levels, ruleFor, streak, totalsByDay, weekColumns, weekStart } from "./logic";
 
 const today = "2026-10-14"; // Wednesday
 const back = (n: number) => addDaysKey(today, -n);
@@ -85,5 +85,12 @@ describe("heatmap", () => {
     const cols = weekColumns("2026-10-01", today);
     expect(cols[0][0]).toBe("2026-09-28");
     expect(cols.at(-1)?.includes(today)).toBe(true);
+  });
+
+  it("rates weekly rules by weeks met", () => {
+    const rule = { ...ruleFor("gym", null), perWeek: 2 };
+    // Week of 12 Oct: two days; week of 5 Oct: one; week of 28 Sep: none.
+    const active = set("2026-10-12", "2026-10-13", "2026-10-07");
+    expect(activeWeeksRate(active, rule, "2026-09-28", today)).toBeCloseTo(1 / 3);
   });
 });

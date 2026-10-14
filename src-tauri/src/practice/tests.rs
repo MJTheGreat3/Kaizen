@@ -471,3 +471,56 @@ fn live() {
         Err(e) => println!("github: ERROR {e}"),
     }
 }
+
+#[test]
+fn keeps_only_recent_problems_and_their_solves() {
+    let conn = db();
+    let day = 86_400_000;
+    let subs: Vec<Submission> = (0..40)
+        .map(|i| sub(&format!("{i}A"), (i + 1) * day, true))
+        .collect();
+    let fetched = Fetched {
+        submissions: subs,
+        ..Default::default()
+    };
+    assert_eq!(store(&conn, Platform::Codeforces, &fetched, 0).unwrap(), 40);
+    let count = |sql: &str| conn.query_row(sql, [], |r| r.get::<_, i64>(0)).unwrap();
+    assert_eq!(count("SELECT count(*) FROM cp_problems"), KEEP_PROBLEMS);
+    // The oldest are gone, but their solves stay on the heatmap and in the total.
+    assert_eq!(
+        count("SELECT count(*) FROM cp_problems WHERE id = 'cf:0A'"),
+        0
+    );
+    assert_eq!(
+        count("SELECT count(*) FROM activity_events WHERE type_id = 'cp' AND deleted_at IS NULL"),
+        40
+    );
+    assert_eq!(
+        count("SELECT solved FROM cp_accounts WHERE id = 'codeforces'"),
+        40
+    );
+    assert_eq!(
+        count(
+            "SELECT count(*) FROM sync_clock WHERE table_name = 'cp_problems' AND row_id = 'cf:0A'"
+        ),
+        0
+    );
+
+    // Solving a dropped problem again counts no new solve and keeps its first day.
+    let again = Fetched {
+        submissions: vec![sub("0A", 100 * day, true)],
+        ..Default::default()
+    };
+    assert_eq!(
+        store(&conn, Platform::Codeforces, &again, 50 * day).unwrap(),
+        0
+    );
+    assert_eq!(
+        count("SELECT solved FROM cp_accounts WHERE id = 'codeforces'"),
+        40
+    );
+    assert_eq!(
+        count("SELECT occurred_at FROM activity_events WHERE id = 'ae:cp_problems:cf:0A'"),
+        day
+    );
+}
