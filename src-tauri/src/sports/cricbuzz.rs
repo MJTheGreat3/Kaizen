@@ -493,11 +493,68 @@ pub fn team_games(http: &Http, team: &str, slug: Option<&str>) -> Result<Vec<Gam
     let base = format!("/cricket-team/{}/{team}", slug.unwrap_or("x"));
     let mut games = parse_games(&flight(&page(http, &format!("{base}/schedule"))?), team);
     pause(300);
-    games.extend(parse_games(
-        &flight(&page(http, &format!("{base}/results"))?),
-        team,
-    ));
-    Ok(super::espn::pick_games(games))
+    let results = parse_games(&flight(&page(http, &format!("{base}/results"))?), team);
+    // A match on both pages: the results page is newer.
+    games.retain(|g| !results.iter().any(|r| r.id == g.id));
+    games.extend(results);
+    let mut games = super::espn::pick_games(games);
+    for g in games
+        .iter_mut()
+        .filter(|g| g.state == "post" && g.home.score.is_none() && g.away.score.is_none())
+    {
+        pause(150);
+        // Without its result a finished match still reads "Match starts at".
+        if let Ok(body) = page(http, &format!("/api/mcenter/livescore/{}", g.id))
+            && let Ok(json) = serde_json::from_str::<JsonValue>(&body)
+        {
+            apply_livescore(g, &json);
+        }
+    }
+    Ok(games)
+}
+
+/// Fills a finished match's scores and result from Cricbuzz's match centre
+/// (team pages list results without them).
+pub fn apply_livescore(game: &mut Game, json: &JsonValue) {
+    let details = &json["miniscore"]["matchScoreDetails"];
+    let innings: Vec<&JsonValue> = details["inningsScoreList"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .collect();
+    let side_score = |short: &str| -> Option<String> {
+        let mut mine: Vec<&&JsonValue> = innings
+            .iter()
+            .filter(|i| i["batTeamName"].as_str() == Some(short))
+            .collect();
+        mine.sort_by_key(|i| i["inningsId"].as_i64().unwrap_or(0));
+        let parts: Vec<String> = mine
+            .iter()
+            .filter_map(|i| {
+                let runs = i["score"].as_i64()?;
+                let wickets = i["wickets"].as_i64().unwrap_or(0);
+                let mut s = if wickets >= 10 {
+                    runs.to_string()
+                } else {
+                    format!("{runs}/{wickets}")
+                };
+                if i["isDeclared"].as_bool() == Some(true) {
+                    s.push('d');
+                }
+                Some(s)
+            })
+            .collect();
+        (!parts.is_empty()).then(|| parts.join(" & "))
+    };
+    game.home.score = side_score(&game.home.short);
+    game.away.score = side_score(&game.away.short);
+    if let Some(status) = details["customStatus"]
+        .as_str()
+        .or(json["miniscore"]["status"].as_str())
+        .filter(|s| !s.is_empty())
+    {
+        game.status = status.to_string();
+    }
 }
 
 /// Cricbuzz's "row per stat, column per format" table, turned around.

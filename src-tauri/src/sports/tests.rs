@@ -607,3 +607,36 @@ fn announces_results_and_performances_once() {
             .is_empty()
     );
 }
+
+#[test]
+fn fills_cricket_results_from_the_match_centre() {
+    let mut game = Game {
+        id: "151587".into(),
+        state: "post".into(),
+        status: "Match starts at Oct 11, 13:30 GMT".into(),
+        home: Side {
+            name: "India".into(),
+            short: "IND".into(),
+            ..Default::default()
+        },
+        away: Side {
+            name: "West Indies".into(),
+            short: "WI".into(),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    cricbuzz::apply_livescore(
+        &mut game,
+        &json!({ "miniscore": { "status": "India won by 14 runs", "matchScoreDetails": {
+            "customStatus": "India won by 14 runs",
+            "inningsScoreList": [
+                { "inningsId": 1, "batTeamName": "IND", "score": 223, "wickets": 10 },
+                { "inningsId": 2, "batTeamName": "WI", "score": 209, "wickets": 7 }
+            ]
+        }}}),
+    );
+    assert_eq!(game.home.score.as_deref(), Some("223"));
+    assert_eq!(game.away.score.as_deref(), Some("209/7"));
+    assert_eq!(game.status, "India won by 14 runs");
+}
