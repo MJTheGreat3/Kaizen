@@ -5,6 +5,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowsClockwise,
+  Barbell,
   ClockCounterClockwise,
   CloudArrowUp,
   Flag,
@@ -152,6 +153,16 @@ export function CommandPalette() {
         run: () => {
           useOpenRequest.getState().request({ module: "focus", id: "start" });
           return navigate({ to: pathOf("focus") });
+        },
+      },
+      {
+        id: "workout",
+        label: "Log a workout",
+        keywords: "gym start lift exercise",
+        icon: Barbell,
+        run: () => {
+          useOpenRequest.getState().request({ module: "fitness", id: "start" });
+          return navigate({ to: pathOf("fitness") });
         },
       },
       {

@@ -48,6 +48,10 @@ export interface Prefs {
   "practice.contestsAt": number;
   /** Last time followed teams' games were refreshed. */
   "sports.refreshedAt": number;
+  /** Units weights are shown and typed in; stored as kg. */
+  "gym.unit": "kg" | "lb";
+  /** Default rest between sets, in seconds. */
+  "gym.rest": number;
   /** Platforms whose contests are shown and announced. */
   "practice.contestPlatforms": string[];
   /** Notify before contests start. */
@@ -86,6 +90,8 @@ export const defaultPrefs: Prefs = {
   "focus.grace": 10,
   "practice.contestsAt": 0,
   "sports.refreshedAt": 0,
+  "gym.unit": "kg",
+  "gym.rest": 90,
   "practice.contestPlatforms": ["codeforces", "leetcode", "atcoder", "codechef"],
   "notify.contests": true,
   "notify.contestsLead": 60,

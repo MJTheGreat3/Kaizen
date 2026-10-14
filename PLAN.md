@@ -488,7 +488,7 @@ kaizen/
 | 2. Sync (done) | Encrypted sync core with QR pairing; Google Drive transport first, then direct LAN / Tailscale; the phone is usable daily from here on |
 | 3. Focus and activity (done) | Forest-style focus timer (Android strict mode), activity heatmap with filters, streaks, universal search + command palette |
 | 4. Practice (done) | Codeforces, LeetCode, AtCoder and CodeChef connectors, CP analytics, contest reminders, revisit queue |
-| 5. Fitness and sports | Sports done first (sessions, NBA, football and cricket following, favourite players); gym logging, templates, PRs, charts, body metrics still to do |
+| 5. Fitness and sports | Done: sports (sessions, NBA, football and cricket following, favourite players) and gym (logging, routines, records, charts, body metrics); match reminders still to do |
 | 6. Canvas | Whiteboard (Excalidraw), linking ideas to boards |
 | 7. Music | Spotify connection, remote-control player and mini player, local listening history, stats and summaries |
 | 8. Polish and extras | Android widgets, global quick capture, share sheet, weekly / monthly review, LLM features; maybe Health Connect sleep and health metrics |
@@ -669,7 +669,18 @@ Built and tested (Rust unit tests with sample payloads, a live test against ESPN
 - **Storage** (migration v10): `sport_sessions` and `sport_follows` (synced; follow ids are `{sport}:{kind}:{source id}` so both devices agree), and device-local caches `sport_games`, `sport_stats` and `sport_index`. Sessions and follows are in search (`in:sports`).
 - Games refresh 25 s after unlock and every half hour when over an hour old; player stats at most every six hours (or on demand from the player page).
 
-Known limits: cricket has no per-season numbers on Cricbuzz, so "this season" is recent form; ESPN has no football appearances count (starts instead) and few football headshots; the Cricbuzz adapter depends on its pages and may need fixing when they change. Gym, body metrics and match reminders are still to come in Phase 5.
+Known limits: cricket has no per-season numbers on Cricbuzz, so "this season" is recent form; ESPN has no football appearances count (starts instead) and few football headshots; the Cricbuzz adapter depends on its pages and may need fixing when they change. Match reminders are still to come in Phase 5.
+
+### 6.8 Phase 5, part 2: Gym (2026-10-14)
+
+Built and tested (unit tests for the gym logic and for encrypted attachments, browser preview on desktop and phone):
+- **Library**: 80 built-in exercises (ids `ex:{slug}`, seeded by migration v11 before its clock triggers, so they never sync) plus my own, each with a muscle, equipment and what its sets record: weight and reps, reps, time, or time and distance.
+- **Routines**: named lists of exercises with target sets and reps; Push, Pull and Legs can be added in one tap. Starting one fills a workout with its exercises and last time's numbers.
+- **Live logging** (`/fitness/workout`): one workout in progress at a time, kept in the database so it survives restarts; per set weight, reps, RPE and warm-up; the previous workout's sets alongside; ticking a set starts the rest timer (default 90 s, set per device), which chimes, vibrates and notifies when the app is in the background. Finishing drops unticked sets, totals the volume and marks the day on the heatmap (the `gym` type, counted in weeks). Past workouts can be logged and edited; a workout can be saved as a routine.
+- **Records and progress** (`/fitness/exercises`): heaviest weight, best estimated 1RM (Epley, up to 12 reps), best set volume, most reps, longest time or distance; new records are marked on the set and listed when finishing. Each exercise has a progress chart and its history.
+- **Overview**: sessions this week against the weekly target, volume, gym streak, bodyweight, 12 weeks of volume or workouts, and working sets per muscle this week against the four weeks before.
+- **Body** (`/fitness/body`): weight, body fat and six measurements, one entry per day (`bm:{date}`), with a trend chart; progress photos are shrunk to 1600 px and stored as attachments encrypted with the database key. Attachment rows sync; the files stay on the device that took them.
+- Units (kg or lb) are a device setting; weights are stored in kg. Workouts, exercises and routines are in search (`in:gym`), and the palette has "Log a workout".
 
 ## 7. Open questions
 

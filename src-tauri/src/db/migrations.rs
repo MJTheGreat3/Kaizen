@@ -369,6 +369,7 @@ pub fn synced_tables() -> impl Iterator<Item = &'static str> {
         .chain(V8_SYNCED)
         .chain(V9_SYNCED)
         .chain(V10_SYNCED)
+        .chain(V11_SYNCED)
         .copied()
 }
 
@@ -1075,7 +1076,531 @@ CREATE TABLE sport_index (
     )
 }
 
-pub const LATEST: i64 = 10;
+const V11_SYNCED: &[&str] = &[
+    "exercises",
+    "workout_templates",
+    "workouts",
+    "workout_sets",
+    "body_metrics",
+];
+
+/// The built-in exercise library: (slug, name, muscle, equipment, measure).
+/// Ids are `ex:{slug}` on every device, so they never need syncing.
+const EXERCISES: &[(&str, &str, &str, &str, &str)] = &[
+    ("bench-press", "Bench Press", "chest", "barbell", "weight"),
+    (
+        "incline-bench-press",
+        "Incline Bench Press",
+        "chest",
+        "barbell",
+        "weight",
+    ),
+    (
+        "decline-bench-press",
+        "Decline Bench Press",
+        "chest",
+        "barbell",
+        "weight",
+    ),
+    (
+        "dumbbell-bench-press",
+        "Dumbbell Bench Press",
+        "chest",
+        "dumbbell",
+        "weight",
+    ),
+    (
+        "incline-dumbbell-press",
+        "Incline Dumbbell Press",
+        "chest",
+        "dumbbell",
+        "weight",
+    ),
+    (
+        "dumbbell-fly",
+        "Dumbbell Fly",
+        "chest",
+        "dumbbell",
+        "weight",
+    ),
+    (
+        "cable-crossover",
+        "Cable Crossover",
+        "chest",
+        "cable",
+        "weight",
+    ),
+    ("pec-deck", "Pec Deck", "chest", "machine", "weight"),
+    (
+        "chest-press-machine",
+        "Chest Press (Machine)",
+        "chest",
+        "machine",
+        "weight",
+    ),
+    ("push-up", "Push-up", "chest", "bodyweight", "reps"),
+    ("dips", "Dips", "chest", "bodyweight", "reps"),
+    ("deadlift", "Deadlift", "back", "barbell", "weight"),
+    ("barbell-row", "Barbell Row", "back", "barbell", "weight"),
+    ("pendlay-row", "Pendlay Row", "back", "barbell", "weight"),
+    ("t-bar-row", "T-Bar Row", "back", "barbell", "weight"),
+    ("dumbbell-row", "Dumbbell Row", "back", "dumbbell", "weight"),
+    (
+        "seated-cable-row",
+        "Seated Cable Row",
+        "back",
+        "cable",
+        "weight",
+    ),
+    ("lat-pulldown", "Lat Pulldown", "back", "cable", "weight"),
+    ("pull-up", "Pull-up", "back", "bodyweight", "reps"),
+    ("chin-up", "Chin-up", "back", "bodyweight", "reps"),
+    (
+        "straight-arm-pulldown",
+        "Straight-arm Pulldown",
+        "back",
+        "cable",
+        "weight",
+    ),
+    (
+        "back-extension",
+        "Back Extension",
+        "back",
+        "bodyweight",
+        "reps",
+    ),
+    ("shrug", "Shrug", "back", "dumbbell", "weight"),
+    (
+        "overhead-press",
+        "Overhead Press",
+        "shoulders",
+        "barbell",
+        "weight",
+    ),
+    (
+        "dumbbell-shoulder-press",
+        "Dumbbell Shoulder Press",
+        "shoulders",
+        "dumbbell",
+        "weight",
+    ),
+    (
+        "arnold-press",
+        "Arnold Press",
+        "shoulders",
+        "dumbbell",
+        "weight",
+    ),
+    (
+        "lateral-raise",
+        "Lateral Raise",
+        "shoulders",
+        "dumbbell",
+        "weight",
+    ),
+    (
+        "cable-lateral-raise",
+        "Cable Lateral Raise",
+        "shoulders",
+        "cable",
+        "weight",
+    ),
+    (
+        "front-raise",
+        "Front Raise",
+        "shoulders",
+        "dumbbell",
+        "weight",
+    ),
+    (
+        "rear-delt-fly",
+        "Rear Delt Fly",
+        "shoulders",
+        "dumbbell",
+        "weight",
+    ),
+    ("face-pull", "Face Pull", "shoulders", "cable", "weight"),
+    (
+        "upright-row",
+        "Upright Row",
+        "shoulders",
+        "barbell",
+        "weight",
+    ),
+    (
+        "barbell-curl",
+        "Barbell Curl",
+        "biceps",
+        "barbell",
+        "weight",
+    ),
+    (
+        "dumbbell-curl",
+        "Dumbbell Curl",
+        "biceps",
+        "dumbbell",
+        "weight",
+    ),
+    ("hammer-curl", "Hammer Curl", "biceps", "dumbbell", "weight"),
+    (
+        "preacher-curl",
+        "Preacher Curl",
+        "biceps",
+        "barbell",
+        "weight",
+    ),
+    (
+        "incline-dumbbell-curl",
+        "Incline Dumbbell Curl",
+        "biceps",
+        "dumbbell",
+        "weight",
+    ),
+    ("cable-curl", "Cable Curl", "biceps", "cable", "weight"),
+    (
+        "triceps-pushdown",
+        "Triceps Pushdown",
+        "triceps",
+        "cable",
+        "weight",
+    ),
+    (
+        "overhead-triceps-extension",
+        "Overhead Triceps Extension",
+        "triceps",
+        "cable",
+        "weight",
+    ),
+    (
+        "skull-crusher",
+        "Skull Crusher",
+        "triceps",
+        "barbell",
+        "weight",
+    ),
+    (
+        "close-grip-bench-press",
+        "Close-grip Bench Press",
+        "triceps",
+        "barbell",
+        "weight",
+    ),
+    (
+        "triceps-kickback",
+        "Triceps Kickback",
+        "triceps",
+        "dumbbell",
+        "weight",
+    ),
+    ("wrist-curl", "Wrist Curl", "forearms", "dumbbell", "weight"),
+    (
+        "farmers-walk",
+        "Farmer's Walk",
+        "forearms",
+        "dumbbell",
+        "weight",
+    ),
+    ("squat", "Squat", "quads", "barbell", "weight"),
+    ("front-squat", "Front Squat", "quads", "barbell", "weight"),
+    ("leg-press", "Leg Press", "quads", "machine", "weight"),
+    ("hack-squat", "Hack Squat", "quads", "machine", "weight"),
+    (
+        "leg-extension",
+        "Leg Extension",
+        "quads",
+        "machine",
+        "weight",
+    ),
+    (
+        "bulgarian-split-squat",
+        "Bulgarian Split Squat",
+        "quads",
+        "dumbbell",
+        "weight",
+    ),
+    ("lunge", "Lunge", "quads", "dumbbell", "weight"),
+    (
+        "goblet-squat",
+        "Goblet Squat",
+        "quads",
+        "dumbbell",
+        "weight",
+    ),
+    (
+        "romanian-deadlift",
+        "Romanian Deadlift",
+        "hamstrings",
+        "barbell",
+        "weight",
+    ),
+    (
+        "lying-leg-curl",
+        "Lying Leg Curl",
+        "hamstrings",
+        "machine",
+        "weight",
+    ),
+    (
+        "seated-leg-curl",
+        "Seated Leg Curl",
+        "hamstrings",
+        "machine",
+        "weight",
+    ),
+    (
+        "good-morning",
+        "Good Morning",
+        "hamstrings",
+        "barbell",
+        "weight",
+    ),
+    ("hip-thrust", "Hip Thrust", "glutes", "barbell", "weight"),
+    (
+        "glute-bridge",
+        "Glute Bridge",
+        "glutes",
+        "bodyweight",
+        "reps",
+    ),
+    (
+        "cable-kickback",
+        "Cable Kickback",
+        "glutes",
+        "cable",
+        "weight",
+    ),
+    (
+        "hip-abduction",
+        "Hip Abduction",
+        "glutes",
+        "machine",
+        "weight",
+    ),
+    (
+        "standing-calf-raise",
+        "Standing Calf Raise",
+        "calves",
+        "machine",
+        "weight",
+    ),
+    (
+        "seated-calf-raise",
+        "Seated Calf Raise",
+        "calves",
+        "machine",
+        "weight",
+    ),
+    ("crunch", "Crunch", "abs", "bodyweight", "reps"),
+    (
+        "hanging-leg-raise",
+        "Hanging Leg Raise",
+        "abs",
+        "bodyweight",
+        "reps",
+    ),
+    ("cable-crunch", "Cable Crunch", "abs", "cable", "weight"),
+    ("plank", "Plank", "abs", "bodyweight", "time"),
+    (
+        "russian-twist",
+        "Russian Twist",
+        "abs",
+        "bodyweight",
+        "reps",
+    ),
+    (
+        "ab-wheel-rollout",
+        "Ab Wheel Rollout",
+        "abs",
+        "other",
+        "reps",
+    ),
+    (
+        "clean-and-press",
+        "Clean and Press",
+        "full_body",
+        "barbell",
+        "weight",
+    ),
+    (
+        "power-clean",
+        "Power Clean",
+        "full_body",
+        "barbell",
+        "weight",
+    ),
+    (
+        "kettlebell-swing",
+        "Kettlebell Swing",
+        "full_body",
+        "kettlebell",
+        "weight",
+    ),
+    ("burpee", "Burpee", "full_body", "bodyweight", "reps"),
+    ("running", "Running", "cardio", "other", "cardio"),
+    ("treadmill", "Treadmill", "cardio", "machine", "cardio"),
+    ("cycling", "Cycling", "cardio", "machine", "cardio"),
+    (
+        "rowing-machine",
+        "Rowing Machine",
+        "cardio",
+        "machine",
+        "cardio",
+    ),
+    ("elliptical", "Elliptical", "cardio", "machine", "cardio"),
+    (
+        "stair-climber",
+        "Stair Climber",
+        "cardio",
+        "machine",
+        "cardio",
+    ),
+    ("jump-rope", "Jump Rope", "cardio", "other", "time"),
+];
+
+/// Phase 5, gym: an exercise library (built in and my own), routines,
+/// workouts with their sets, and body metrics.
+///
+/// Weights are kilograms, distances kilometres, times seconds. An exercise's
+/// `measure` says what its sets record: `weight` (weight and reps), `reps`
+/// (bodyweight reps, optionally with added weight), `time`, or `cardio`
+/// (time and distance). A workout is in progress while `ended_at` is NULL.
+/// A routine's exercises are JSON: `[{"exerciseId", "sets", "reps"}]`.
+/// Body metrics are one row per day (`bm:{date}`), so both devices merge
+/// a day's entries; progress photos are `attachments` of that row, stored
+/// encrypted on the device that took them.
+fn v11(conn: &Connection) -> Result<()> {
+    conn.execute_batch(&format!(
+        "
+CREATE TABLE exercises (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  muscle     TEXT NOT NULL,
+  equipment  TEXT NOT NULL DEFAULT 'other',
+  measure    TEXT NOT NULL DEFAULT 'weight' CHECK (measure IN ('weight', 'reps', 'time', 'cardio')),
+  notes      TEXT,
+  is_builtin INTEGER NOT NULL DEFAULT 0,{BASE_COLUMNS}
+) STRICT;
+
+CREATE TABLE workout_templates (
+  id        TEXT PRIMARY KEY,
+  name      TEXT NOT NULL,
+  notes     TEXT,
+  exercises TEXT NOT NULL DEFAULT '[]',
+  sort      INTEGER NOT NULL DEFAULT 0,{BASE_COLUMNS}
+) STRICT;
+
+CREATE TABLE workouts (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  template_id TEXT,
+  date        TEXT NOT NULL,
+  started_at  INTEGER NOT NULL,
+  ended_at    INTEGER,
+  notes       TEXT,
+  volume      REAL NOT NULL DEFAULT 0,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX workouts_date ON workouts (date);
+
+CREATE TABLE workout_sets (
+  id          TEXT PRIMARY KEY,
+  workout_id  TEXT NOT NULL,
+  exercise_id TEXT NOT NULL,
+  -- The exercise's place in the workout, then the set's place in it.
+  position    INTEGER NOT NULL,
+  set_index   INTEGER NOT NULL,
+  warmup      INTEGER NOT NULL DEFAULT 0,
+  weight      REAL,
+  reps        INTEGER,
+  seconds     INTEGER,
+  distance    REAL,
+  rpe         REAL,
+  done        INTEGER NOT NULL DEFAULT 0,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX workout_sets_workout ON workout_sets (workout_id, position, set_index);
+CREATE INDEX workout_sets_exercise ON workout_sets (exercise_id);
+
+CREATE TABLE body_metrics (
+  id        TEXT PRIMARY KEY,
+  date      TEXT NOT NULL,
+  weight    REAL,
+  body_fat  REAL,
+  waist     REAL,
+  chest     REAL,
+  arms      REAL,
+  thighs    REAL,
+  hips      REAL,
+  neck      REAL,
+  notes     TEXT,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX body_metrics_date ON body_metrics (date);
+"
+    ))?;
+    // The library goes in before the clock triggers, so it is never sent.
+    let device: String = conn.query_row(
+        "SELECT value FROM local_meta WHERE key = 'device_id'",
+        [],
+        |r| r.get(0),
+    )?;
+    let mut stmt = conn.prepare(
+        "INSERT OR IGNORE INTO exercises
+           (id, name, muscle, equipment, measure, is_builtin, created_at, updated_at, device_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, 1, 0, 0, ?6)",
+    )?;
+    for (slug, name, muscle, equipment, measure) in EXERCISES {
+        stmt.execute(rusqlite::params![
+            format!("ex:{slug}"),
+            name,
+            muscle,
+            equipment,
+            measure,
+            device
+        ])?;
+    }
+    for table in V11_SYNCED {
+        install_clock_triggers(conn, table)?;
+    }
+    install_search_triggers(
+        conn,
+        &SearchSource {
+            table: "workouts",
+            module: "'fitness'",
+            title: "R.name",
+            body: "concat_ws(' ', R.notes, (SELECT group_concat(DISTINCT e.name) FROM workout_sets s JOIN exercises e ON e.id = s.exercise_id WHERE s.workout_id = R.id AND s.deleted_at IS NULL))",
+            tags: "''",
+            date: "R.date",
+            amount: "R.volume",
+            status: "CASE WHEN R.ended_at IS NULL THEN 'open' ELSE 'done' END",
+        },
+    )?;
+    install_search_triggers(
+        conn,
+        &SearchSource {
+            table: "exercises",
+            module: "'fitness'",
+            title: "R.name",
+            body: "concat_ws(' ', replace(R.muscle, '_', ' '), R.equipment, R.notes)",
+            tags: "''",
+            date: "NULL",
+            amount: "NULL",
+            status: "NULL",
+        },
+    )?;
+    install_search_triggers(
+        conn,
+        &SearchSource {
+            table: "workout_templates",
+            module: "'fitness'",
+            title: "R.name",
+            body: "R.notes",
+            tags: "''",
+            date: "NULL",
+            amount: "NULL",
+            status: "NULL",
+        },
+    )
+}
+
+pub const LATEST: i64 = 11;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -1113,6 +1638,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             8 => v8(&tx)?,
             9 => v9(&tx)?,
             10 => v10(&tx)?,
+            11 => v11(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;

@@ -182,6 +182,12 @@ export const ipc = {
   githubRefresh: () => call<GitHubReport | null>("github_refresh"),
   sportsSearch: (sport: string, kind: string, query: string) => call<SportCandidate[]>("sports_search", { sport, kind, query }),
   sportsRefresh: (ids?: string[]) => call<SportsReport>("sports_refresh", { ids: ids ?? null }),
+  /** Stores a file (base64) for a row, encrypted on this device. */
+  attachmentAdd: (ownerTable: string, ownerId: string, fileName: string, mime: string | null, data: string) =>
+    call<string>("attachment_add", { ownerTable, ownerId, fileName, mime, data }),
+  /** A stored file as base64; fails when it lives on another device. */
+  attachmentRead: (id: string) => call<string>("attachment_read", { id }),
+  attachmentRemove: (id: string) => call<void>("attachment_remove", { id }),
 
   logsTail: (lines: number) => call<string>("logs_tail", { lines }),
   logFrontend: (level: "debug" | "info" | "warn" | "error", message: string) =>

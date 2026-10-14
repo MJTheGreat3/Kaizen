@@ -692,3 +692,108 @@ export type SportSession = typeof sportSessions.$inferSelect;
 export type SportFollow = typeof sportFollows.$inferSelect;
 export type SportGame = typeof sportGames.$inferSelect;
 export type SportStat = typeof sportStats.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Phase 5, gym (migration v11). Weights in kg, distances in km, times in seconds.
+// ---------------------------------------------------------------------------
+
+export type Muscle =
+  | "chest"
+  | "back"
+  | "shoulders"
+  | "biceps"
+  | "triceps"
+  | "forearms"
+  | "abs"
+  | "quads"
+  | "hamstrings"
+  | "glutes"
+  | "calves"
+  | "full_body"
+  | "cardio";
+
+/** What an exercise's sets record. */
+export type Measure = "weight" | "reps" | "time" | "cardio";
+
+/** The library: built-in exercises (`ex:{slug}`) and my own. */
+export const exercises = sqliteTable("exercises", {
+  id: id(),
+  name: text("name").notNull(),
+  muscle: text("muscle").$type<Muscle>().notNull(),
+  equipment: text("equipment").notNull().default("other"),
+  measure: text("measure").$type<Measure>().notNull().default("weight"),
+  notes: text("notes"),
+  isBuiltin: integer("is_builtin", { mode: "boolean" }).notNull().default(false),
+  ...base,
+});
+
+export interface TemplateItem {
+  exerciseId: string;
+  sets: number;
+  /** Target reps, or seconds for timed exercises. */
+  reps: number | null;
+}
+
+/** A routine to start workouts from (Push, Pull, Legs...). */
+export const workoutTemplates = sqliteTable("workout_templates", {
+  id: id(),
+  name: text("name").notNull(),
+  notes: text("notes"),
+  exercises: json<TemplateItem[]>("exercises").notNull().default([]),
+  sort: integer("sort").notNull().default(0),
+  ...base,
+});
+
+/** A workout; in progress while `endedAt` is null. */
+export const workouts = sqliteTable("workouts", {
+  id: id(),
+  name: text("name").notNull(),
+  templateId: text("template_id"),
+  date: text("date").notNull(),
+  startedAt: integer("started_at").notNull(),
+  endedAt: integer("ended_at"),
+  notes: text("notes"),
+  /** Total kg lifted over working sets, set on finish. */
+  volume: real("volume").notNull().default(0),
+  ...base,
+});
+
+export const workoutSets = sqliteTable("workout_sets", {
+  id: id(),
+  workoutId: text("workout_id").notNull(),
+  exerciseId: text("exercise_id").notNull(),
+  /** The exercise's place in the workout. */
+  position: integer("position").notNull(),
+  setIndex: integer("set_index").notNull(),
+  warmup: integer("warmup", { mode: "boolean" }).notNull().default(false),
+  weight: real("weight"),
+  reps: integer("reps"),
+  seconds: integer("seconds"),
+  distance: real("distance"),
+  rpe: real("rpe"),
+  done: integer("done", { mode: "boolean" }).notNull().default(false),
+  ...base,
+});
+
+/** One row per day (`bm:{date}`); measurements in cm. */
+export const bodyMetrics = sqliteTable("body_metrics", {
+  id: text("id").primaryKey(),
+  date: text("date").notNull(),
+  weight: real("weight"),
+  bodyFat: real("body_fat"),
+  waist: real("waist"),
+  chest: real("chest"),
+  arms: real("arms"),
+  thighs: real("thighs"),
+  hips: real("hips"),
+  neck: real("neck"),
+  notes: text("notes"),
+  ...base,
+});
+
+export type Exercise = typeof exercises.$inferSelect;
+export type WorkoutTemplate = typeof workoutTemplates.$inferSelect;
+export type Workout = typeof workouts.$inferSelect;
+export type WorkoutSet = typeof workoutSets.$inferSelect;
+export type BodyMetric = typeof bodyMetrics.$inferSelect;
+export type Attachment = typeof attachments.$inferSelect;

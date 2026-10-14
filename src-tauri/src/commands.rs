@@ -4,6 +4,7 @@ use serde::Serialize;
 use serde_json::Value as JsonValue;
 use tauri::{Emitter, Manager, State};
 
+use crate::attachments;
 use crate::backup::{self, BackupInfo};
 use crate::db::{DB_FILE, Database, QueryMethod};
 use crate::error::{Error, Result};
@@ -754,6 +755,65 @@ pub async fn sports_refresh(
             "sports refreshed"
         );
         Ok(report)
+    })
+    .await
+}
+
+/// Stores a file (base64) for a row, encrypted; returns its attachment id.
+#[tauri::command]
+pub async fn attachment_add(
+    app: tauri::AppHandle,
+    owner_table: String,
+    owner_id: String,
+    file_name: String,
+    mime: Option<String>,
+    data: String,
+) -> Result<String> {
+    use base64::Engine;
+    blocking(move || {
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(data.as_bytes())
+            .map_err(|_| Error::Invalid("the file could not be read".into()))?;
+        let state = app.state::<AppState>();
+        with_session(&state, |s| {
+            attachments::add(
+                &state.data_dir,
+                &s.key,
+                s.db.conn(),
+                &attachments::NewFile {
+                    owner_table: &owner_table,
+                    owner_id: &owner_id,
+                    file_name: &file_name,
+                    mime: mime.as_deref(),
+                    bytes: &bytes,
+                },
+            )
+        })
+    })
+    .await
+}
+
+/// A stored file as base64.
+#[tauri::command]
+pub async fn attachment_read(app: tauri::AppHandle, id: String) -> Result<String> {
+    use base64::Engine;
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let bytes = with_session(&state, |s| {
+            attachments::read(&state.data_dir, &s.key, s.db.conn(), &id)
+        })?;
+        Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn attachment_remove(app: tauri::AppHandle, id: String) -> Result<()> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        with_session(&state, |s| {
+            attachments::remove(&state.data_dir, s.db.conn(), &id)
+        })
     })
     .await
 }

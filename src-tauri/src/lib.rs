@@ -1,3 +1,4 @@
+mod attachments;
 mod backup;
 mod commands;
 mod db;
@@ -95,6 +96,9 @@ pub fn run() {
             commands::github_refresh,
             commands::sports_search,
             commands::sports_refresh,
+            commands::attachment_add,
+            commands::attachment_read,
+            commands::attachment_remove,
             commands::sync_drive,
             commands::sync_drive_connect,
             commands::sync_drive_disconnect,

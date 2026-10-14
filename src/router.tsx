@@ -16,6 +16,10 @@ import { GoalsPage } from "@/modules/goals/GoalsPage";
 import { PracticePage } from "@/modules/practice/PracticePage";
 import { PlayersPage } from "@/modules/sports/PlayersPage";
 import { SportsPage } from "@/modules/sports/SportsPage";
+import { BodyPage } from "@/modules/fitness/BodyPage";
+import { ExercisesPage } from "@/modules/fitness/ExercisesPage";
+import { GymPage } from "@/modules/fitness/GymPage";
+import { WorkoutPage } from "@/modules/fitness/WorkoutPage";
 
 /** Built modules; the rest show their placeholder. */
 const pages: Record<string, () => React.ReactNode> = {
@@ -30,6 +34,7 @@ const pages: Record<string, () => React.ReactNode> = {
   goals: GoalsPage,
   practice: PracticePage,
   sports: SportsPage,
+  fitness: GymPage,
 };
 
 const rootRoute = createRootRoute({ component: AppShell });
@@ -56,8 +61,30 @@ const playersRoute = createRoute({
   component: PlayersPage,
 });
 
+/** A workout being logged, or a finished one. */
+const workoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/fitness/workout",
+  validateSearch: (search: Record<string, unknown>): { w?: string } => ({ w: typeof search.w === "string" ? search.w : undefined }),
+  component: WorkoutPage,
+});
+
+/** The exercise library, or one exercise (`e`). */
+const exercisesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/fitness/exercises",
+  validateSearch: (search: Record<string, unknown>): { e?: string } => ({ e: typeof search.e === "string" ? search.e : undefined }),
+  component: ExercisesPage,
+});
+
+const bodyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/fitness/body",
+  component: BodyPage,
+});
+
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([...moduleRoutes, playersRoute, settingsRoute]),
+  routeTree: rootRoute.addChildren([...moduleRoutes, playersRoute, workoutRoute, exercisesRoute, bodyRoute, settingsRoute]),
   // Hash history works the same under the dev server and the bundled app.
   history: createHashHistory(),
   defaultPreload: false,

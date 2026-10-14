@@ -328,25 +328,31 @@ mod dump {
         }
         // Clock triggers need a device id before any row is inserted.
         sql.push_str("INSERT INTO local_meta VALUES ('device_id', '01mock-device-0000');\n");
-        let mut stmt = db.conn().prepare("SELECT * FROM activity_types").unwrap();
-        let cols = stmt.column_count();
-        let mut rows = stmt.query([]).unwrap();
-        while let Some(r) = rows.next().unwrap() {
-            let vals: Vec<String> = (0..cols)
-                .map(|i| match r.get_ref(i).unwrap() {
-                    rusqlite::types::ValueRef::Null => "NULL".into(),
-                    rusqlite::types::ValueRef::Integer(n) => n.to_string(),
-                    rusqlite::types::ValueRef::Real(f) => f.to_string(),
-                    rusqlite::types::ValueRef::Text(t) => {
-                        format!("'{}'", String::from_utf8_lossy(t).replace('\'', "''"))
-                    }
-                    rusqlite::types::ValueRef::Blob(_) => "NULL".into(),
-                })
-                .collect();
-            sql.push_str(&format!(
-                "INSERT INTO activity_types VALUES ({});\n",
-                vals.join(", ")
-            ));
+        // Rows the migrations seed.
+        for table in ["activity_types", "exercises"] {
+            let mut stmt = db
+                .conn()
+                .prepare(&format!("SELECT * FROM {table}"))
+                .unwrap();
+            let cols = stmt.column_count();
+            let mut rows = stmt.query([]).unwrap();
+            while let Some(r) = rows.next().unwrap() {
+                let vals: Vec<String> = (0..cols)
+                    .map(|i| match r.get_ref(i).unwrap() {
+                        rusqlite::types::ValueRef::Null => "NULL".into(),
+                        rusqlite::types::ValueRef::Integer(n) => n.to_string(),
+                        rusqlite::types::ValueRef::Real(f) => f.to_string(),
+                        rusqlite::types::ValueRef::Text(t) => {
+                            format!("'{}'", String::from_utf8_lossy(t).replace('\'', "''"))
+                        }
+                        rusqlite::types::ValueRef::Blob(_) => "NULL".into(),
+                    })
+                    .collect();
+                sql.push_str(&format!(
+                    "INSERT INTO {table} VALUES ({});\n",
+                    vals.join(", ")
+                ));
+            }
         }
         std::fs::write(out, sql).unwrap();
     }
