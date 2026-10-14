@@ -488,8 +488,8 @@ kaizen/
 | 2. Sync (done) | Encrypted sync core with QR pairing; Google Drive transport first, then direct LAN / Tailscale; the phone is usable daily from here on |
 | 3. Focus and activity (done) | Forest-style focus timer (Android strict mode), activity heatmap with filters, streaks, universal search + command palette |
 | 4. Practice (done) | Codeforces, LeetCode, AtCoder and CodeChef connectors, CP analytics, contest reminders, revisit queue |
-| 5. Fitness and sports | Done: sports (sessions, NBA, football and cricket following, favourite players, game reminders) and gym (logging, routines, records, charts, body metrics) |
-| 6. Canvas | Whiteboard (Excalidraw), linking ideas to boards |
+| 5. Fitness and sports (done) | Done: sports (sessions, NBA, football and cricket following, favourite players, game reminders) and gym (logging, routines, records, charts, body metrics) |
+| 6. Canvas (done) | Whiteboard (Excalidraw), linking ideas to boards |
 | 7. Music | Spotify connection, remote-control player and mini player, local listening history, stats and summaries |
 | 8. Polish and extras | Android widgets, global quick capture, share sheet, weekly / monthly review, LLM features; maybe Health Connect sleep and health metrics |
 | 9. Finance (last) | PNB statement import, categorisation, insights, budgets; debt settle-up matching; spending added to the weekly review |
@@ -692,6 +692,18 @@ Built and tested (unit tests for the gym logic and for encrypted attachments, br
 - **Overview**: sessions this week against the weekly target, volume, gym streak, bodyweight, 12 weeks of volume or workouts, and working sets per muscle this week against the four weeks before.
 - **Body** (`/fitness/body`): weight, body fat and six measurements, one entry per day (`bm:{date}`), with a trend chart; progress photos are shrunk to 1600 px and stored as attachments encrypted with the database key. Attachment rows sync; the files stay on the device that took them.
 - Units (kg or lb) are a device setting; weights are stored in kg. Workouts, exercises and routines are in search (`in:gym`), and the palette has "Log a workout".
+
+### 6.10 Phase 6 outcome: Canvas (2026-10-15)
+
+Built and tested (unit tests for merging scenes and for the migration's search and sync, browser preview on desktop and phone, light and dark):
+- **Boards** (`/canvas`): a grid of boards with a preview of each, shape count and last edit; pin, rename, delete (with undo), and search once there are more than six. "New board" (also in the command palette) opens an empty board straight away.
+- **Editor** (`/canvas/board?b=`): Excalidraw 0.18, full screen over the app's navigation with a slim header (back, title, the idea it came from, menu). Freehand, shapes, arrows, text and images with mouse, touch or pen; it follows the app's theme. Excalidraw is loaded only when a board opens (its own 1.1 MB chunk), and its fonts are served from the app (`public/excalidraw/fonts`, copied from the package by a Vite plugin; the 12 MB CJK font is left out), so it works offline and within the CSP.
+- **Saving**: 0.8 s after the last change, when the app goes to the background and on leaving the board. A 480 px PNG preview is made at most every 8 s while drawing and always on leaving.
+- **Storage and sync** (migration v15): `boards` (title, `elements` and `app_state` as JSON, `preview`, `idea_id`, `pinned`) and `board_files` (images, by Excalidraw file id, written once), both synced. A board is one cell for sync, so before each save the editor merges what is stored element by element (higher version wins, then the lower nonce, as Excalidraw does), and when sync brings another device's copy of an open board it is merged into the scene without touching undo. Deleted elements are kept 30 days so the deletion reaches the other device. Boards are in search (`in:canvas`, `in:boards`) by title and the text written on them.
+- **Ideas**: "Sketch it on a board" on an idea makes a board titled from its first line (or opens the one it has); the idea then shows a "Board" chip, and the board an "Idea" chip back.
+- **Export**: PNG (2x) and SVG from the board's menu, saved to Downloads on the laptop (with "Show") and `Download/Kaizen` on the phone.
+
+Known limits: two devices editing the same element at once keep only one version of it; images sync with the board, so large photos make sync bundles bigger; Chinese and Japanese text uses a system font.
 
 ## 7. Open questions
 

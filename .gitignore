@@ -26,3 +26,6 @@ src-tauri/gen/schemas/
 *.keystore
 *.jks
 local.properties
+
+# Copied from node_modules by vite.config.ts
+public/excalidraw/

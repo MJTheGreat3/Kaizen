@@ -53,6 +53,9 @@ const MODULE_ALIASES: Record<string, string[]> = {
   fitness: ["fitness"],
   workouts: ["fitness"],
   exercises: ["fitness"],
+  canvas: ["canvas"],
+  boards: ["canvas"],
+  whiteboard: ["canvas"],
 };
 
 const STATUS_ALIASES: Record<string, string[]> = {

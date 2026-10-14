@@ -211,6 +211,8 @@ export const ipc = {
   /** A stored file as base64; fails when it lives on another device. */
   attachmentRead: (id: string) => call<string>("attachment_read", { id }),
   attachmentRemove: (id: string) => call<void>("attachment_remove", { id }),
+  /** Saves base64 data to Downloads (Download/Kaizen on Android); returns the path. */
+  exportSave: (name: string, data: string) => call<string>("export_save", { name, data }),
 
   logsTail: (lines: number) => call<string>("logs_tail", { lines }),
   logFrontend: (level: "debug" | "info" | "warn" | "error", message: string) =>

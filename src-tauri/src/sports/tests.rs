@@ -402,8 +402,14 @@ fn report(result: crate::error::Result<Fetched>) {
                     g.away.score,
                     g.status,
                     g.league,
-                    g.home.logo.as_deref().map(|l| l.split('/').nth(8).unwrap_or("")),
-                    g.away.logo.as_deref().map(|l| l.split('/').nth(8).unwrap_or(""))
+                    g.home
+                        .logo
+                        .as_deref()
+                        .map(|l| l.split('/').nth(8).unwrap_or("")),
+                    g.away
+                        .logo
+                        .as_deref()
+                        .map(|l| l.split('/').nth(8).unwrap_or(""))
                 );
             }
         }

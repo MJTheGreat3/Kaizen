@@ -227,8 +227,8 @@ export const modules: ModuleDef[] = [
     title: "Canvas",
     icon: Scribble,
     group: "create",
-    summary: "An infinite whiteboard.",
-    planned: ["Freehand drawing and shapes", "Pen support on the phone", "Export to PNG and SVG"],
+    summary: "Whiteboards to sketch, plan and think on.",
+    planned: ["Freehand drawing, shapes, text and images", "Pen and touch on the phone", "Boards from ideas, export to PNG and SVG"],
     phase: 6,
   },
 ];

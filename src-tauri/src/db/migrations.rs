@@ -371,6 +371,7 @@ pub fn synced_tables() -> impl Iterator<Item = &'static str> {
         .chain(V10_SYNCED)
         .chain(V11_SYNCED)
         .chain(V12_SYNCED)
+        .chain(V15_SYNCED)
         .copied()
 }
 
@@ -1660,7 +1661,59 @@ fn v14(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub const LATEST: i64 = 14;
+const V15_SYNCED: &[&str] = &["boards", "board_files"];
+
+/// Phase 6: whiteboards (Excalidraw).
+///
+/// A board keeps its scene as JSON: `elements` (Excalidraw elements,
+/// deleted ones included for a while so two devices' edits merge by element
+/// version) and `app_state` (background colour and grid). `preview` is a
+/// small PNG for the board list. `idea_id` links a board made from an idea.
+/// Images placed on a board are `board_files` rows (the Excalidraw file id
+/// and its data URL), written once and never changed.
+fn v15(conn: &Connection) -> Result<()> {
+    conn.execute_batch(&format!(
+        "
+CREATE TABLE boards (
+  id        TEXT PRIMARY KEY,
+  title     TEXT NOT NULL,
+  elements  TEXT NOT NULL DEFAULT '[]',
+  app_state TEXT NOT NULL DEFAULT '{{}}',
+  preview   TEXT,
+  idea_id   TEXT,
+  pinned    INTEGER NOT NULL DEFAULT 0,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX boards_idea ON boards (idea_id);
+
+CREATE TABLE board_files (
+  id       TEXT PRIMARY KEY,
+  board_id TEXT NOT NULL,
+  mime     TEXT NOT NULL,
+  data     TEXT NOT NULL,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX board_files_board ON board_files (board_id);
+"
+    ))?;
+    for table in V15_SYNCED {
+        install_clock_triggers(conn, table)?;
+    }
+    install_search_triggers(
+        conn,
+        &SearchSource {
+            table: "boards",
+            module: "'canvas'",
+            title: "R.title",
+            body: "(SELECT group_concat(json_extract(e.value, '$.text'), ' ') FROM json_each(R.elements) e WHERE json_extract(e.value, '$.type') = 'text' AND NOT coalesce(json_extract(e.value, '$.isDeleted'), 0))",
+            tags: "''",
+            date: LOCAL_DAY,
+            amount: "NULL",
+            status: "CASE WHEN R.pinned THEN 'pinned' END",
+        },
+    )?;
+    Ok(())
+}
+
+pub const LATEST: i64 = 15;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -1702,6 +1755,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             12 => v12(&tx)?,
             13 => v13(&tx)?,
             14 => v14(&tx)?,
+            15 => v15(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;
@@ -1830,5 +1884,43 @@ mod tests {
             )
             .unwrap();
         assert_eq!(stamps, 1);
+    }
+
+    /// Boards are found by their title and the text written on them, not by
+    /// text that was deleted; their cells are clocked for sync.
+    #[test]
+    fn boards_are_searchable_and_synced() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrate(&mut conn).unwrap();
+        conn.execute(
+            "INSERT INTO local_meta (key, value) VALUES ('device_id', 'd') ON CONFLICT DO NOTHING",
+            [],
+        )
+        .unwrap();
+        let elements = r#"[{"id":"a","type":"text","text":"login flow"},{"id":"b","type":"rectangle"},{"id":"c","type":"text","text":"gone","isDeleted":true}]"#;
+        conn.execute(
+            "INSERT INTO boards (id, title, elements, created_at, updated_at, device_id) VALUES ('b1', 'App sketch', ?1, 1, 1, 'd')",
+            [elements],
+        )
+        .unwrap();
+        let (module, title, body): (String, String, String) = conn
+            .query_row(
+                "SELECT module, title, body FROM search_index WHERE ref_id = 'b1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            (module.as_str(), title.as_str(), body.as_str()),
+            ("canvas", "App sketch", "login flow")
+        );
+        let clocked: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sync_clock WHERE table_name = 'boards' AND row_id = 'b1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(clocked >= 3);
     }
 }

@@ -35,6 +35,7 @@ export const SEARCH_MODULES: Record<string, ModuleInfo> = {
   debts: { label: "Debts", moduleId: "debts" },
   sports: { label: "Sports", moduleId: "sports" },
   fitness: { label: "Gym", moduleId: "fitness" },
+  canvas: { label: "Boards", moduleId: "canvas" },
 };
 
 export function moduleOf(searchModule: string) {

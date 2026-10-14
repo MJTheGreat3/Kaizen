@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowsClockwise,
   Barbell,
+  Scribble,
   ClockCounterClockwise,
   CloudArrowUp,
   Flag,
@@ -163,6 +164,16 @@ export function CommandPalette() {
         run: () => {
           useOpenRequest.getState().request({ module: "fitness", id: "start" });
           return navigate({ to: pathOf("fitness") });
+        },
+      },
+      {
+        id: "board",
+        label: "New board",
+        keywords: "canvas whiteboard draw sketch excalidraw",
+        icon: Scribble,
+        run: () => {
+          useOpenRequest.getState().request({ module: "canvas", id: "new" });
+          return navigate({ to: pathOf("canvas") });
         },
       },
       {

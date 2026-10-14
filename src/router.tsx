@@ -20,6 +20,8 @@ import { BodyPage } from "@/modules/fitness/BodyPage";
 import { ExercisesPage } from "@/modules/fitness/ExercisesPage";
 import { GymPage } from "@/modules/fitness/GymPage";
 import { WorkoutPage } from "@/modules/fitness/WorkoutPage";
+import { BoardPage } from "@/modules/canvas/BoardPage";
+import { CanvasPage } from "@/modules/canvas/CanvasPage";
 
 /** Built modules; the rest show their placeholder. */
 const pages: Record<string, () => React.ReactNode> = {
@@ -35,6 +37,7 @@ const pages: Record<string, () => React.ReactNode> = {
   practice: PracticePage,
   sports: SportsPage,
   fitness: GymPage,
+  canvas: CanvasPage,
 };
 
 const rootRoute = createRootRoute({ component: AppShell });
@@ -83,8 +86,16 @@ const bodyRoute = createRoute({
   component: BodyPage,
 });
 
+/** One whiteboard (`b`), full screen. */
+const boardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/canvas/board",
+  validateSearch: (search: Record<string, unknown>): { b?: string } => ({ b: typeof search.b === "string" ? search.b : undefined }),
+  component: BoardPage,
+});
+
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([...moduleRoutes, playersRoute, workoutRoute, exercisesRoute, bodyRoute, settingsRoute]),
+  routeTree: rootRoute.addChildren([...moduleRoutes, playersRoute, workoutRoute, exercisesRoute, bodyRoute, boardRoute, settingsRoute]),
   // Hash history works the same under the dev server and the bundled app.
   history: createHashHistory(),
   defaultPreload: false,

@@ -22,7 +22,7 @@ export function PullToSearch() {
     function onStart(e: TouchEvent) {
       const target = e.target as Element | null;
       // Only from the very top, outside dialogs and sideways scrollers.
-      if (window.scrollY > 0 || usePalette.getState().open || target?.closest("[role=dialog], .overflow-x-auto, input, textarea")) {
+      if (window.scrollY > 0 || usePalette.getState().open || target?.closest("[role=dialog], [data-no-pull], .overflow-x-auto, input, textarea")) {
         startY = null;
         return;
       }

@@ -809,3 +809,38 @@ export type Workout = typeof workouts.$inferSelect;
 export type WorkoutSet = typeof workoutSets.$inferSelect;
 export type BodyMetric = typeof bodyMetrics.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Phase 6 (migration v15): whiteboards
+// ---------------------------------------------------------------------------
+
+/** What a board keeps of Excalidraw's app state. */
+export interface BoardAppState {
+  viewBackgroundColor?: string;
+  gridModeEnabled?: boolean;
+}
+
+/** An Excalidraw scene. `elements` keeps deleted elements for a while so edits merge by version. */
+export const boards = sqliteTable("boards", {
+  id: id(),
+  title: text("title").notNull(),
+  elements: json<unknown[]>("elements").notNull().default([]),
+  appState: json<BoardAppState>("app_state").notNull().default({}),
+  /** Small PNG data URL for the board list. */
+  preview: text("preview"),
+  ideaId: text("idea_id"),
+  pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
+  ...base,
+});
+
+/** An image placed on a board; the id is Excalidraw's file id. Written once. */
+export const boardFiles = sqliteTable("board_files", {
+  id: text("id").primaryKey(),
+  boardId: text("board_id").notNull(),
+  mime: text("mime").notNull(),
+  data: text("data").notNull(),
+  ...base,
+});
+
+export type Board = typeof boards.$inferSelect;
+export type BoardFile = typeof boardFiles.$inferSelect;

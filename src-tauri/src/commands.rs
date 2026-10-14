@@ -864,3 +864,48 @@ pub async fn attachment_remove(app: tauri::AppHandle, id: String) -> Result<()> 
     })
     .await
 }
+
+/// Saves an exported file (a board as PNG or SVG) to Downloads, under a
+/// name not already taken, and returns its path. On Android that is the
+/// shared Download folder, which apps may add their own files to.
+#[tauri::command]
+pub async fn export_save(app: tauri::AppHandle, name: String, data: String) -> Result<String> {
+    use base64::Engine;
+    blocking(move || {
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(data.as_bytes())
+            .map_err(|e| Error::Invalid(format!("bad export data: {e}")))?;
+        let dir = if cfg!(target_os = "android") {
+            PathBuf::from("/storage/emulated/0/Download/Kaizen")
+        } else {
+            app.path().download_dir()?
+        };
+        std::fs::create_dir_all(&dir)?;
+        let clean: String = name
+            .chars()
+            .map(|c| {
+                if c.is_alphanumeric() || " -_.".contains(c) {
+                    c
+                } else {
+                    '-'
+                }
+            })
+            .collect();
+        let path = Path::new(clean.trim());
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .filter(|s| !s.is_empty())
+            .unwrap_or("board");
+        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("png");
+        let mut target = dir.join(format!("{stem}.{ext}"));
+        let mut n = 2;
+        while target.exists() {
+            target = dir.join(format!("{stem} ({n}).{ext}"));
+            n += 1;
+        }
+        std::fs::write(&target, bytes)?;
+        Ok(target.to_string_lossy().into_owned())
+    })
+    .await
+}

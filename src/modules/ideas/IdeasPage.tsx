@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { desc, eq, isNull } from "drizzle-orm";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Flag, Lightbulb, ListPlus, MagnifyingGlass, PushPin, PushPinSlash, Shuffle, Trash } from "@phosphor-icons/react";
+import { Flag, Lightbulb, ListPlus, MagnifyingGlass, PushPin, PushPinSlash, Scribble, Shuffle, Trash } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/controls";
@@ -18,6 +18,8 @@ import { useOpenRequest, useOpenTarget } from "@/core/shell/openRequest";
 import { ease, rise } from "@/lib/motion";
 import { PALETTE } from "@/lib/palette";
 import { formatDateTime } from "@/lib/utils";
+import { boardsByIdea, createBoard, useBoards, type BoardSummary } from "@/modules/canvas/data";
+import { titleFromIdea } from "@/modules/canvas/logic";
 import { useAddTask } from "@/modules/lists/data";
 import { modules, pathOf } from "@/modules/registry";
 
@@ -71,7 +73,9 @@ function RichText({ text }: { text: string }) {
   );
 }
 
-function IdeaCard({ idea, onOpen, highlight }: { idea: Idea; onOpen: (i: Idea) => void; highlight?: boolean }) {
+const CANVAS_HUE = modules.find((m) => m.id === "canvas")!.hue;
+
+function IdeaCard({ idea, board, onOpen, highlight }: { idea: Idea; board?: BoardSummary; onOpen: (i: Idea) => void; highlight?: boolean }) {
   const update = useIdeaMutation((patch: Partial<Idea>) => db.update(t).set(patch).where(eq(t.id, idea.id)));
   const remove = useIdeaMutation(() => db.update(t).set({ deletedAt: Date.now() }).where(eq(t.id, idea.id)));
   const addTask = useAddTask();
@@ -84,6 +88,12 @@ function IdeaCard({ idea, onOpen, highlight }: { idea: Idea; onOpen: (i: Idea) =
     const parsed = parseTask(firstLine, new Date(), "todo");
     await addTask.mutateAsync({ ...parsed, title: parsed.title || firstLine.trim(), tags: [...new Set([...parsed.tags, ...idea.tags])], notes: restText });
     toast.success("Added to To-do", { action: { label: "Open", onClick: () => void navigate({ to: pathOf("lists") }) } });
+  }
+
+  /** Opens the idea's board, making it first if there is none. */
+  async function toBoard() {
+    const id = board?.id ?? (await createBoard(titleFromIdea(idea.body), idea.id));
+    void navigate({ to: "/canvas/board", search: { b: id } });
   }
 
   function toGoal() {
@@ -109,8 +119,23 @@ function IdeaCard({ idea, onOpen, highlight }: { idea: Idea; onOpen: (i: Idea) =
       <p className="whitespace-pre-wrap break-words pr-4 text-[15px] leading-relaxed">
         <RichText text={idea.body} />
       </p>
-      <div className="mt-3 flex items-center justify-between">
-        <span className="text-[12px] text-muted-foreground">{formatDateTime(idea.updatedAt)}</span>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-[12px] text-muted-foreground">{formatDateTime(idea.updatedAt)}</span>
+          {board ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void toBoard();
+              }}
+              className="flex h-6 shrink-0 items-center gap-1 rounded-full border border-border bg-surface/70 px-2 text-[12px] font-medium text-muted-foreground hover:text-foreground"
+            >
+              <Scribble size={12} weight="bold" style={{ color: CANVAS_HUE }} />
+              Board
+            </button>
+          ) : null}
+        </span>
         <span onClick={(e) => e.stopPropagation()} className="opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
           <RowMenu
             items={[
@@ -119,6 +144,7 @@ function IdeaCard({ idea, onOpen, highlight }: { idea: Idea; onOpen: (i: Idea) =
                 : { label: "Pin", icon: PushPin, onSelect: () => update.mutate({ pinned: true }) },
               { label: "Make it a task", icon: ListPlus, onSelect: () => void toTask() },
               { label: "Make it a goal", icon: Flag, onSelect: toGoal },
+              { label: board ? "Open its board" : "Sketch it on a board", icon: Scribble, onSelect: () => void toBoard() },
               { label: "Delete", icon: Trash, danger: true, onSelect: () => remove.mutate(undefined) },
             ]}
           />
@@ -168,6 +194,8 @@ function IdeaEditor({ idea, onClose }: { idea: Idea | null; onClose: () => void 
 
 export function IdeasPage() {
   const { data, isLoading } = useIdeas();
+  const { data: boards } = useBoards();
+  const linked = useMemo(() => boardsByIdea(boards), [boards]);
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Idea | null>(null);
@@ -242,7 +270,7 @@ export function IdeasPage() {
             className="mt-6"
           >
             <p className="mb-2 text-[13px] font-semibold text-muted-foreground">From a while back</p>
-            <IdeaCard idea={surfacedIdea} onOpen={setEditing} highlight />
+            <IdeaCard idea={surfacedIdea} board={linked.get(surfacedIdea.id)} onOpen={setEditing} highlight />
           </motion.div>
         ) : null}
       </AnimatePresence>
@@ -269,7 +297,7 @@ export function IdeasPage() {
           <div className="columns-1 gap-3 sm:columns-2 lg:columns-3">
             <AnimatePresence initial={false}>
               {shown.map((idea) => (
-                <IdeaCard key={idea.id} idea={idea} onOpen={setEditing} />
+                <IdeaCard key={idea.id} idea={idea} board={linked.get(idea.id)} onOpen={setEditing} />
               ))}
             </AnimatePresence>
           </div>
