@@ -121,6 +121,22 @@ export interface PracticeReport {
   error: string | null;
 }
 
+export interface SportCandidate {
+  id: string;
+  sport: "nba" | "football" | "cricket";
+  kind: "team" | "player";
+  ref: string;
+  name: string;
+  subtitle: string | null;
+  league: string | null;
+  image: string | null;
+}
+
+export interface SportsReport {
+  updated: number;
+  errors: string[];
+}
+
 export interface GitHubReport {
   contributions: number;
   error: string | null;
@@ -164,6 +180,8 @@ export const ipc = {
   practiceRefresh: (platforms?: string[]) => call<PracticeReport[]>("practice_refresh", { platforms: platforms ?? null }),
   practiceContests: () => call<number>("practice_contests"),
   githubRefresh: () => call<GitHubReport | null>("github_refresh"),
+  sportsSearch: (sport: string, kind: string, query: string) => call<SportCandidate[]>("sports_search", { sport, kind, query }),
+  sportsRefresh: (ids?: string[]) => call<SportsReport>("sports_refresh", { ids: ids ?? null }),
 
   logsTail: (lines: number) => call<string>("logs_tail", { lines }),
   logFrontend: (level: "debug" | "info" | "warn" | "error", message: string) =>

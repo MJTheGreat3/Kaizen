@@ -14,6 +14,8 @@ import { FocusPage } from "@/modules/focus/FocusPage";
 import { ActivityPage } from "@/modules/activity/ActivityPage";
 import { GoalsPage } from "@/modules/goals/GoalsPage";
 import { PracticePage } from "@/modules/practice/PracticePage";
+import { PlayersPage } from "@/modules/sports/PlayersPage";
+import { SportsPage } from "@/modules/sports/SportsPage";
 
 /** Built modules; the rest show their placeholder. */
 const pages: Record<string, () => React.ReactNode> = {
@@ -27,6 +29,7 @@ const pages: Record<string, () => React.ReactNode> = {
   activity: ActivityPage,
   goals: GoalsPage,
   practice: PracticePage,
+  sports: SportsPage,
 };
 
 const rootRoute = createRootRoute({ component: AppShell });
@@ -45,8 +48,16 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
+/** Favourite players' stats, opened from the Sports showcase. */
+const playersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sports/players",
+  validateSearch: (search: Record<string, unknown>): { p?: string } => ({ p: typeof search.p === "string" ? search.p : undefined }),
+  component: PlayersPage,
+});
+
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([...moduleRoutes, settingsRoute]),
+  routeTree: rootRoute.addChildren([...moduleRoutes, playersRoute, settingsRoute]),
   // Hash history works the same under the dev server and the bundled app.
   history: createHashHistory(),
   defaultPreload: false,

@@ -368,6 +368,7 @@ pub fn synced_tables() -> impl Iterator<Item = &'static str> {
         .chain(V7_SYNCED)
         .chain(V8_SYNCED)
         .chain(V9_SYNCED)
+        .chain(V10_SYNCED)
         .copied()
 }
 
@@ -968,7 +969,113 @@ CREATE TABLE gh_issues (
     Ok(())
 }
 
-pub const LATEST: i64 = 9;
+const V10_SYNCED: &[&str] = &["sport_sessions", "sport_follows"];
+
+/// Phase 5, sports: my own sessions, and teams and players I follow.
+///
+/// Sessions write `sports` activity events (minutes). Follows are synced,
+/// ids are `{sport}:{kind}:{source id}` so both devices agree; followed
+/// players are the favourites showcase (five at most, in `sort` order).
+/// Games, player stats and the cricket search index are device caches.
+fn v10(conn: &Connection) -> Result<()> {
+    conn.execute_batch(&format!(
+        "
+CREATE TABLE sport_sessions (
+  id        TEXT PRIMARY KEY,
+  sport     TEXT NOT NULL,
+  date      TEXT NOT NULL,
+  minutes   INTEGER NOT NULL,
+  intensity INTEGER,
+  notes     TEXT,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX sport_sessions_date ON sport_sessions (date);
+
+CREATE TABLE sport_follows (
+  id       TEXT PRIMARY KEY,
+  sport    TEXT NOT NULL CHECK (sport IN ('nba', 'football', 'cricket')),
+  kind     TEXT NOT NULL CHECK (kind IN ('team', 'player')),
+  ref      TEXT NOT NULL,
+  name     TEXT NOT NULL,
+  subtitle TEXT,
+  league   TEXT,
+  image    TEXT,
+  sort     INTEGER NOT NULL DEFAULT 0,
+  error    TEXT,{BASE_COLUMNS}
+) STRICT;
+
+-- Device-local caches.
+CREATE TABLE sport_games (
+  id         TEXT PRIMARY KEY,
+  follow_id  TEXT NOT NULL,
+  sport      TEXT NOT NULL,
+  start_at   INTEGER NOT NULL,
+  league     TEXT,
+  title      TEXT,
+  home       TEXT NOT NULL,
+  home_short TEXT NOT NULL,
+  home_logo  TEXT,
+  home_score TEXT,
+  away       TEXT NOT NULL,
+  away_short TEXT NOT NULL,
+  away_logo  TEXT,
+  away_score TEXT,
+  state      TEXT NOT NULL,
+  status     TEXT NOT NULL,
+  url        TEXT
+) STRICT;
+CREATE INDEX sport_games_start ON sport_games (start_at);
+
+CREATE TABLE sport_stats (
+  id         TEXT PRIMARY KEY,
+  data       TEXT NOT NULL,
+  fetched_at INTEGER NOT NULL
+) STRICT;
+
+CREATE TABLE sport_index (
+  id         TEXT PRIMARY KEY,
+  sport      TEXT NOT NULL,
+  kind       TEXT NOT NULL,
+  ref        TEXT NOT NULL,
+  name       TEXT NOT NULL,
+  subtitle   TEXT,
+  league     TEXT,
+  image      TEXT,
+  fetched_at INTEGER NOT NULL
+) STRICT;
+"
+    ))?;
+    for table in V10_SYNCED {
+        install_clock_triggers(conn, table)?;
+    }
+    install_search_triggers(
+        conn,
+        &SearchSource {
+            table: "sport_sessions",
+            module: "'sports'",
+            title: "R.sport",
+            body: "R.notes",
+            tags: "''",
+            date: "R.date",
+            amount: "R.minutes",
+            status: "NULL",
+        },
+    )?;
+    install_search_triggers(
+        conn,
+        &SearchSource {
+            table: "sport_follows",
+            module: "'sports'",
+            title: "R.name",
+            body: "concat_ws(' ', R.sport, R.kind, R.subtitle)",
+            tags: "''",
+            date: "NULL",
+            amount: "NULL",
+            status: "R.kind",
+        },
+    )
+}
+
+pub const LATEST: i64 = 10;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -1005,6 +1112,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             7 => v7(&tx)?,
             8 => v8(&tx)?,
             9 => v9(&tx)?,
+            10 => v10(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;

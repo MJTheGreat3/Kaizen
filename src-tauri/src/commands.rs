@@ -8,6 +8,7 @@ use crate::backup::{self, BackupInfo};
 use crate::db::{DB_FILE, Database, QueryMethod};
 use crate::error::{Error, Result};
 use crate::practice;
+use crate::sports;
 use crate::sync::{
     self, Report, Status, drive,
     mailbox::{FolderMailbox, Mailbox},
@@ -640,6 +641,119 @@ pub async fn github_refresh(
                 }
             }))
         })
+    })
+    .await
+}
+
+/// Teams or players matching a search, ready to follow.
+#[tauri::command]
+pub async fn sports_search(
+    app: tauri::AppHandle,
+    sport: String,
+    kind: String,
+    query: String,
+) -> Result<Vec<sports::Candidate>> {
+    blocking(move || {
+        let (Some(sport), Some(kind)) =
+            (sports::Sport::from_id(&sport), sports::Kind::from_id(&kind))
+        else {
+            return Err(Error::Invalid("unknown sport".into()));
+        };
+        let query = query.trim().to_string();
+        if query.chars().count() < 2 {
+            return Ok(Vec::new());
+        }
+        let http = practice::http::Http::new();
+        let found = if sport == sports::Sport::Cricket {
+            let state = app.state::<AppState>();
+            // Building the index takes a dozen page loads, once a week.
+            let mut index = with_session(&state, |s| sports::cricket_index(s.db.conn()))?;
+            if index.is_empty() {
+                index = sports::cricbuzz::index(&http)?;
+                with_session(&state, |s| sports::store_index(s.db.conn(), &index))?;
+            }
+            sports::cricbuzz::filter(&index, kind, &query)
+        } else {
+            sports::espn::search(&http, sport, kind, &query)?
+        };
+        Ok(found)
+    })
+    .await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SportsReport {
+    updated: usize,
+    errors: Vec<String>,
+}
+
+/// One sports refresh at a time.
+static SPORTS_RUNNING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Fetches games for followed teams and stats for followed players (only
+/// those `ids` when given; player stats at most every six hours unless
+/// named).
+#[tauri::command]
+pub async fn sports_refresh(
+    app: tauri::AppHandle,
+    ids: Option<Vec<String>>,
+) -> Result<SportsReport> {
+    blocking(move || {
+        let _running = SPORTS_RUNNING.lock().unwrap_or_else(|e| e.into_inner());
+        let state = app.state::<AppState>();
+        let now = chrono::Utc::now().timestamp_millis();
+        let follows: Vec<_> = with_session(&state, |s| sports::follows(s.db.conn()))?
+            .into_iter()
+            .filter(|f| match &ids {
+                Some(ids) => ids.contains(&f.id),
+                None => {
+                    f.kind == sports::Kind::Team
+                        || f.stats_at.is_none_or(|t| now - t > 6 * 3_600_000)
+                }
+            })
+            .collect();
+        let http = practice::http::Http::new();
+        let results: Vec<_> = std::thread::scope(|scope| {
+            let handles: Vec<_> = follows
+                .iter()
+                .map(|f| {
+                    let http = &http;
+                    scope.spawn(move || sports::fetch(http, f))
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|h| h.join().expect("sports fetch panicked"))
+                .collect()
+        });
+        let mut report = SportsReport {
+            updated: 0,
+            errors: Vec::new(),
+        };
+        for (follow, result) in follows.iter().zip(results) {
+            with_session(&state, |s| {
+                match &result {
+                    Ok(fetched) => {
+                        sports::store(s.db.conn(), follow, fetched)?;
+                        report.updated += 1;
+                    }
+                    Err(e) => {
+                        let message = sports::describe(follow.sport, e);
+                        tracing::warn!(follow = follow.id, %message, "sports refresh failed");
+                        sports::store_error(s.db.conn(), follow, &message)?;
+                        report.errors.push(message);
+                    }
+                }
+                Ok(())
+            })?;
+        }
+        tracing::info!(
+            updated = report.updated,
+            failed = report.errors.len(),
+            "sports refreshed"
+        );
+        Ok(report)
     })
     .await
 }

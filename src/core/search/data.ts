@@ -33,6 +33,7 @@ export const SEARCH_MODULES: Record<string, ModuleInfo> = {
   read: { label: "Books", moduleId: "lists" },
   people: { label: "People", moduleId: "debts" },
   debts: { label: "Debts", moduleId: "debts" },
+  sports: { label: "Sports", moduleId: "sports" },
 };
 
 export function moduleOf(searchModule: string) {

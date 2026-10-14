@@ -488,7 +488,7 @@ kaizen/
 | 2. Sync (done) | Encrypted sync core with QR pairing; Google Drive transport first, then direct LAN / Tailscale; the phone is usable daily from here on |
 | 3. Focus and activity (done) | Forest-style focus timer (Android strict mode), activity heatmap with filters, streaks, universal search + command palette |
 | 4. Practice (done) | Codeforces, LeetCode, AtCoder and CodeChef connectors, CP analytics, contest reminders, revisit queue |
-| 5. Fitness and sports | Gym logging, templates, PRs, charts, sports sessions, body metrics; NBA and football team and player following |
+| 5. Fitness and sports | Sports done first (sessions, NBA, football and cricket following, favourite players); gym logging, templates, PRs, charts, body metrics still to do |
 | 6. Canvas | Whiteboard (Excalidraw), linking ideas to boards |
 | 7. Music | Spotify connection, remote-control player and mini player, local listening history, stats and summaries |
 | 8. Polish and extras | Android widgets, global quick capture, share sheet, weekly / monthly review, LLM features; maybe Health Connect sleep and health metrics |
@@ -659,6 +659,17 @@ Built and tested (Rust unit tests with saved responses, a live test against all 
 **GitHub** (added after Phase 4, migration v9): a GitHub username on the Practice page. The contribution calendar (every year on the first refresh, then the last twelve months) becomes `github` activity events, one per day with ids `ae:github:{date}`, so GitHub shows on the heatmap with its own streak. The page also lists the five repositories pushed to most recently (from push events, so other people's repositories count, with the latest commit message) and the issues I opened, am assigned or took part in (open and closed). Everything is read without a token: the REST API allows 60 requests an hour, a refresh uses about a dozen and skips commits it already knows. `gh_account` is synced; repositories and issues are device-local caches.
 
 Known limits: LeetCode history only from the first refresh on (its topic stats cover only those problems); CodeChef shows problem codes, not names, and reads at most 300 past submissions on the first refresh; the LeetCode and CodeChef adapters depend on their websites and may need fixing when those change.
+
+### 6.7 Phase 5, part 1: Sports (2026-10-14)
+
+Built and tested (Rust unit tests with sample payloads, a live test against ESPN and Cricbuzz, browser preview on desktop and phone):
+- **Sessions**: log a game or practice (sport, date, minutes, how hard, notes). Minutes feed the existing `sports` activity type, so sessions show on the heatmap and its streaks; the Sports page shows this week, this month, most played and a playing streak that follows the heatmap's rule for Sports.
+- **Following** (Rust, `src-tauri/src/sports/`): NBA and football through ESPN's public site API (search, team schedules across every competition, player stats); cricket through Cricbuzz, which has no open API, so the adapter reads the data its pages embed. Cricket search uses a local index of every international and league team plus a few hundred current players (built on the first cricket search, kept a week); anyone else can be added by pasting their Cricbuzz profile link. Teams show their next fixtures and latest results (live games first, a game between two followed teams once, W/L/D for the followed side).
+- **Favourite players**: up to five, in a swipeable carousel on the Sports page with a few headline numbers; each opens a separate Players page (`/sports/players`) with this season and all-time tables. NBA: the season's per-game and total numbers, career per-game, totals and every season. Football: this season by competition and the career by club, all competitions (ESPN reports per club and competition, so these are added up). Cricket: recent batting and bowling, ICC rankings, and career batting and bowling by format (Test, ODI, T20I, IPL).
+- **Storage** (migration v10): `sport_sessions` and `sport_follows` (synced; follow ids are `{sport}:{kind}:{source id}` so both devices agree), and device-local caches `sport_games`, `sport_stats` and `sport_index`. Sessions and follows are in search (`in:sports`).
+- Games refresh 25 s after unlock and every half hour when over an hour old; player stats at most every six hours (or on demand from the player page).
+
+Known limits: cricket has no per-season numbers on Cricbuzz, so "this season" is recent form; ESPN has no football appearances count (starts instead) and few football headshots; the Cricbuzz adapter depends on its pages and may need fixing when they change. Gym, body metrics and match reminders are still to come in Phase 5.
 
 ## 7. Open questions
 

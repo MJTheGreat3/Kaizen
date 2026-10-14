@@ -67,7 +67,7 @@ export async function loadDayLog(date: DateKey): Promise<DayLogItem[]> {
   const events = await db.select().from(e).where(and(isNull(e.deletedAt), eq(e.date, date)));
   const ids = (table: string) => events.filter((x) => x.sourceTable === table).map((x) => x.sourceId ?? "");
   const habitIds = ids("habit_logs").map((k) => k.split(":")[0]);
-  const [tasks, habits, marks, sessions] = await Promise.all([
+  const [tasks, habits, marks, sessions, games] = await Promise.all([
     ids("tasks").length ? db.select().from(schema.tasks).where(inArray(schema.tasks.id, ids("tasks"))) : [],
     habitIds.length ? db.select().from(schema.habits).where(inArray(schema.habits.id, habitIds)) : [],
     ids("attendance").length
@@ -79,6 +79,9 @@ export async function loadDayLog(date: DateKey): Promise<DayLogItem[]> {
       : [],
     ids("focus_sessions").length
       ? db.select().from(schema.focusSessions).where(inArray(schema.focusSessions.id, ids("focus_sessions")))
+      : [],
+    ids("sport_sessions").length
+      ? db.select().from(schema.sportSessions).where(inArray(schema.sportSessions.id, ids("sport_sessions")))
       : [],
   ]);
   const title = (ev: ActivityEvent): string => {
@@ -98,6 +101,8 @@ export async function loadDayLog(date: DateKey): Promise<DayLogItem[]> {
       }
       case "github":
         return "GitHub";
+      case "sport_sessions":
+        return games.find((x) => x.id === id)?.sport ?? "Sports";
       default:
         return ev.typeId;
     }

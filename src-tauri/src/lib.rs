@@ -4,6 +4,7 @@ mod db;
 mod error;
 mod logging;
 mod practice;
+mod sports;
 mod sync;
 #[cfg(target_os = "macos")]
 mod touchid;
@@ -92,6 +93,8 @@ pub fn run() {
             commands::practice_refresh,
             commands::practice_contests,
             commands::github_refresh,
+            commands::sports_search,
+            commands::sports_refresh,
             commands::sync_drive,
             commands::sync_drive_connect,
             commands::sync_drive_disconnect,

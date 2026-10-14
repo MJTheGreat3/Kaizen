@@ -46,6 +46,8 @@ export interface Prefs {
   "focus.grace": number;
   /** When this device last fetched upcoming contests. */
   "practice.contestsAt": number;
+  /** Last time followed teams' games were refreshed. */
+  "sports.refreshedAt": number;
   /** Platforms whose contests are shown and announced. */
   "practice.contestPlatforms": string[];
   /** Notify before contests start. */
@@ -83,6 +85,7 @@ export const defaultPrefs: Prefs = {
   "focus.dnd": true,
   "focus.grace": 10,
   "practice.contestsAt": 0,
+  "sports.refreshedAt": 0,
   "practice.contestPlatforms": ["codeforces", "leetcode", "atcoder", "codechef"],
   "notify.contests": true,
   "notify.contestsLead": 60,

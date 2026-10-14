@@ -607,3 +607,88 @@ export type CpProblem = typeof cpProblems.$inferSelect;
 export type CpRevisit = typeof cpRevisit.$inferSelect;
 export type CpRating = typeof cpRatings.$inferSelect;
 export type CpContest = typeof cpContests.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Sports (Phase 5)
+// ---------------------------------------------------------------------------
+
+export type SportId = "nba" | "football" | "cricket";
+
+/** A session I played (any sport); feeds the `sports` activity type. */
+export const sportSessions = sqliteTable("sport_sessions", {
+  id: id(),
+  sport: text("sport").notNull(),
+  date: text("date").notNull(),
+  minutes: integer("minutes").notNull(),
+  /** 1 easy, 2 moderate, 3 hard. */
+  intensity: integer("intensity"),
+  notes: text("notes"),
+  ...base,
+});
+
+/** A followed team, or a favourite player (the showcase, five at most). */
+export const sportFollows = sqliteTable("sport_follows", {
+  /** `{sport}:{kind}:{source id}`. */
+  id: text("id").primaryKey(),
+  sport: text("sport").$type<SportId>().notNull(),
+  kind: text("kind").$type<"team" | "player">().notNull(),
+  ref: text("ref").notNull(),
+  name: text("name").notNull(),
+  subtitle: text("subtitle"),
+  /** ESPN league slug, or the Cricbuzz page slug for cricket teams. */
+  league: text("league"),
+  image: text("image"),
+  sort: integer("sort").notNull().default(0),
+  error: text("error"),
+  ...base,
+});
+
+/** Device-local cache of followed teams' games. */
+export const sportGames = sqliteTable("sport_games", {
+  id: text("id").primaryKey(),
+  followId: text("follow_id").notNull(),
+  sport: text("sport").$type<SportId>().notNull(),
+  startAt: integer("start_at").notNull(),
+  league: text("league"),
+  title: text("title"),
+  home: text("home").notNull(),
+  homeShort: text("home_short").notNull(),
+  homeLogo: text("home_logo"),
+  homeScore: text("home_score"),
+  away: text("away").notNull(),
+  awayShort: text("away_short").notNull(),
+  awayLogo: text("away_logo"),
+  awayScore: text("away_score"),
+  state: text("state").$type<"pre" | "in" | "post">().notNull(),
+  status: text("status").notNull(),
+  url: text("url"),
+});
+
+export interface StatTable {
+  title: string;
+  columns: string[];
+  rows: { label: string; values: string[] }[];
+}
+
+export interface PlayerStats {
+  name: string;
+  team: string | null;
+  position: string | null;
+  image: string | null;
+  seasonLabel: string;
+  highlights: { label: string; value: string }[];
+  season: StatTable[];
+  career: StatTable[];
+}
+
+/** Device-local cache of favourite players' stats. */
+export const sportStats = sqliteTable("sport_stats", {
+  id: text("id").primaryKey(),
+  data: json<PlayerStats>("data").notNull(),
+  fetchedAt: integer("fetched_at").notNull(),
+});
+
+export type SportSession = typeof sportSessions.$inferSelect;
+export type SportFollow = typeof sportFollows.$inferSelect;
+export type SportGame = typeof sportGames.$inferSelect;
+export type SportStat = typeof sportStats.$inferSelect;
