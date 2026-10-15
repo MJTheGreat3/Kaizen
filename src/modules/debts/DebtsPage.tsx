@@ -423,6 +423,7 @@ export function DebtsPage() {
   const today = todayKey();
 
   useOpenTarget(["people", "debts"], !!data, ({ module, id }) => {
+    if (id === "new") return setEntryOpen(true);
     const personId = module === "debts" ? data?.debts.find((d) => d.id === id)?.personId : id;
     setSelected(data?.people.find((p) => p.id === personId) ?? null);
   });

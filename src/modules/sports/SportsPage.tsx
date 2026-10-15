@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/controls";
 import { RowMenu, SectionTitle } from "@/components/ui/kit";
 import type { SportSession } from "@/core/db/schema";
 import { Page, PageHeader } from "@/core/shell/PageHeader";
+import { useOpenTarget } from "@/core/shell/openRequest";
 import { addDaysKey, todayKey } from "@/lib/dates";
 import { rise } from "@/lib/motion";
 import { useNow } from "@/lib/time";
@@ -53,6 +54,15 @@ export function SportsPage() {
   const [editing, setEditing] = useState<SportSession | "new" | null>(null);
   const [allSessions, setAllSessions] = useState(false);
   const today = todayKey();
+
+  // "new" from the phone's Log sports shortcut; otherwise a session from search.
+  useOpenTarget(["sports"], !!data, ({ id }) => {
+    if (id === "new") setEditing("new");
+    else {
+      const session = data?.sessions.find((s) => s.id === id);
+      if (session) setEditing(session);
+    }
+  });
 
   const stats = useMemo(() => {
     if (!data) return null;

@@ -5,6 +5,16 @@ import { useOpenRequest } from "@/core/shell/openRequest";
 import { pathOf } from "@/modules/registry";
 import { useCapture } from "./store";
 
+/** App shortcuts that open a page rather than quick capture. */
+const SHORTCUTS: Record<string, { module: string; id: string; page: string }> = {
+  focus: { module: "focus", id: "start", page: "focus" },
+  gym: { module: "fitness", id: "start", page: "fitness" },
+  sports: { module: "sports", id: "new", page: "sports" },
+  board: { module: "canvas", id: "new", page: "canvas" },
+  debt: { module: "debts", id: "new", page: "debts" },
+  activity: { module: "activity", id: "open", page: "activity" },
+};
+
 /**
  * Brings in what the phone handed to Kaizen (shares, app shortcuts, the
  * Quick Settings tile, widgets) and the laptop's quick capture shortcut.
@@ -38,9 +48,10 @@ export function useIntake(platform: "android" | "desktop" | string) {
       try {
         const { ipc } = await import("@/lib/ipc");
         for (const item of await ipc.intakeTake(false)) {
-          if (item.source === "capture" && item.kind === "focus") {
-            useOpenRequest.getState().request({ module: "focus", id: "start" });
-            void navigate({ to: pathOf("focus") });
+          const target = item.source === "capture" ? SHORTCUTS[item.kind ?? ""] : undefined;
+          if (target) {
+            useOpenRequest.getState().request({ module: target.module, id: target.id });
+            void navigate({ to: pathOf(target.page) });
           } else if (item.source === "capture") {
             open({ kind: (item.kind as "task" | "idea") || "" });
           } else {

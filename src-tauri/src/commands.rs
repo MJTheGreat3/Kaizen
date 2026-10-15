@@ -1096,14 +1096,16 @@ pub async fn intake_take(return_to_app: bool) -> Result<JsonValue> {
     .await
 }
 
-/// Rewrites the phone widget's snapshot after changes in the app and
-/// redraws the widgets. Does nothing elsewhere.
+/// Rewrites the phone widgets' data after changes in the app (the Today
+/// snapshot from the database, and `feed`: streaks and Up next, which the
+/// app works out) and redraws the widgets. Does nothing elsewhere.
 #[tauri::command]
-pub async fn widget_refresh(app: tauri::AppHandle) -> Result<()> {
+pub async fn widget_refresh(app: tauri::AppHandle, feed: JsonValue) -> Result<()> {
     blocking(move || {
         #[cfg(target_os = "android")]
         {
             let state = app.state::<AppState>();
+            std::fs::write(state.data_dir.join("widget-app.json"), serde_json::to_vec(&feed)?)?;
             let live = vault::load_device_key(&state.data_dir)
                 .ok()
                 .flatten()
@@ -1115,7 +1117,7 @@ pub async fn widget_refresh(app: tauri::AppHandle) -> Result<()> {
             crate::android::call("Native", "updateWidgets", "")?;
         }
         #[cfg(not(target_os = "android"))]
-        let _ = app;
+        let _ = (app, feed);
         Ok(())
     })
     .await

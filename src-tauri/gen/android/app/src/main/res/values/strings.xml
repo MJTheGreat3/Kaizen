@@ -1,10 +1,20 @@
 <resources>
     <string name="app_name">"Kaizen"</string>
     <string name="main_activity_title">"Kaizen"</string>
+    <string name="shortcut_gym">Start workout</string>
+    <string name="shortcut_sports">Log sports</string>
+    <string name="shortcut_board">New board</string>
+    <string name="shortcut_debt">Add debt</string>
     <string name="shortcut_task">New task</string>
     <string name="shortcut_idea">New idea</string>
     <string name="shortcut_focus">Start focus</string>
     <string name="tile_capture">Capture</string>
     <string name="widget_today_name">Today</string>
     <string name="widget_today_description">Today\'s tasks and habits; tick them off from the home screen.</string>
+    <string name="widget_streak_name">Streak</string>
+    <string name="widget_streak_description">One streak: days or weeks in a row.</string>
+    <string name="widget_upnext_name">Up next</string>
+    <string name="widget_upnext_description">Games, contests and important dates coming up.</string>
+    <string name="widget_music_name">Music</string>
+    <string name="widget_music_description">A record that turns while music plays.</string>
 </resources>

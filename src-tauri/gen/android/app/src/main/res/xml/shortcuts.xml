@@ -1,6 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Long-press the app icon: quick capture straight into a list. -->
+<!-- Long-press the app icon (or drag one to the home screen). Launchers show the first few. -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="gym" android:enabled="true" android:icon="@drawable/ic_shortcut_gym"
+        android:shortcutShortLabel="@string/shortcut_gym">
+        <intent android:action="com.matt.kaizen.CAPTURE" android:targetPackage="com.matt.kaizen"
+            android:targetClass="com.matt.kaizen.MainActivity">
+            <extra android:name="kind" android:value="gym" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="sports" android:enabled="true" android:icon="@drawable/ic_shortcut_sports"
+        android:shortcutShortLabel="@string/shortcut_sports">
+        <intent android:action="com.matt.kaizen.CAPTURE" android:targetPackage="com.matt.kaizen"
+            android:targetClass="com.matt.kaizen.MainActivity">
+            <extra android:name="kind" android:value="sports" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="board" android:enabled="true" android:icon="@drawable/ic_shortcut_board"
+        android:shortcutShortLabel="@string/shortcut_board">
+        <intent android:action="com.matt.kaizen.CAPTURE" android:targetPackage="com.matt.kaizen"
+            android:targetClass="com.matt.kaizen.MainActivity">
+            <extra android:name="kind" android:value="board" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="debt" android:enabled="true" android:icon="@drawable/ic_shortcut_debt"
+        android:shortcutShortLabel="@string/shortcut_debt">
+        <intent android:action="com.matt.kaizen.CAPTURE" android:targetPackage="com.matt.kaizen"
+            android:targetClass="com.matt.kaizen.MainActivity">
+            <extra android:name="kind" android:value="debt" />
+        </intent>
+    </shortcut>
     <shortcut android:shortcutId="task" android:enabled="true" android:icon="@drawable/ic_shortcut_task"
         android:shortcutShortLabel="@string/shortcut_task">
         <intent android:action="com.matt.kaizen.CAPTURE" android:targetPackage="com.matt.kaizen"

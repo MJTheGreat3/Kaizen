@@ -738,6 +738,14 @@ Built and tested (Rust tests for the widget's snapshot, task completion with rec
 
 Known limits: the snapshot is plain text in the app's private storage (task titles and habit names), so the widget can show them on the home screen; a share opens Kaizen's unlock screen first when it is locked.
 
+### 6.13 Phase 8 outcome, part 2 (2026-10-15)
+
+- **Music widget** (round, 2x2 and up): the record with the cover on its label turns while music plays. Widgets cannot animate themselves, so the record is the second hand of an `AnalogClock` (Android 12+), turning once a minute, the same as the player's disc (one turn is one minute). Around it, the progress ring and a ring of bars in the cover's colours (redrawn every 5 s while playing; widgets cannot run a live visualiser), on a circle in the cover's dark colour. Tap the middle to play or pause, the left or right edge for 15 s back or forward (widgets only take taps, so the disc cannot be turned by hand), and the corner buttons to skip. It reads Android's media sessions (Spotify first), which needs Kaizen's **notification access** once (tapping the widget opens that setting); nothing is read from notifications. With nothing playing, a tap wakes Spotify where it left off.
+- **Streak widget** (2x2, one per streak): pick any streak when adding it (any activity, each activity type, each habit; long-press to change it). Shows the count in days or weeks, the flame in the streak's colour (faded until today or this week is done) and the best.
+- **Up next widget** (4x2): games, contests and important dates as on Today, with "Live", "in 2 h 5 min" or the date and time.
+- Streaks and Up next are worked out by the app and written to `widget-app.json` with the Today snapshot (after changes, on opening and on leaving).
+- **More app shortcuts**: Start workout, Log sports, New board, Add debt (before New task, New idea, Start focus; launchers show the first few, and any can be dragged to the home screen).
+
 ## 7. Open questions
 
 Answered: Android 16, CSV statements, sync via Google Drive (dedicated account) plus LAN / Tailscale (college Wi-Fi blocks LAN), React, LLM on laptop only, package `com.matt.kaizen`, Spotify Premium (yes), attendance minimum 80%, sports teams and players followed from inside the app, debts in ₹ only, bank is PNB, timetable entered manually (weekly) with extra classes, cancellations, holidays and vacations, labs/tutorials counted separately as an option, medical/duty leave counts as present, extra modules chosen (section 3), Finance built last.

@@ -54,6 +54,8 @@ object Native {
   @JvmStatic
   fun updateWidgets(context: Context, unused: String): String {
     TodayWidget.updateAll(context)
+    StreakWidget.updateAll(context)
+    UpNextWidget.updateAll(context)
     return ""
   }
 
