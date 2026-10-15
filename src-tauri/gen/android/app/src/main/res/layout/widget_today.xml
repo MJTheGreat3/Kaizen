@@ -64,6 +64,16 @@
             android:src="@drawable/ic_widget_idea" />
 
         <ImageView
+            android:id="@+id/widget_add_board"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/widget_button"
+            android:contentDescription="New board"
+            android:padding="7dp"
+            android:src="@drawable/ic_widget_board" />
+
+        <ImageView
             android:id="@+id/widget_add_task"
             android:layout_width="34dp"
             android:layout_height="34dp"

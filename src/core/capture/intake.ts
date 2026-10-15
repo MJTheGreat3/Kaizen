@@ -51,7 +51,10 @@ export function useIntake(platform: "android" | "desktop" | string) {
         const { ipc } = await import("@/lib/ipc");
         for (const item of await ipc.intakeTake(false)) {
           const target = item.source === "capture" ? SHORTCUTS[item.kind ?? ""] : undefined;
-          if (target) {
+          if (item.source === "capture" && item.kind?.startsWith("page:")) {
+            // A widget opening its page.
+            void navigate({ to: pathOf(item.kind.slice(5)) });
+          } else if (target) {
             useOpenRequest.getState().request({ module: target.module, id: target.id });
             void navigate({ to: pathOf(target.page) });
           } else if (item.source === "capture") {

@@ -34,6 +34,29 @@ class MusicWidget : AppWidgetProvider() {
     private const val ACTION = "com.matt.kaizen.MUSIC"
     private const val EXTRA = "do"
 
+    /** Redraws only the ring (progress), leaving the turning record alone. */
+    fun updateFace(context: Context) {
+      val manager = AppWidgetManager.getInstance(context)
+      val ids = manager.getAppWidgetIds(ComponentName(context, MusicWidget::class.java))
+      val duration = MusicState.duration
+      val progress = if (duration > 0) MusicState.position.toFloat() / duration else 0f
+      for (id in ids) {
+        val size = sizeOf(context, manager, id)
+        val views = RemoteViews(context.packageName, R.layout.widget_music)
+        views.setImageViewBitmap(R.id.music_face, face(MusicState.bg, MusicState.accent, progress, MusicState.playing, size))
+        manager.partiallyUpdateAppWidget(id, views)
+      }
+    }
+
+    private fun sizeOf(context: Context, manager: AppWidgetManager, id: Int): Int {
+      val options = manager.getAppWidgetOptions(id)
+      val dp = minOf(
+        options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 160),
+        options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 160),
+      ).coerceAtLeast(80)
+      return (dp * context.resources.displayMetrics.density).toInt().coerceIn(200, 900)
+    }
+
     fun updateAll(context: Context) {
       val manager = AppWidgetManager.getInstance(context)
       val ids = manager.getAppWidgetIds(ComponentName(context, MusicWidget::class.java))
@@ -92,7 +115,7 @@ class MusicWidget : AppWidgetProvider() {
     }
 
     /** The widget's face: background circle, bars and the progress ring around the record. */
-    fun face(bg: Int, accent: Int, progress: Float, playing: Boolean, seed: Long, size: Int): Bitmap {
+    fun face(bg: Int, accent: Int, progress: Float, playing: Boolean, size: Int): Bitmap {
       val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
       val c = Canvas(out)
       val r = size / 2f
@@ -107,11 +130,12 @@ class MusicWidget : AppWidgetProvider() {
       paint.strokeWidth = r * 0.022f
       paint.color = accent
       val bars = 72
-      val random = java.util.Random(seed)
       for (i in 0 until bars) {
         val band = if (i < bars / 2) i else bars - 1 - i
-        val low = 1f - band / (bars / 2f)
-        val level = if (playing) (0.25f + 0.55f * low) * (0.55f + 0.45f * random.nextFloat()) else 0.08f
+        val x = band / (bars / 2f)
+        // A still, even spectrum: fuller in the bass, gently rolling.
+        val shape = 0.35f + 0.4f * (1f - x) + 0.12f * sin(x * 9.4f)
+        val level = if (playing) shape.coerceIn(0.1f, 1f) else 0.08f
         val a = (i.toFloat() / bars) * 2 * Math.PI.toFloat() - (Math.PI / 2).toFloat()
         paint.alpha = (90 + 150 * level).toInt().coerceAtMost(255)
         c.drawLine(r + cos(a) * inner, r + sin(a) * inner, r + cos(a) * (inner + level * room), r + sin(a) * (inner + level * room), paint)
@@ -134,16 +158,10 @@ class MusicWidget : AppWidgetProvider() {
       val hasTrack = MusicState.controller?.metadata != null
       val duration = MusicState.duration
       val progress = if (duration > 0) MusicState.position.toFloat() / duration else 0f
-      val seed = System.currentTimeMillis() / 5000
       for (id in ids) {
         // Drawn at the widget's own size: the clock never scales its hands up.
-        val options = manager.getAppWidgetOptions(id)
-        val dp = minOf(
-          options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 160),
-          options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 160),
-        ).coerceAtLeast(80)
-        val size = (dp * context.resources.displayMetrics.density).toInt().coerceIn(200, 900)
-        val face = face(MusicState.bg, MusicState.accent, progress, playing, seed, size)
+        val size = sizeOf(context, manager, id)
+        val face = face(MusicState.bg, MusicState.accent, progress, playing, size)
         val record = disc(MusicState.art.takeIf { hasTrack }, MusicState.bg, size)
         val views = RemoteViews(context.packageName, R.layout.widget_music)
         views.setImageViewBitmap(R.id.music_face, face)
@@ -160,7 +178,7 @@ class MusicWidget : AppWidgetProvider() {
         views.setViewVisibility(R.id.music_play, if (playing) View.GONE else View.VISIBLE)
         views.setContentDescription(R.id.music_center, listOfNotNull(MusicState.title, MusicState.artist).joinToString(", ").ifEmpty { "Music" })
 
-        views.setOnClickPendingIntent(R.id.music_open, WidgetFeed.openApp(context, 36, "music"))
+        views.setOnClickPendingIntent(R.id.music_open, WidgetFeed.openApp(context, 36, "page:music"))
         if (!access) {
           val settings = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
           val open = PendingIntent.getActivity(context, 30, settings, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

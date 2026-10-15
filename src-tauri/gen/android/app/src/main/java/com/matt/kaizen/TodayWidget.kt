@@ -25,6 +25,7 @@ import kotlin.concurrent.thread
 class TodayWidget : AppWidgetProvider() {
   companion object {
     private const val TAG = "KaizenWidget"
+    const val FILE = "widget.json"
     private const val ACTION_TAP = "com.matt.kaizen.WIDGET_TAP"
     private const val EXTRA_ACTION = "action"
 
@@ -68,8 +69,11 @@ class TodayWidget : AppWidgetProvider() {
       for (id in ids) {
         val views = RemoteViews(context.packageName, R.layout.widget_today)
         views.setOnClickPendingIntent(R.id.widget_title, openApp(context, 1, null))
-        views.setOnClickPendingIntent(R.id.widget_add_task, openApp(context, 2, "task"))
+        // A new task is typed in a box over the home screen, without opening Kaizen.
+        val add = PendingIntent.getActivity(context, 2, QuickEntryActivity.intent(context, "task"), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        views.setOnClickPendingIntent(R.id.widget_add_task, add)
         views.setOnClickPendingIntent(R.id.widget_add_idea, openApp(context, 3, "idea"))
+        views.setOnClickPendingIntent(R.id.widget_add_board, openApp(context, 4, "board"))
 
         val today = LocalDate.now().toString()
         if (snap == null || snap.optString("date") != today && !snap.optBoolean("live")) {

@@ -11,6 +11,7 @@ mod logging;
 mod music;
 mod oauth;
 mod practice;
+mod quick;
 mod sports;
 mod sync;
 #[cfg(target_os = "macos")]

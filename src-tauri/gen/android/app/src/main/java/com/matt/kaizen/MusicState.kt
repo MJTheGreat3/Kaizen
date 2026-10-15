@@ -23,7 +23,7 @@ import androidx.palette.graphics.Palette
 object MusicState {
   private const val TAG = "KaizenMusic"
   private const val SPOTIFY = "com.spotify.music"
-  private const val TICK_MS = 5_000L
+  private const val TICK_MS = 15_000L
 
   var controller: MediaController? = null
     private set
@@ -37,6 +37,8 @@ object MusicState {
   private var manager: MediaSessionManager? = null
   private var appContext: Context? = null
   private var artKey: String? = null
+  /** What the widget last drew in full: redrawn only when this changes. */
+  private var drawn: String? = null
   private val handler = Handler(Looper.getMainLooper())
 
   private val callback = object : MediaController.Callback() {
@@ -54,7 +56,8 @@ object MusicState {
     override fun run() {
       val ctx = appContext ?: return
       if (playing) {
-        MusicWidget.updateAll(ctx)
+        // Only the ring moves on; redrawing the record would restart its turn.
+        MusicWidget.updateFace(ctx)
         handler.postDelayed(this, TICK_MS)
       }
     }
@@ -124,7 +127,14 @@ object MusicState {
         accent = 0xFFC94FD6.toInt()
       }
     }
-    MusicWidget.updateAll(ctx)
+    // Players report progress often; only a new song, cover or play state redraws the record.
+    val state = "$key|${System.identityHashCode(art)}|$playing|${controller != null}"
+    if (state != drawn) {
+      drawn = state
+      MusicWidget.updateAll(ctx)
+    } else {
+      MusicWidget.updateFace(ctx)
+    }
     handler.removeCallbacks(tick)
     if (playing) handler.postDelayed(tick, TICK_MS)
   }

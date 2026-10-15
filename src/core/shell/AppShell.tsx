@@ -79,10 +79,10 @@ function Sidebar() {
 
   return (
     <aside className="sticky top-0 hidden h-[100dvh] w-[252px] shrink-0 flex-col border-r border-border/80 bg-surface-muted/70 px-3 pt-safe md:flex">
-      <div className="flex items-center gap-2.5 px-2 pb-4 pt-5">
+      <Link to="/" aria-label="Kaizen, go to Today" className="flex items-center gap-2.5 rounded-xl px-2 pb-4 pt-5 transition-opacity hover:opacity-80">
         <BrandMark />
         <span className="text-[16px] font-semibold tracking-[-0.02em]">Kaizen</span>
-      </div>
+      </Link>
 
       <button
         onClick={() => openPalette(true)}
@@ -144,10 +144,10 @@ function MobileTopBar() {
   return (
     <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 pt-safe backdrop-blur-xl md:hidden">
       <div className="flex h-13 items-center justify-between px-4">
-        <span className="flex items-center gap-2.5">
+        <Link to="/" aria-label="Kaizen, go to Today" className="flex items-center gap-2.5 transition-transform active:scale-95">
           <BrandMark className="size-7 rounded-[9px] text-[13px]" />
           <span className="text-[15px] font-semibold tracking-[-0.02em]">Kaizen</span>
-        </span>
+        </Link>
         <div className="flex items-center gap-1">
           <button
             aria-label="Search"

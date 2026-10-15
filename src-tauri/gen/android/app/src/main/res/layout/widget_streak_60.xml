@@ -1,27 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A carousel of the chosen streaks: it moves on by itself (if chosen) and on a tap. -->
+<!-- The chosen streaks, moving on every 60 s; tapping a card opens its page in Kaizen. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/streak_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg">
 
-    <AdapterViewFlipper
+    <ViewFlipper
         android:id="@+id/streak_flipper"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:autoStart="true"
         android:flipInterval="60000"
-        android:inAnimation="@android:animator/fade_in"
-        android:outAnimation="@android:animator/fade_out"
-        android:loopViews="true" />
-
-    <!-- Taps on the cards themselves are unreliable in a flipper; this takes them. -->
-    <FrameLayout
-        android:id="@+id/streak_tap"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:contentDescription="Next streak" />
+        android:inAnimation="@android:anim/fade_in"
+        android:outAnimation="@android:anim/fade_out" />
 
     <TextView
         android:id="@+id/streak_empty"
@@ -29,7 +21,6 @@
         android:layout_height="match_parent"
         android:gravity="center"
         android:padding="12dp"
-        android:text="Tap to pick streaks"
         android:textColor="@color/widget_muted"
         android:textSize="13sp"
         android:visibility="gone" />
