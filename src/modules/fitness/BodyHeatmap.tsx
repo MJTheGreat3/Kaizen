@@ -37,7 +37,9 @@ export function BodyHeatmap({
   exercises: Map<string, Exercise>;
 }) {
   const box = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(600);
+  // Starts at the smallest squares and grows to fit: starting wide would
+  // stretch the page, and the box would then measure its own overflow.
+  const [width, setWidth] = useState(0);
   const [focus, setFocus] = useState<RegionId | null>(null);
   const [hover, setHover] = useState<DateKey | null>(null);
   useEffect(() => {
@@ -71,8 +73,8 @@ export function BodyHeatmap({
   const ranked = (regions: Map<RegionId, number>) => [...regions].sort((a, b) => b[1] - a[1]);
 
   return (
-    <div className="grid gap-3">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-8">
+    <div className="grid min-w-0 grid-cols-1 gap-3">
+      <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-start md:gap-8">
         <div
           ref={box}
           className="relative min-w-0 flex-1 overflow-hidden md:max-w-[480px]"

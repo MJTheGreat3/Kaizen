@@ -223,18 +223,20 @@ export function Player({ playback, palette }: { playback: Playback; palette: Pal
         <DeviceGlyph device={device} size={15} />
         <span className="truncate">{device?.name ?? "Choose a device"}</span>
       </button>
-      <span className="flex-1" />
-      <RoundButton
-        label={visualPref ? "Hide the visualiser" : "Show the visualiser"}
-        active={visualPref}
-        onClick={() => void setVisualPref(!visualPref)}
-      >
-        <Waveform size={20} />
-      </RoundButton>
-      <RoundButton label="Equaliser" onClick={() => setEqOpen(true)}>
-        <Faders size={20} />
-      </RoundButton>
-      {wide ? null : heartButton}
+      {/* Pulled right so the icons line up with the edge, not the buttons' padding. */}
+      <div className="-mr-2.5 ml-auto flex shrink-0 items-center">
+        <RoundButton
+          label={visualPref ? "Hide the visualiser" : "Show the visualiser"}
+          active={visualPref}
+          onClick={() => void setVisualPref(!visualPref)}
+        >
+          <Waveform size={20} />
+        </RoundButton>
+        <RoundButton label="Equaliser" onClick={() => setEqOpen(true)}>
+          <Faders size={20} />
+        </RoundButton>
+        {wide || saved.data === null || saved.data === undefined ? null : heartButton}
+      </div>
     </div>
   );
 
