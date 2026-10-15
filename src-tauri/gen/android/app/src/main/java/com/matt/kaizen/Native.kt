@@ -50,6 +50,13 @@ object Native {
     return ""
   }
 
+  /** Redraws the home-screen widgets from the snapshot the app just wrote. */
+  @JvmStatic
+  fun updateWidgets(context: Context, unused: String): String {
+    TodayWidget.updateAll(context)
+    return ""
+  }
+
   /** Everything handed to Kaizen since the last call, as a JSON list. */
   @JvmStatic
   @Synchronized

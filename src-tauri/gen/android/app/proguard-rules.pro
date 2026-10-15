@@ -22,3 +22,4 @@
 # Called from Rust over JNI.
 -keep class com.matt.kaizen.SportsNotifier { *; }
 -keep class com.matt.kaizen.Native { *; }
+-keep class com.matt.kaizen.TodayWidget { *; }

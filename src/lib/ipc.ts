@@ -251,6 +251,8 @@ export const ipc = {
   musicWake: (mode: "background" | "foreground") => call<boolean>("music_wake", { mode }),
   /** What was shared into Kaizen or asked by a shortcut, tile or widget since the last call (phone). */
   intakeTake: (returnToApp = false) => call<IntakeItem[]>("intake_take", { returnToApp }),
+  /** Rewrites the phone's home-screen widget from the database (phone only). */
+  widgetRefresh: () => call<void>("widget_refresh"),
   musicLyrics: (track: string, artist: string, album: string, durationMs: number) =>
     call<Lyrics>("music_lyrics", { track, artist, album, durationMs }),
 

@@ -490,8 +490,8 @@ kaizen/
 | 4. Practice (done) | Codeforces, LeetCode, AtCoder and CodeChef connectors, CP analytics, contest reminders, revisit queue |
 | 5. Fitness and sports (done) | Done: sports (sessions, NBA, football and cricket following, favourite players, game reminders) and gym (logging, routines, records, charts, body metrics) |
 | 6. Canvas (done) | Whiteboard (Excalidraw), linking ideas to boards |
-| 7. Music (built; waiting on the Spotify app) | Spotify connection, disc player with lyrics, visualiser and equaliser, mini player, local listening history, stats |
-| 8. Polish and extras | Android widgets, global quick capture, share sheet, weekly / monthly review, LLM features; maybe Health Connect sleep and health metrics |
+| 7. Music (done) | Spotify connection, disc player with lyrics, visualiser and equaliser, mini player, local listening history, stats |
+| 8. Polish and extras (in progress) | Done: Android widget, quick capture (shortcut, tile, share sheet, laptop hotkey), weekly / monthly review. Later: LLM features; maybe Health Connect sleep and health metrics |
 | 9. Finance (last) | PNB statement import, categorisation, insights, budgets; debt settle-up matching; spending added to the weekly review |
 
 Finance comes last on purpose: testing it means using the PNB banking app on the phone, which needs Developer options (USB debugging) switched off, so it is done once the rest no longer needs on-device debugging.
@@ -721,6 +721,22 @@ Built and tested (Rust tests for history and lyrics, a live LRCLIB test, unit te
 - **Rust** (`src-tauri/src/music/`): PKCE sign-in on the fixed loopback port (shared OAuth code moved to `oauth.rs`, used by Drive too), refresh tokens per device in `local_meta`, access tokens in memory (refreshed without holding the database), a `music_api` proxy so tokens never reach the page, clear messages for "no active device", Premium and rate limits.
 
 To do to use it: create the Spotify developer app (steps on the Music page and below), put the Client ID in `~/.zshrc` as `KAIZEN_SPOTIFY_CLIENT_ID`, rebuild, then Connect on each device.
+
+### 6.12 Phase 8 outcome, part 1 (2026-10-15)
+
+Built and tested (Rust tests for the widget's snapshot, task completion with recurrence and habit ticks; unit tests for review periods, habit rates and comparisons; browser preview of Review and quick capture). The phone-only parts (widget, share sheet, shortcuts, tile, waking Spotify) are built into the APK; they need a first try on the phone.
+- **Waking Spotify**: playing with no Spotify device active starts Spotify instead of failing. On the laptop Kaizen opens it hidden (`open -g -a Spotify`); on the phone it sends Spotify a play button press, which starts its player without opening it, and if Spotify still has not shown up after 6 s opens it briefly and comes back. Kaizen then plays on that device.
+- **Quick capture** (`src/core/capture/`): one box for a task (dates, times, repeats, priority and #tags in plain words, previewed as you type), an idea, something to watch or read, or an image (a new board holding it, or a progress photo). Links are guessed: YouTube, Netflix, IMDb and the like go to To watch, Goodreads and book pages to To read, anything else to Ideas. Opened from:
+  - the phone's **share sheet** (text, links and images from any app),
+  - **app shortcuts** on a long press of the icon (New task, New idea, Start focus),
+  - a **Quick Settings tile** (Capture),
+  - the widget's + and idea buttons,
+  - the laptop's **global shortcut ⌘⇧Space** and the menu bar icon.
+- **Laptop app in the background**: closing the window now hides it; Kaizen stays in the menu bar (Open, Quick capture, Quit) and the Dock, so reminders fire and the shortcut works with the window closed. ⌘Q or Quit ends it.
+- **Review** (`/review`, under Track): a week (Monday to Sunday) or month, steppable back, against the period before: active days (ring), a one-line summary, tasks done, habit check-ins as a share of those planned, focus time and trees, workouts and weight lifted, problems solved, music, sports, ideas and boards made, activity day by day (stacked by type, in the heatmap's colours) and highlights (best day, longest focus, most played song, books finished). Reminders on Sunday at 7 pm and on the 1st at 10 am (Settings > Notifications > Reviews).
+- **Home-screen widget** (Today, 4x3, resizable): today's and overdue tasks and today's habits, with the date and a count. Tapping a task completes it (a repeating one schedules its next, as in the app), tapping a habit ticks it (counted habits go up by one). Rust (`src-tauri/src/widget.rs`) writes a snapshot (`widget.json`) for the widget after changes in the app, when leaving the app and after each background sync, and applies taps by opening the database with the fingerprint-unlock key; without fingerprint unlock the widget shows the last snapshot and taps open the app. It refreshes itself every half hour for a new day. Light and dark follow the phone.
+
+Known limits: the snapshot is plain text in the app's private storage (task titles and habit names), so the widget can show them on the home screen; a share opens Kaizen's unlock screen first when it is locked.
 
 ## 7. Open questions
 

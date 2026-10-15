@@ -28,6 +28,13 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
     } catch (e: Exception) {
       Log.w("KaizenSync", "sports round failed", e)
     }
+    // Changes from the laptop reach the home-screen widget.
+    try {
+      TodayWidget.nativeWidget(dir, "refresh")
+      TodayWidget.updateAll(applicationContext)
+    } catch (e: Throwable) {
+      Log.w("KaizenSync", "widget refresh failed", e)
+    }
     // Failures are logged; the next periodic run tries again.
     return Result.success()
   }

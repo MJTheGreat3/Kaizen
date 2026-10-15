@@ -16,6 +16,7 @@ mod sync;
 #[cfg(target_os = "macos")]
 mod touchid;
 mod vault;
+mod widget;
 
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -119,6 +120,7 @@ pub fn run() {
             commands::music_lyrics,
             commands::music_wake,
             commands::intake_take,
+            commands::widget_refresh,
             commands::sync_drive,
             commands::sync_drive_connect,
             commands::sync_drive_disconnect,

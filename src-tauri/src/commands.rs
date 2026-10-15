@@ -1095,3 +1095,28 @@ pub async fn intake_take(return_to_app: bool) -> Result<JsonValue> {
     })
     .await
 }
+
+/// Rewrites the phone widget's snapshot after changes in the app and
+/// redraws the widgets. Does nothing elsewhere.
+#[tauri::command]
+pub async fn widget_refresh(app: tauri::AppHandle) -> Result<()> {
+    blocking(move || {
+        #[cfg(target_os = "android")]
+        {
+            let state = app.state::<AppState>();
+            let live = vault::load_device_key(&state.data_dir)
+                .ok()
+                .flatten()
+                .is_some();
+            with_session(&state, |s| {
+                let device = s.db.device_id()?;
+                crate::widget::act(s.db.conn(), &state.data_dir, &device, "refresh", live)
+            })?;
+            crate::android::call("Native", "updateWidgets", "")?;
+        }
+        #[cfg(not(target_os = "android"))]
+        let _ = app;
+        Ok(())
+    })
+    .await
+}

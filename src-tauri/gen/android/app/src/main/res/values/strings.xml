@@ -5,4 +5,6 @@
     <string name="shortcut_idea">New idea</string>
     <string name="shortcut_focus">Start focus</string>
     <string name="tile_capture">Capture</string>
+    <string name="widget_today_name">Today</string>
+    <string name="widget_today_description">Today\'s tasks and habits; tick them off from the home screen.</string>
 </resources>

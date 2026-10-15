@@ -17,6 +17,7 @@ import { PullToSearch } from "./PullToSearch";
 import { MiniPlayer, MusicHost } from "@/modules/music/MiniPlayer";
 import { useIntake } from "@/core/capture/intake";
 import { QuickCapture } from "@/core/capture/QuickCapture";
+import { useWidgetSync } from "@/core/widget";
 
 const groups: ModuleGroup[] = ["daily", "track", "create"];
 const SETTINGS_HUE = "#7d8696";
@@ -257,6 +258,7 @@ export function AppShell() {
   const path = useActivePath();
   const platform = useSession((s) => s.info?.platform ?? "");
   useIntake(platform);
+  useWidgetSync(platform);
   return (
     <div className="flex min-h-[100dvh] pl-safe pr-safe">
       <Sidebar />
