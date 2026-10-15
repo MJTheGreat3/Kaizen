@@ -2,24 +2,48 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_bg"
+    android:background="@drawable/widget_bg_upnext"
     android:orientation="vertical"
     android:padding="14dp">
 
-    <TextView
+    <LinearLayout
         android:id="@+id/upnext_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Up next"
-        android:textColor="@color/widget_text"
-        android:textSize="16sp"
-        android:textStyle="bold" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/widget_tile_upnext"
+            android:importantForAccessibility="no"
+            android:padding="7dp"
+            android:src="@drawable/ic_widget_hourglass" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Up next"
+            android:textColor="@color/widget_text"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/upnext_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/widget_muted"
+            android:textSize="12sp" />
+    </LinearLayout>
 
     <ListView
         android:id="@+id/upnext_list"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="8dp"
         android:layout_weight="1"
         android:divider="@null"
         android:dividerHeight="0dp" />

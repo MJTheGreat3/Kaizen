@@ -69,6 +69,8 @@ class MusicWidget : AppWidgetProvider() {
       paint.color = 0x14FFFFFF
       c.drawArc(RectF(r * 0.5f, r * 0.5f, r * 1.5f, r * 1.5f), -70f, 30f, false, paint)
       paint.style = Paint.Style.FILL
+      // Fully opaque again: the highlight above left the paint faint.
+      paint.color = Color.BLACK
       val label = r * 0.58f
       if (art != null) {
         val shader = BitmapShader(art, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
@@ -142,7 +144,7 @@ class MusicWidget : AppWidgetProvider() {
         ).coerceAtLeast(80)
         val size = (dp * context.resources.displayMetrics.density).toInt().coerceIn(200, 900)
         val face = face(MusicState.bg, MusicState.accent, progress, playing, seed, size)
-        val record = disc(if (hasTrack) MusicState.art else null, MusicState.bg, size)
+        val record = disc(MusicState.art.takeIf { hasTrack }, MusicState.bg, size)
         val views = RemoteViews(context.packageName, R.layout.widget_music)
         views.setImageViewBitmap(R.id.music_face, face)
         val turning = playing && Build.VERSION.SDK_INT >= 31
@@ -158,6 +160,7 @@ class MusicWidget : AppWidgetProvider() {
         views.setViewVisibility(R.id.music_play, if (playing) View.GONE else View.VISIBLE)
         views.setContentDescription(R.id.music_center, listOfNotNull(MusicState.title, MusicState.artist).joinToString(", ").ifEmpty { "Music" })
 
+        views.setOnClickPendingIntent(R.id.music_open, WidgetFeed.openApp(context, 36, "music"))
         if (!access) {
           val settings = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
           val open = PendingIntent.getActivity(context, 30, settings, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

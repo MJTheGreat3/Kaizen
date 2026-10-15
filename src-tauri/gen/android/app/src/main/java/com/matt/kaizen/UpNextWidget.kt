@@ -33,6 +33,7 @@ class UpNextWidget : AppWidgetProvider() {
         val views = RemoteViews(context.packageName, R.layout.widget_upnext)
         views.setOnClickPendingIntent(R.id.upnext_title, WidgetFeed.openApp(context, 20))
         views.setOnClickPendingIntent(R.id.upnext_empty, WidgetFeed.openApp(context, 20))
+        views.setTextViewText(R.id.upnext_count, if (items.isEmpty()) "" else "${items.size} coming")
         if (items.isEmpty() || Build.VERSION.SDK_INT < 31) {
           views.setViewVisibility(R.id.upnext_list, View.GONE)
           views.setViewVisibility(R.id.upnext_empty, View.VISIBLE)

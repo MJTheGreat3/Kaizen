@@ -6,4 +6,9 @@
     <color name="widget_line">#2C2E34</color>
     <color name="widget_accent">#8FA6F0</color>
     <color name="widget_danger">#F07A7A</color>
+    <color name="widget_today_tint">#2E261A</color>
+    <color name="widget_upnext_tint">#172A20</color>
+    <color name="widget_debts_tint">#2D2418</color>
+    <color name="widget_row">#14FFFFFF</color>
+    <color name="widget_good">#6BD49A</color>
 </resources>

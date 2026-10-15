@@ -13,6 +13,8 @@ const SHORTCUTS: Record<string, { module: string; id: string; page: string }> = 
   board: { module: "canvas", id: "new", page: "canvas" },
   debt: { module: "debts", id: "new", page: "debts" },
   activity: { module: "activity", id: "open", page: "activity" },
+  music: { module: "music", id: "open", page: "music" },
+  debts: { module: "debts", id: "open", page: "debts" },
 };
 
 /**

@@ -9,6 +9,9 @@ import { loadActivity } from "@/modules/activity/data";
 import { activeDays, streak, totalsByDay } from "@/modules/activity/logic";
 import { upcomingDates, loadDates } from "@/modules/calendar/data";
 import { DATE_STYLE } from "@/modules/calendar/labels";
+import { totals as debtTotals } from "@/modules/debts/balances";
+import { loadDebts } from "@/modules/debts/data";
+import { formatPaise } from "@/lib/money";
 import { loadHabits } from "@/modules/habits/data";
 import { streaks as habitStreaks } from "@/modules/habits/streaks";
 import { loadContests } from "@/modules/practice/data";
@@ -37,9 +40,20 @@ export interface UpNextFeed {
   color: string;
 }
 
+export interface DebtFeed {
+  owedToMe: string;
+  iOwe: string;
+  /** Positive: others owe you on balance. */
+  net: number;
+  netText: string;
+  /** The biggest balances: "Rahul owes you ₹250", "You owe Priya ₹1,200". */
+  people: { name: string; amount: string; toMe: boolean }[];
+}
+
 export interface WidgetFeed {
   streaks: StreakFeed[];
   upNext: UpNextFeed[];
+  debts: DebtFeed;
   at: number;
 }
 
@@ -47,13 +61,14 @@ const hue = (id: string) => modules.find((m) => m.id === id)?.hue ?? "#7a6ff0";
 
 export async function buildWidgetFeed(now = Date.now()): Promise<WidgetFeed> {
   const today = todayKey(new Date(now));
-  const [activity, habits, dates, contests, platforms, matches] = await Promise.all([
+  const [activity, habits, dates, contests, platforms, matches, debts] = await Promise.all([
     loadActivity(),
     loadHabits(400),
     loadDates(),
     loadContests(),
     getPref("practice.contestPlatforms"),
     loadMatches(now),
+    loadDebts(),
   ]);
 
   const totals = totalsByDay(activity.events);
@@ -90,5 +105,20 @@ export async function buildWidgetFeed(now = Date.now()): Promise<WidgetFeed> {
       .map(({ item, date }) => ({ title: item.title, at: new Date(`${date}T00:00:00`).getTime(), live: false, allDay: true, color: (DATE_STYLE[item.kind] ?? DATE_STYLE.other).hue })),
   ].sort((a, b) => Number(b.live) - Number(a.live) || a.at - b.at);
 
-  return { streaks: out, upNext, at: now };
+  const sum = debtTotals(debts.balance);
+  const names = new Map(debts.people.map((p) => [p.id, p.name]));
+  const people = [...debts.balance]
+    .filter(([, v]) => v !== 0)
+    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+    .slice(0, 3)
+    .map(([id, v]) => ({ name: names.get(id) ?? "Someone", amount: formatPaise(Math.abs(v)), toMe: v > 0 }));
+  const debtFeed: DebtFeed = {
+    owedToMe: formatPaise(sum.owedToMe),
+    iOwe: formatPaise(sum.iOwe),
+    net: sum.net,
+    netText: formatPaise(Math.abs(sum.net)),
+    people,
+  };
+
+  return { streaks: out, upNext, debts: debtFeed, at: now };
 }

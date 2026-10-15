@@ -105,18 +105,47 @@ object MusicState {
     val ctx = appContext ?: return
     val meta = controller?.metadata
     val key = meta?.getString(MediaMetadata.METADATA_KEY_MEDIA_ID) ?: meta?.getString(MediaMetadata.METADATA_KEY_TITLE)
-    if (key != artKey) {
+    // Players often announce a song first and its cover a moment later, so
+    // the cover is taken whenever it is new, not only when the song is.
+    val cover = cover(ctx, meta)
+    if (key != artKey || (cover != null && cover !== art)) {
       artKey = key
-      art = meta?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART) ?: meta?.getBitmap(MediaMetadata.METADATA_KEY_ART)
-      art?.let { bitmap ->
-        val palette = Palette.from(bitmap).generate()
-        bg = palette.getDarkMutedColor(palette.getDarkVibrantColor(0xFF1D1B26.toInt()))
-        accent = palette.getVibrantColor(palette.getLightVibrantColor(palette.getDominantColor(0xFFC94FD6.toInt())))
+      art = cover
+      if (cover != null) {
+        try {
+          val palette = Palette.from(cover).generate()
+          bg = palette.getDarkMutedColor(palette.getDarkVibrantColor(0xFF1D1B26.toInt()))
+          accent = palette.getVibrantColor(palette.getLightVibrantColor(palette.getDominantColor(0xFFC94FD6.toInt())))
+        } catch (e: Exception) {
+          Log.w(TAG, "cover colours failed", e)
+        }
+      } else {
+        bg = 0xFF1D1B26.toInt()
+        accent = 0xFFC94FD6.toInt()
       }
     }
     MusicWidget.updateAll(ctx)
     handler.removeCallbacks(tick)
     if (playing) handler.postDelayed(tick, TICK_MS)
+  }
+
+  /** The cover from the session: a bitmap, or loaded from its URI; software, so it can be drawn and read. */
+  private fun cover(context: Context, meta: MediaMetadata?): Bitmap? {
+    meta ?: return null
+    val bitmap = meta.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+      ?: meta.getBitmap(MediaMetadata.METADATA_KEY_ART)
+      ?: meta.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+      ?: listOf(MediaMetadata.METADATA_KEY_ALBUM_ART_URI, MediaMetadata.METADATA_KEY_ART_URI, MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI)
+        .mapNotNull { meta.getString(it) }
+        .firstNotNullOfOrNull { uri ->
+          try {
+            context.contentResolver.openInputStream(android.net.Uri.parse(uri))?.use { android.graphics.BitmapFactory.decodeStream(it) }
+          } catch (e: Exception) {
+            null
+          }
+        }
+      ?: return null
+    return if (bitmap.config == Bitmap.Config.HARDWARE) bitmap.copy(Bitmap.Config.ARGB_8888, false) else bitmap
   }
 
   val playing: Boolean

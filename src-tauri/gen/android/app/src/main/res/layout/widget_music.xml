@@ -64,6 +64,16 @@
     </LinearLayout>
 
     <ImageView
+        android:id="@+id/music_open"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_gravity="top|end"
+        android:background="@drawable/widget_corner"
+        android:contentDescription="Open Music in Kaizen"
+        android:padding="7dp"
+        android:src="@drawable/ic_widget_open" />
+
+    <ImageView
         android:id="@+id/music_prev"
         android:layout_width="30dp"
         android:layout_height="30dp"

@@ -34,6 +34,16 @@ class StreakWidget : AppWidgetProvider() {
         .apply()
     }
 
+    /** A layout per pace: a widget cannot change a flipper's timing remotely. */
+    private fun layout(seconds: Int) = when (seconds) {
+      0 -> R.layout.widget_streak_0
+      4 -> R.layout.widget_streak_4
+      10 -> R.layout.widget_streak_10
+      20 -> R.layout.widget_streak_20
+      60 -> R.layout.widget_streak_60
+      else -> R.layout.widget_streak_6
+    }
+
     fun interval(context: Context, widgetId: Int): Int =
       context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("i$widgetId", 6)
 
@@ -65,8 +75,8 @@ class StreakWidget : AppWidgetProvider() {
     }
 
     fun render(context: Context, manager: AppWidgetManager, widgetId: Int) {
-      val views = RemoteViews(context.packageName, R.layout.widget_streak)
       val streaks = chosen(context, widgetId).mapNotNull { WidgetFeed.streak(context, it) }
+      val views = RemoteViews(context.packageName, layout(if (streaks.size > 1) interval(context, widgetId) else 0))
       if (streaks.isEmpty() || Build.VERSION.SDK_INT < 31) {
         views.setViewVisibility(R.id.streak_flipper, View.GONE)
         views.setViewVisibility(R.id.streak_tap, View.GONE)
@@ -82,11 +92,6 @@ class StreakWidget : AppWidgetProvider() {
       views.setViewVisibility(R.id.streak_tap, if (streaks.size > 1) View.VISIBLE else View.GONE)
       views.setViewVisibility(R.id.streak_empty, View.GONE)
       views.setRemoteAdapter(R.id.streak_flipper, items.build())
-      // Moving on by itself, or only on a tap (a flipper cannot be stopped remotely, so "off" waits a day).
-      val seconds = interval(context, widgetId)
-      val auto = seconds > 0 && streaks.size > 1
-      views.setBoolean(R.id.streak_flipper, "setAutoStart", auto)
-      views.setInt(R.id.streak_flipper, "setFlipInterval", if (auto) seconds * 1000 else 86_400_000)
       // A tap moves to the next streak.
       val next = Intent(context, StreakWidget::class.java).setAction(ACTION_NEXT).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
       views.setOnClickPendingIntent(
@@ -106,7 +111,7 @@ class StreakWidget : AppWidgetProvider() {
     if (intent.action != ACTION_NEXT) return
     val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
     if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return
-    val views = RemoteViews(context.packageName, R.layout.widget_streak)
+    val views = RemoteViews(context.packageName, layout(interval(context, id)))
     views.showNext(R.id.streak_flipper)
     AppWidgetManager.getInstance(context).partiallyUpdateAppWidget(id, views)
   }
