@@ -4,6 +4,8 @@ mod attachments;
 mod backup;
 mod commands;
 mod db;
+#[cfg(desktop)]
+mod desktop;
 mod error;
 mod logging;
 mod music;
@@ -68,6 +70,8 @@ pub fn run() {
                 });
             }
             app.manage(AppState { data_dir, log_dir, session: Mutex::new(None) });
+            #[cfg(desktop)]
+            desktop::setup(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -113,10 +117,19 @@ pub fn run() {
             commands::music_api,
             commands::music_history_sync,
             commands::music_lyrics,
+            commands::music_wake,
+            commands::intake_take,
             commands::sync_drive,
             commands::sync_drive_connect,
             commands::sync_drive_disconnect,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, _event| {
+            // Clicking the Dock icon brings the hidden window back.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = _event {
+                desktop::show(_app);
+            }
+        });
 }

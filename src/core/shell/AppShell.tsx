@@ -15,6 +15,8 @@ import { CommandPalette } from "./CommandPalette";
 import { usePalette } from "./palette";
 import { PullToSearch } from "./PullToSearch";
 import { MiniPlayer, MusicHost } from "@/modules/music/MiniPlayer";
+import { useIntake } from "@/core/capture/intake";
+import { QuickCapture } from "@/core/capture/QuickCapture";
 
 const groups: ModuleGroup[] = ["daily", "track", "create"];
 const SETTINGS_HUE = "#7d8696";
@@ -253,6 +255,8 @@ function BottomNav() {
 
 export function AppShell() {
   const path = useActivePath();
+  const platform = useSession((s) => s.info?.platform ?? "");
+  useIntake(platform);
   return (
     <div className="flex min-h-[100dvh] pl-safe pr-safe">
       <Sidebar />
@@ -274,6 +278,7 @@ export function AppShell() {
       <MusicHost />
       <SyncButton variant="floating" />
       <CommandPalette />
+      <QuickCapture />
       <PullToSearch />
     </div>
   );

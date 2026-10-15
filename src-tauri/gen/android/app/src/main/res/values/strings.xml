@@ -1,4 +1,8 @@
 <resources>
     <string name="app_name">"Kaizen"</string>
     <string name="main_activity_title">"Kaizen"</string>
+    <string name="shortcut_task">New task</string>
+    <string name="shortcut_idea">New idea</string>
+    <string name="shortcut_focus">Start focus</string>
+    <string name="tile_capture">Capture</string>
 </resources>

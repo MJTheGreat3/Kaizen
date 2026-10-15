@@ -1045,3 +1045,53 @@ pub async fn music_lyrics(
     })
     .await
 }
+
+/// Starts Spotify so it can play: `background` tries without showing it
+/// (hidden on the laptop; a play button press on the phone), `foreground`
+/// opens it (phone). Returns false when Spotify is not installed.
+#[tauri::command]
+pub async fn music_wake(mode: String) -> Result<bool> {
+    blocking(move || {
+        #[cfg(target_os = "android")]
+        {
+            Ok(crate::android::call("Native", "wakeSpotify", &mode)? != "no")
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let _ = mode;
+            let status = std::process::Command::new("open")
+                .args(["-g", "-a", "Spotify"])
+                .status()?;
+            Ok(status.success())
+        }
+        #[cfg(not(any(target_os = "android", target_os = "macos")))]
+        {
+            let _ = mode;
+            Ok(false)
+        }
+    })
+    .await
+}
+
+/// Brings Kaizen back in front (phone), after opening Spotify to wake it.
+/// Also returns what was shared into Kaizen, or asked of it by a shortcut,
+/// the Quick Settings tile or a widget, since the last call (JSON list).
+#[tauri::command]
+pub async fn intake_take(return_to_app: bool) -> Result<JsonValue> {
+    blocking(move || {
+        #[cfg(target_os = "android")]
+        {
+            if return_to_app {
+                crate::android::call("Native", "returnToApp", "")?;
+            }
+            let text = crate::android::call("Native", "takeIntake", "")?;
+            Ok(serde_json::from_str(&text).unwrap_or(JsonValue::Array(vec![])))
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = return_to_app;
+            Ok(JsonValue::Array(vec![]))
+        }
+    })
+    .await
+}

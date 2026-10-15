@@ -354,23 +354,56 @@ function pickDevice(devices: { id: string; type: string; isActive: boolean }[], 
   return [...devices].sort((a, b) => Number(b.isActive) - Number(a.isActive) || rank(a.type) - rank(b.type))[0];
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function waitForDevice(ms: number, android: boolean) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    await sleep(1000);
+    const device = pickDevice(await spotify.devices().catch(() => []), android);
+    if (device) return device;
+  }
+  return null;
+}
+
 /**
- * Starts playback; when no device is active, wakes the best available one
- * (an open Spotify app) instead of failing.
+ * Plays, starting Spotify first when no device is active: an open Spotify
+ * app is used at once; otherwise Kaizen starts Spotify without showing it
+ * (hidden on the laptop, a play button press on the phone), and on the
+ * phone opens it briefly if that was not enough, then comes back.
  */
+export async function playWithWake(body?: Parameters<typeof spotify.play>[0]) {
+  try {
+    await spotify.play(body);
+    return;
+  } catch (e) {
+    if (!String(e).includes("No Spotify device")) throw e;
+  }
+  const android = audioFxAvailable();
+  let device: { id: string } | null | undefined = pickDevice(await spotify.devices(), android);
+  if (!device) {
+    const toastId = toast.loading("Starting Spotify…");
+    try {
+      if (!(await ipc.musicWake("background"))) throw new Error("Spotify is not installed on this device.");
+      device = await waitForDevice(android ? 6000 : 12000, android);
+      if (!device && android) {
+        await ipc.musicWake("foreground");
+        device = await waitForDevice(12000, android);
+        await ipc.intakeTake(true).catch(() => []);
+      }
+    } finally {
+      toast.dismiss(toastId);
+    }
+  }
+  if (!device) throw new Error("Spotify did not come online. Open it once and try again.");
+  await spotify.play(body, device.id);
+}
+
+/** Starts playback, waking Spotify when needed. */
 export function usePlay() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (body: Parameters<typeof spotify.play>[0]) => {
-      try {
-        await spotify.play(body);
-      } catch (e) {
-        if (!String(e).includes("No Spotify device")) throw e;
-        const device = pickDevice(await spotify.devices(), audioFxAvailable());
-        if (!device) throw e;
-        await spotify.play(body, device.id);
-      }
-    },
+    mutationFn: (body: Parameters<typeof spotify.play>[0]) => playWithWake(body),
     onSettled: () => refreshSoon(client, 700),
     onError: (e) => toast.error(String(e instanceof Error ? e.message : e)),
   });

@@ -84,12 +84,13 @@ object SportsNotifier {
 
   /** Posts a JSON list of alerts: [{key, title, body, muteId, url}]. */
   @JvmStatic
-  fun postAll(context: Context, json: String) {
+  fun postAll(context: Context, json: String): String {
     val list = JSONArray(json)
     for (i in 0 until list.length()) {
       val a = list.getJSONObject(i)
       post(context, a.getString("key"), a.getString("title"), a.getString("body"), a.text("muteId"), a.text("url"))
     }
+    return ""
   }
 
   private fun alarmIntent(context: Context, key: String, extras: Intent.() -> Unit = {}): PendingIntent {
@@ -103,7 +104,7 @@ object SportsNotifier {
 
   /** Replaces the scheduled game reminders with a JSON list: [{key, at, title, body, muteId, url}]. */
   @JvmStatic
-  fun scheduleAll(context: Context, json: String) {
+  fun scheduleAll(context: Context, json: String): String {
     val alarms = context.getSystemService(AlarmManager::class.java)
     val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     for (key in prefs.getStringSet(SCHEDULED, emptySet()) ?: emptySet()) {
@@ -131,6 +132,7 @@ object SportsNotifier {
       keys.add(key)
     }
     prefs.edit().putStringSet(SCHEDULED, keys).apply()
+    return ""
   }
 
   /** Mutes waiting for Rust: one id and title per line. */

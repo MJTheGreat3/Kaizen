@@ -72,6 +72,8 @@ export interface Prefs {
   "search.opened": { module: string; id: string; title: string }[];
   /** Equaliser on this phone: on or off, preset id, and custom gains (dB per phone band). */
   "music.eq": { on: boolean; preset: string; custom: number[] };
+  /** Weekly (Sunday evening) and monthly review reminders. */
+  "notify.review": boolean;
   /** Visualiser around the disc. */
   "music.visualizer": boolean;
 }
@@ -115,6 +117,7 @@ export const defaultPrefs: Prefs = {
   "search.opened": [],
   "music.eq": { on: false, preset: "flat", custom: [] },
   "music.visualizer": true,
+  "notify.review": true,
 };
 
 const PREFIX = "pref.";

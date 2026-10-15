@@ -77,6 +77,49 @@ export async function createBoard(title: string, ideaId: string | null = null): 
   return id;
 }
 
+/** A board holding one image (e.g. shared from another app), sized to fit about 800 px. */
+export async function createBoardWithImage(title: string, image: { dataUrl: string; mime: string; width: number; height: number }): Promise<string> {
+  const id = await createBoard(title);
+  const fileId = uuidv7().replace(/-/g, "");
+  const scale = Math.min(1, 800 / Math.max(image.width, image.height));
+  const now = Date.now();
+  const element = {
+    id: uuidv7(),
+    type: "image",
+    x: 0,
+    y: 0,
+    width: Math.round(image.width * scale),
+    height: Math.round(image.height * scale),
+    angle: 0,
+    strokeColor: "transparent",
+    backgroundColor: "transparent",
+    fillStyle: "solid",
+    strokeWidth: 1,
+    strokeStyle: "solid",
+    roughness: 1,
+    opacity: 100,
+    groupIds: [],
+    frameId: null,
+    index: "a0",
+    roundness: null,
+    seed: Math.floor(Math.random() * 2 ** 31),
+    version: 1,
+    versionNonce: Math.floor(Math.random() * 2 ** 31),
+    isDeleted: false,
+    boundElements: null,
+    updated: now,
+    link: null,
+    locked: false,
+    status: "saved",
+    fileId,
+    scale: [1, 1],
+    crop: null,
+  };
+  await db.update(b).set({ elements: [element] }).where(eq(b.id, id));
+  await db.insert(bf).values({ id: fileId, boardId: id, mime: image.mime, data: image.dataUrl });
+  return id;
+}
+
 export function useCreateBoard() {
   return useBoardMutation(({ title, ideaId }: { title: string; ideaId?: string | null }) => createBoard(title, ideaId ?? null));
 }

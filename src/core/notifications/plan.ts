@@ -4,7 +4,7 @@
  */
 import type { Prefs } from "@/core/db/prefs";
 import type { Habit, ImportantDate, Task } from "@/core/db/schema";
-import { addDaysKey, atTime, timeToMinutes, todayKey, type DateKey } from "@/lib/dates";
+import { addDaysKey, atTime, fromKey, isoWeekday, timeToMinutes, todayKey, type DateKey } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { occurrencesBetween } from "@/modules/calendar/attendance";
 import type { CalendarData } from "@/modules/calendar/data";
@@ -193,6 +193,16 @@ export function buildPlan(input: PlanInput, horizonDays = 3): PlannedNotificatio
       ].filter(Boolean);
       if (!parts.length) continue;
       push({ key: `digest:${d}`, at: atTime(d, timeToMinutes(digest)), title: "Your day", body: parts.join(", ") });
+    }
+  }
+
+  if (prefs["notify.review"]) {
+    for (let d: DateKey = today; d <= last; d = addDaysKey(d, 1)) {
+      if (isoWeekday(d) === 7) push({ key: `review:week:${d}`, at: atTime(d, 19 * 60), title: "Your week in review", body: "See how the week went, in Review." });
+      if (d.endsWith("-01")) {
+        const month = fromKey(addDaysKey(d, -1)).toLocaleDateString([], { month: "long" });
+        push({ key: `review:month:${d}`, at: atTime(d, 10 * 60), title: `${month} in review`, body: "Your month at a glance, in Review." });
+      }
     }
   }
 

@@ -40,6 +40,17 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
   }
 }
 
+export interface IntakeItem {
+  source: "share" | "capture";
+  /** Capture: task, idea, focus, or empty for any. */
+  kind?: string;
+  subject?: string;
+  text?: string;
+  /** Shared image, base64. */
+  image?: string;
+  mime?: string;
+}
+
 export interface MusicStatus {
   /** This build has a Spotify Client ID. */
   configured: boolean;
@@ -236,6 +247,10 @@ export const ipc = {
   musicApi: <T = unknown>(method: "GET" | "PUT" | "POST" | "DELETE", path: string, body?: unknown) =>
     call<T>("music_api", { method, path, body: body ?? null }),
   musicHistorySync: () => call<number>("music_history_sync"),
+  /** Starts Spotify: `background` without showing it, `foreground` opens it (phone). False if not installed. */
+  musicWake: (mode: "background" | "foreground") => call<boolean>("music_wake", { mode }),
+  /** What was shared into Kaizen or asked by a shortcut, tile or widget since the last call (phone). */
+  intakeTake: (returnToApp = false) => call<IntakeItem[]>("intake_take", { returnToApp }),
   musicLyrics: (track: string, artist: string, album: string, durationMs: number) =>
     call<Lyrics>("music_lyrics", { track, artist, album, durationMs }),
 

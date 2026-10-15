@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { usePref } from "@/core/db/prefs";
 import { openUrl } from "@/lib/native";
 import { cn } from "@/lib/utils";
-import { useAudioFxState, useControl, useDevices, useSaved, useToggleSaved } from "./data";
+import { useAudioFxState, useControl, useDevices, useSaved, useToggleSaved, playWithWake } from "./data";
 import { Disc, type VisualSource } from "./Disc";
 import { EqualizerDialog } from "./Equalizer";
 import { Lyrics } from "./Lyrics";
@@ -186,7 +186,7 @@ export function Player({ playback, palette }: { playback: Playback; palette: Pal
     control.mutate({ run: () => spotify.seek(ms), optimistic: (p) => ({ ...p, progressMs: ms }) });
   const toggle = () =>
     control.mutate({
-      run: () => (playback.isPlaying ? spotify.pause() : spotify.play()),
+      run: () => (playback.isPlaying ? spotify.pause() : playWithWake()),
       optimistic: (p) => ({ ...p, isPlaying: !p.isPlaying }),
     });
   const skip = (dir: 1 | -1) => {
