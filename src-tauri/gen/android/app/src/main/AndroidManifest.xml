@@ -4,6 +4,11 @@
     <!-- On-time reminders for classes and tasks (sideloaded app, no Play policy review). -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
+    <!-- Android 11+ hides other apps unless named: Kaizen wakes Spotify to play. -->
+    <queries>
+        <package android:name="com.spotify.music" />
+    </queries>
+
     <!-- AndroidTV support -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
