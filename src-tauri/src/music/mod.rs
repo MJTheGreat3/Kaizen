@@ -262,6 +262,28 @@ pub fn call(
     if !path.starts_with('/') || path.contains("://") {
         return Err(Error::Invalid("bad Spotify path".into()));
     }
+    // A dropped connection (Android cuts the network of apps in the
+    // background, e.g. while Spotify is opened to wake it) is retried for a
+    // few seconds; answers from Spotify, errors included, are not.
+    let mut attempt = 0;
+    loop {
+        match call_once(token, method, path, body) {
+            Err(Error::Http(e)) if attempt < 5 => {
+                attempt += 1;
+                tracing::info!(error = %e, attempt, "Spotify request failed; retrying");
+                std::thread::sleep(Duration::from_millis(700 * attempt));
+            }
+            other => return other,
+        }
+    }
+}
+
+fn call_once(
+    token: &str,
+    method: &str,
+    path: &str,
+    body: Option<&JsonValue>,
+) -> Result<(u16, JsonValue)> {
     let url = format!("{API_URL}{path}");
     let agent = agent();
     let auth = format!("Bearer {token}");

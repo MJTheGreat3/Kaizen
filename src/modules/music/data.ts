@@ -356,6 +356,13 @@ function pickDevice(devices: { id: string; type: string; isActive: boolean }[], 
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Waits until Kaizen is in front again (or `ms` passes). */
+async function untilVisible(ms: number) {
+  const until = Date.now() + ms;
+  while (document.visibilityState !== "visible" && Date.now() < until) await sleep(250);
+  await sleep(500);
+}
+
 async function waitForDevice(ms: number, android: boolean) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
@@ -387,9 +394,13 @@ export async function playWithWake(body?: Parameters<typeof spotify.play>[0]) {
       if (!(await ipc.musicWake("background"))) throw new Error("Spotify is not installed on this device.");
       device = await waitForDevice(android ? 6000 : 12000, android);
       if (!device && android) {
+        // Spotify needs a moment in front to start; Kaizen has no network
+        // in the background, so it comes back before looking again.
         await ipc.musicWake("foreground");
-        device = await waitForDevice(12000, android);
+        await sleep(4000);
         await ipc.intakeTake(true).catch(() => []);
+        await untilVisible(8000);
+        device = await waitForDevice(12000, android);
       }
     } finally {
       toast.dismiss(toastId);
