@@ -69,9 +69,7 @@ class TodayWidget : AppWidgetProvider() {
       for (id in ids) {
         val views = RemoteViews(context.packageName, R.layout.widget_today)
         views.setOnClickPendingIntent(R.id.widget_title, openApp(context, 1, null))
-        // A new task is typed in a box over the home screen, without opening Kaizen.
-        val add = PendingIntent.getActivity(context, 2, QuickEntryActivity.intent(context, "task"), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        views.setOnClickPendingIntent(R.id.widget_add_task, add)
+        views.setOnClickPendingIntent(R.id.widget_add_task, openApp(context, 2, "task"))
         views.setOnClickPendingIntent(R.id.widget_add_idea, openApp(context, 3, "idea"))
         views.setOnClickPendingIntent(R.id.widget_add_board, openApp(context, 4, "board"))
 

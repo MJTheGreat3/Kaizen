@@ -1,6 +1,5 @@
 package com.matt.kaizen
 
-import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
@@ -15,8 +14,8 @@ import java.util.Locale
 
 /**
  * Debts at a glance. 4x1: the balance and an Add button. 4x2: what you are
- * owed and what you owe in large figures, and a bar to add an entry. Adding
- * opens a small entry box over the home screen, not the app.
+ * owed and what you owe in large figures, and a bar to add an entry, which
+ * opens Kaizen's new-entry form.
  */
 class DebtWidget : AppWidgetProvider() {
   companion object {
@@ -39,9 +38,8 @@ class DebtWidget : AppWidgetProvider() {
 
     private fun build(context: Context, layout: Int, d: JSONObject?): RemoteViews {
       val views = RemoteViews(context.packageName, layout)
-      val add = PendingIntent.getActivity(context, 41, QuickEntryActivity.intent(context, "debt"), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
       views.setOnClickPendingIntent(R.id.debts_head, WidgetFeed.openApp(context, 40, "page:debts"))
-      views.setOnClickPendingIntent(R.id.debts_add, add)
+      views.setOnClickPendingIntent(R.id.debts_add, WidgetFeed.openApp(context, 41, "debt"))
       val owed = d?.optLong("owedToMe") ?: 0
       val owing = d?.optLong("iOwe") ?: 0
       val net = owed - owing

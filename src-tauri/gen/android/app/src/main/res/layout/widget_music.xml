@@ -68,7 +68,7 @@
         android:layout_width="32dp"
         android:layout_height="32dp"
         android:layout_gravity="top|end"
-        android:background="@drawable/widget_music_open"
+        android:background="@drawable/widget_music_button"
         android:contentDescription="Open Music in Kaizen"
         android:padding="7dp"
         android:src="@drawable/ic_widget_open" />
@@ -78,7 +78,7 @@
         android:layout_width="30dp"
         android:layout_height="30dp"
         android:layout_gravity="bottom|start"
-        android:background="@drawable/widget_corner"
+        android:background="@drawable/widget_music_button"
         android:contentDescription="Previous song"
         android:padding="6dp"
         android:src="@drawable/ic_widget_prev" />
@@ -88,7 +88,7 @@
         android:layout_width="30dp"
         android:layout_height="30dp"
         android:layout_gravity="bottom|end"
-        android:background="@drawable/widget_corner"
+        android:background="@drawable/widget_music_button"
         android:contentDescription="Next song"
         android:padding="6dp"
         android:src="@drawable/ic_widget_next" />

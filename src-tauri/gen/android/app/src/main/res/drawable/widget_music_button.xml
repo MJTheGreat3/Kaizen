@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Tinted with the cover's colour by MusicWidget. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <gradient android:angle="315" android:startColor="#FFC94FD6" android:endColor="#FF7A4FD6" />
+    <solid android:color="#FFC94FD6" />
 </shape>

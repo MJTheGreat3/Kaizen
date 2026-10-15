@@ -357,12 +357,6 @@ pub fn act(
     } else if let Some(id) = action.strip_prefix("habit:") {
         tap_habit(conn, id, today, device)?;
     }
-    // Typed into a widget's entry box.
-    if let Some(text) = action.strip_prefix("new-task:") {
-        crate::quick::add_task(conn, text, today, device)?;
-    } else if let Some(text) = action.strip_prefix("new-debt:") {
-        crate::quick::add_debt(conn, text, today, device)?;
-    }
     write(data_dir, &snapshot(conn, today, live)?)
 }
 
@@ -416,64 +410,6 @@ pub extern "system" fn Java_com_matt_kaizen_TodayWidget_nativeWidget<'local>(
             }
         })
         .unwrap_or_default();
-    env.new_string(json)
-        .map(|s| s.into_raw())
-        .unwrap_or(std::ptr::null_mut())
-}
-
-/// Saves text typed into a widget's entry box (`task` or `debt`) and
-/// rewrites the snapshot. Returns `{ok, message}` as JSON for the box.
-#[cfg_attr(not(target_os = "android"), allow(dead_code))]
-pub fn entry(data_dir: &Path, kind: &str, text: &str) -> String {
-    use crate::db::{DB_FILE, Database};
-    let run = || -> Result<String> {
-        let key = crate::vault::load_device_key(data_dir)?.ok_or_else(|| {
-            crate::error::Error::Invalid(
-                "Turn on fingerprint unlock in Kaizen's settings to add from the home screen."
-                    .into(),
-            )
-        })?;
-        let db = Database::open(
-            &data_dir.join(DB_FILE),
-            &key,
-            Some(&crate::backup::default_dir(data_dir)),
-        )?;
-        let device = db.device_id()?;
-        let today = Local::now().date_naive();
-        let message = match kind {
-            "debt" => crate::quick::add_debt(db.conn(), text, today, &device)?,
-            _ => crate::quick::add_task(db.conn(), text, today, &device)?,
-        };
-        write(data_dir, &snapshot(db.conn(), today, true)?)?;
-        Ok(message)
-    };
-    let (ok, message) = match run() {
-        Ok(m) => (true, m),
-        Err(e) => (false, e.to_string()),
-    };
-    serde_json::json!({ "ok": ok, "message": message }).to_string()
-}
-
-/// Entry point for `QuickEntryActivity.nativeEntry(dataDir, kind, text)`.
-#[cfg(target_os = "android")]
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_matt_kaizen_QuickEntryActivity_nativeEntry<'local>(
-    mut env: jni::JNIEnv<'local>,
-    _class: jni::objects::JClass<'local>,
-    data_dir: jni::objects::JString<'local>,
-    kind: jni::objects::JString<'local>,
-    text: jni::objects::JString<'local>,
-) -> jni::sys::jstring {
-    let get = |env: &mut jni::JNIEnv<'local>, s: &jni::objects::JString<'local>| {
-        env.get_string(s).map(String::from).unwrap_or_default()
-    };
-    let dir = get(&mut env, &data_dir);
-    let kind = get(&mut env, &kind);
-    let text = get(&mut env, &text);
-    let dir = std::path::PathBuf::from(dir);
-    crate::logging::init(&dir.join("logs"));
-    let json = std::panic::catch_unwind(|| entry(&dir, &kind, &text))
-        .unwrap_or_else(|_| r#"{"ok":false,"message":"Something went wrong"}"#.into());
     env.new_string(json)
         .map(|s| s.into_raw())
         .unwrap_or(std::ptr::null_mut())
