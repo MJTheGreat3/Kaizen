@@ -24,9 +24,18 @@ class StreakWidget : AppWidgetProvider() {
     private const val PREFS = "streak-widgets"
     private const val ACTION_NEXT = "com.matt.kaizen.STREAK_NEXT"
 
-    fun choose(context: Context, widgetId: Int, ids: List<String>) {
-      context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("w$widgetId", ids.joinToString("\n")).apply()
+    /** Choices for moving on by itself, in seconds (0: only on a tap). */
+    val INTERVALS = intArrayOf(0, 4, 6, 10, 20, 60)
+
+    fun choose(context: Context, widgetId: Int, ids: List<String>, seconds: Int) {
+      context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        .putString("w$widgetId", ids.joinToString("\n"))
+        .putInt("i$widgetId", seconds)
+        .apply()
     }
+
+    fun interval(context: Context, widgetId: Int): Int =
+      context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("i$widgetId", 6)
 
     fun chosen(context: Context, widgetId: Int): List<String> =
       context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("w$widgetId", null)
@@ -52,7 +61,6 @@ class StreakWidget : AppWidgetProvider() {
       val now = if (unit == "weeks") "this week" else "today"
       v.setTextViewText(R.id.streak_best, (if (doneNow) "Done $now" else "Not yet $now") + " · best ${s.optInt("best")}")
       v.setTextViewText(R.id.streak_page, page)
-      v.setOnClickFillInIntent(R.id.streak_item, Intent())
       return v
     }
 
@@ -61,6 +69,7 @@ class StreakWidget : AppWidgetProvider() {
       val streaks = chosen(context, widgetId).mapNotNull { WidgetFeed.streak(context, it) }
       if (streaks.isEmpty() || Build.VERSION.SDK_INT < 31) {
         views.setViewVisibility(R.id.streak_flipper, View.GONE)
+        views.setViewVisibility(R.id.streak_tap, View.GONE)
         views.setViewVisibility(R.id.streak_empty, View.VISIBLE)
         views.setTextViewText(R.id.streak_empty, if (WidgetFeed.read(context) == null) "Open Kaizen to fill this in" else "Long-press to pick streaks")
         views.setOnClickPendingIntent(R.id.streak_empty, WidgetFeed.openApp(context, 10, "activity"))
@@ -70,13 +79,19 @@ class StreakWidget : AppWidgetProvider() {
       val items = RemoteViews.RemoteCollectionItems.Builder().setHasStableIds(true).setViewTypeCount(1)
       streaks.forEachIndexed { i, s -> items.addItem(i.toLong(), card(context, s, if (streaks.size > 1) "${i + 1} of ${streaks.size}" else "")) }
       views.setViewVisibility(R.id.streak_flipper, View.VISIBLE)
+      views.setViewVisibility(R.id.streak_tap, if (streaks.size > 1) View.VISIBLE else View.GONE)
       views.setViewVisibility(R.id.streak_empty, View.GONE)
       views.setRemoteAdapter(R.id.streak_flipper, items.build())
+      // Moving on by itself, or only on a tap (a flipper cannot be stopped remotely, so "off" waits a day).
+      val seconds = interval(context, widgetId)
+      val auto = seconds > 0 && streaks.size > 1
+      views.setBoolean(R.id.streak_flipper, "setAutoStart", auto)
+      views.setInt(R.id.streak_flipper, "setFlipInterval", if (auto) seconds * 1000 else 86_400_000)
       // A tap moves to the next streak.
       val next = Intent(context, StreakWidget::class.java).setAction(ACTION_NEXT).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-      views.setPendingIntentTemplate(
-        R.id.streak_flipper,
-        PendingIntent.getBroadcast(context, widgetId, next, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT),
+      views.setOnClickPendingIntent(
+        R.id.streak_tap,
+        PendingIntent.getBroadcast(context, widgetId, next, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT),
       )
       manager.updateAppWidget(widgetId, views)
     }
@@ -133,15 +148,33 @@ class StreakConfigActivity : Activity() {
     AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
       .setTitle("Streaks to show")
       .setMultiChoiceItems(names, checked) { _, which, on -> checked[which] = on }
-      .setPositiveButton("Done") { _, _ ->
+      .setPositiveButton("Next") { _, _ ->
         val picked = ids.filterIndexed { i, _ -> checked[i] }.ifEmpty { listOf(ids[0]) }
-        StreakWidget.choose(this, widgetId, picked)
-        StreakWidget.render(this, AppWidgetManager.getInstance(this), widgetId)
-        setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
-        finish()
+        if (picked.size == 1) save(widgetId, picked, StreakWidget.interval(this, widgetId)) else askInterval(widgetId, picked)
       }
       .setNegativeButton("Cancel") { _, _ -> finish() }
       .setOnCancelListener { finish() }
       .show()
+  }
+
+  /** How often the carousel moves on by itself. */
+  private fun askInterval(widgetId: Int, picked: List<String>) {
+    val options = StreakWidget.INTERVALS
+    val labels = options.map { if (it == 0) "Only when tapped" else if (it < 60) "Every $it seconds" else "Every minute" }.toTypedArray()
+    var choice = options.indexOf(StreakWidget.interval(this, widgetId)).coerceAtLeast(0)
+    AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+      .setTitle("Move to the next streak")
+      .setSingleChoiceItems(labels, choice) { _, which -> choice = which }
+      .setPositiveButton("Done") { _, _ -> save(widgetId, picked, options[choice]) }
+      .setNegativeButton("Cancel") { _, _ -> finish() }
+      .setOnCancelListener { finish() }
+      .show()
+  }
+
+  private fun save(widgetId: Int, picked: List<String>, seconds: Int) {
+    StreakWidget.choose(this, widgetId, picked, seconds)
+    StreakWidget.render(this, AppWidgetManager.getInstance(this), widgetId)
+    setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
+    finish()
   }
 }

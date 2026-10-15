@@ -264,14 +264,14 @@ pub fn call(
     }
     // A dropped connection (Android cuts the network of apps in the
     // background, e.g. while Spotify is opened to wake it) is retried for a
-    // few seconds; answers from Spotify, errors included, are not.
+    // moment; answers from Spotify, errors included, are not.
     let mut attempt = 0;
     loop {
         match call_once(token, method, path, body) {
-            Err(Error::Http(e)) if attempt < 5 => {
+            Err(Error::Http(e)) if attempt < 2 => {
                 attempt += 1;
                 tracing::info!(error = %e, attempt, "Spotify request failed; retrying");
-                std::thread::sleep(Duration::from_millis(700 * attempt));
+                std::thread::sleep(Duration::from_millis(500 * attempt));
             }
             other => return other,
         }

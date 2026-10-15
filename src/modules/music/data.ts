@@ -60,6 +60,15 @@ export function usePlayback(everyMs: number) {
     staleTime: 500,
     retry: false,
   });
+  // Back in Kaizen (e.g. from Spotify): read at once rather than at the next tick.
+  useEffect(() => {
+    if (!connected) return;
+    const onShow = () => {
+      if (document.visibilityState === "visible") void client.invalidateQueries({ queryKey: PLAYBACK });
+    };
+    document.addEventListener("visibilitychange", onShow);
+    return () => document.removeEventListener("visibilitychange", onShow);
+  }, [connected, client]);
   // Read again right when the song should end, so the next one shows at once.
   const p = query.data;
   useEffect(() => {
@@ -356,28 +365,41 @@ function pickDevice(devices: { id: string; type: string; isActive: boolean }[], 
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Waits until Kaizen is in front again (or `ms` passes). */
+/** Waits until Kaizen is back in front (or `ms` passes), then a moment for its network to return. */
 async function untilVisible(ms: number) {
   const until = Date.now() + ms;
-  while (document.visibilityState !== "visible" && Date.now() < until) await sleep(250);
-  await sleep(500);
+  while (document.visibilityState !== "visible" && Date.now() < until) await sleep(300);
+  await sleep(800);
+}
+
+/**
+ * The device Spotify is playing on or can play on: what is playing counts
+ * first (a Spotify that just woke may play before it lists itself).
+ */
+async function findDevice(android: boolean): Promise<{ id: string } | null> {
+  const playback = await spotify.playback().catch(() => null);
+  if (playback?.device?.id) return playback.device;
+  return pickDevice(await spotify.devices().catch(() => []), android) ?? null;
 }
 
 async function waitForDevice(ms: number, android: boolean) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
+    if (document.visibilityState === "visible") {
+      const device = await findDevice(android);
+      if (device) return device;
+    }
     await sleep(1000);
-    const device = pickDevice(await spotify.devices().catch(() => []), android);
-    if (device) return device;
   }
   return null;
 }
 
 /**
  * Plays, starting Spotify first when no device is active: an open Spotify
- * app is used at once; otherwise Kaizen starts Spotify without showing it
- * (hidden on the laptop, a play button press on the phone), and on the
- * phone opens it briefly if that was not enough, then comes back.
+ * app is used at once. Otherwise Kaizen starts Spotify without showing it
+ * (hidden on the laptop, a play button press on the phone). If the phone's
+ * Spotify still does not show up, Kaizen opens it; Android does not let an
+ * app bring itself back, so it carries on once you switch back.
  */
 export async function playWithWake(body?: Parameters<typeof spotify.play>[0]) {
   try {
@@ -387,20 +409,19 @@ export async function playWithWake(body?: Parameters<typeof spotify.play>[0]) {
     if (!String(e).includes("No Spotify device")) throw e;
   }
   const android = audioFxAvailable();
-  let device: { id: string } | null | undefined = pickDevice(await spotify.devices(), android);
+  let device = await findDevice(android);
   if (!device) {
     const toastId = toast.loading("Starting Spotify…");
     try {
       if (!(await ipc.musicWake("background"))) throw new Error("Spotify is not installed on this device.");
-      device = await waitForDevice(android ? 6000 : 12000, android);
+      device = await waitForDevice(android ? 5000 : 12000, android);
       if (!device && android) {
-        // Spotify needs a moment in front to start; Kaizen has no network
-        // in the background, so it comes back before looking again.
+        toast.loading("Opening Spotify. Come back to Kaizen once it has started.", { id: toastId });
         await ipc.musicWake("foreground");
-        await sleep(4000);
-        await ipc.intakeTake(true).catch(() => []);
-        await untilVisible(8000);
-        device = await waitForDevice(12000, android);
+        await sleep(1500);
+        await untilVisible(120_000);
+        toast.loading("Starting Spotify…", { id: toastId });
+        device = await waitForDevice(10_000, android);
       }
     } finally {
       toast.dismiss(toastId);

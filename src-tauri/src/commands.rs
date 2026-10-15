@@ -1105,7 +1105,10 @@ pub async fn widget_refresh(app: tauri::AppHandle, feed: JsonValue) -> Result<()
         #[cfg(target_os = "android")]
         {
             let state = app.state::<AppState>();
-            std::fs::write(state.data_dir.join("widget-app.json"), serde_json::to_vec(&feed)?)?;
+            std::fs::write(
+                state.data_dir.join("widget-app.json"),
+                serde_json::to_vec(&feed)?,
+            )?;
             let live = vault::load_device_key(&state.data_dir)
                 .ok()
                 .flatten()
