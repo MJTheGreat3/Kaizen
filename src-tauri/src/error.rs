@@ -10,6 +10,8 @@ pub enum Error {
     Locked,
     #[error("wrong passphrase or recovery key")]
     WrongSecret,
+    #[error("enter your passphrase to see this")]
+    PrivateLocked,
     #[error("device unlock is not enabled on this device")]
     DeviceUnlockUnavailable,
     #[error("{0}")]
@@ -29,8 +31,6 @@ pub enum Error {
     Tauri(#[from] tauri::Error),
     #[error("{0}")]
     Http(String),
-    #[error("cancelled")]
-    Cancelled,
 }
 
 impl Error {
@@ -40,6 +40,7 @@ impl Error {
             Error::VaultExists => "vault_exists",
             Error::Locked => "locked",
             Error::WrongSecret => "wrong_secret",
+            Error::PrivateLocked => "private_locked",
             Error::DeviceUnlockUnavailable => "device_unlock_unavailable",
             Error::Invalid(_) => "invalid",
             Error::Db(_) => "db",
@@ -49,7 +50,6 @@ impl Error {
             Error::Keychain(_) => "keychain",
             Error::Tauri(_) => "tauri",
             Error::Http(_) => "http",
-            Error::Cancelled => "cancelled",
         }
     }
 }

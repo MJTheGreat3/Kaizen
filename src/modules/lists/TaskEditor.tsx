@@ -9,6 +9,7 @@ import { DateTimeInput, Textarea } from "@/components/ui/kit";
 import type { Recurrence, Task, TaskList } from "@/core/db/schema";
 import { cn } from "@/lib/utils";
 import { useDeleteTask, useUpdateTask } from "./data";
+import { DetailsFinder } from "./DetailsFinder";
 import { recurrenceLabel } from "./recurrence";
 
 export function TaskEditor({ task, onClose }: { task: Task | null; onClose: () => void }) {
@@ -87,6 +88,16 @@ export function TaskEditor({ task, onClose }: { task: Task | null; onClose: () =
             </div>
           ) : null}
 
+          {draft.list !== "todo" ? (
+            <DetailsFinder
+              key={draft.list}
+              list={draft.list}
+              title={draft.title}
+              meta={draft.meta}
+              onPick={(meta, title) => setDraft({ ...draft, meta, title: draft.title.trim() ? draft.title : title })}
+            />
+          ) : null}
+
           {draft.list === "read" ? (
             <div className="grid grid-cols-3 gap-3">
               <Field label="Author" htmlFor="task-author" className="col-span-3 sm:col-span-1">
@@ -109,6 +120,18 @@ export function TaskEditor({ task, onClose }: { task: Task | null; onClose: () =
                 />
               </Field>
             </div>
+          ) : null}
+
+          {draft.list === "watch" ? (
+            <Field label="Cast or studio" htmlFor="task-creator">
+              <Input id="task-creator" value={draft.meta.creator ?? ""} onChange={(e) => setMeta({ creator: e.target.value || undefined })} />
+            </Field>
+          ) : null}
+
+          {draft.list !== "todo" ? (
+            <Field label="Year" htmlFor="task-year">
+              <Input id="task-year" inputMode="numeric" value={draft.meta.year ?? ""} onChange={(e) => setMeta({ year: Number(e.target.value) || undefined })} />
+            </Field>
           ) : null}
 
           {draft.list === "watch" ? (

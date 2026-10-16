@@ -19,7 +19,11 @@ impl Device {
         let db = Database::open(&dir.path().join(DB_FILE), &key, None).unwrap();
         Self {
             _dir: dir,
-            session: Mutex::new(Some(Session { db, key })),
+            session: Mutex::new(Some(Session {
+                db,
+                key,
+                private_until: std::sync::atomic::AtomicI64::new(0),
+            })),
         }
     }
 

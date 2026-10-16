@@ -138,6 +138,16 @@ export interface TaskMeta {
   medium?: string;
   /** 1 to 5, set when finished. */
   rating?: number;
+  /** Watch list: lead actors, or the studio for anime. */
+  creator?: string;
+  year?: number;
+  genres?: string[];
+  /** Cover or poster URL. */
+  cover?: string;
+  episodes?: number;
+  runtimeMinutes?: number;
+  /** Where the details came from: `openlibrary:…`, `imdb:…`, `anilist:…`. */
+  sourceId?: string;
 }
 
 export const tasks = sqliteTable("tasks", {
@@ -418,8 +428,14 @@ export const goals = sqliteTable("goals", {
     .default("active"),
   completedAt: integer("completed_at"),
   sortOrder: real("sort_order").notNull().default(0),
-  /** Manual goals filled automatically, e.g. `rating:codeforces` (migration v8). */
+  /**
+   * Manual goals filled automatically, e.g. `rating:codeforces` (migration
+   * v8), or `check` for a goal that is simply done or not (v17).
+   */
   metric: text("metric"),
+  horizon: text("horizon", { enum: ["short", "long"] })
+    .notNull()
+    .default("long"),
   ...base,
 });
 

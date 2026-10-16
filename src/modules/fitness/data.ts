@@ -431,10 +431,11 @@ export function useRemovePhoto() {
   return useGymMutation((id: string) => ipc.attachmentRemove(id));
 }
 
-/** A photo as a data URL; fails when it was taken on another device. */
-export function usePhoto(id: string) {
+/** A photo as a data URL, once private files are open; fails when it was taken on another device. */
+export function usePhoto(id: string, open: boolean) {
   return useQuery({
     queryKey: ["gym-photo", id],
+    enabled: open,
     queryFn: async () => `data:image/jpeg;base64,${await ipc.attachmentRead(id)}`,
     staleTime: Infinity,
     gcTime: 5 * 60_000,

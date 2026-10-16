@@ -52,9 +52,18 @@ export function cumulative(points: Point[], from: DateKey): Point[] {
     .map(([date, v]) => ({ date, value: (total += v) }));
 }
 
-type GoalShape = Pick<Goal, "kind" | "startValue" | "targetValue" | "startDate" | "targetDate" | "status">;
+type GoalShape = Pick<Goal, "kind" | "startValue" | "targetValue" | "startDate" | "targetDate" | "status"> & { metric?: string | null };
+
+/** A goal that is simply done or not, with nothing to measure. */
+export const isCheckGoal = (goal: { metric?: string | null }) => goal.metric === "check";
 
 export function progress(goal: GoalShape, inputs: GoalInputs, today: DateKey): Progress {
+  if (isCheckGoal(goal)) {
+    const done = goal.status === "done";
+    const daysLeft = goal.targetDate ? daysBetween(today, goal.targetDate) : null;
+    const pace: Pace = done ? "done" : daysLeft !== null && daysLeft < 0 ? "overdue" : "none";
+    return { start: 0, current: done ? 1 : 0, target: 1, fraction: done ? 1 : 0, series: [], pace, expected: null, daysLeft, perDay: null };
+  }
   let start = 0;
   let target = goal.targetValue;
   let series: Point[];
@@ -113,5 +122,5 @@ export const PACE_LABEL: Record<Pace, string> = {
 
 /** A goal that just reached its target and should be marked done. */
 export function justReached(goal: GoalShape, p: Progress) {
-  return goal.status === "active" && p.fraction >= 1 && (goal.kind !== "tasks" || p.target > 0);
+  return goal.status === "active" && !isCheckGoal(goal) && p.fraction >= 1 && (goal.kind !== "tasks" || p.target > 0);
 }

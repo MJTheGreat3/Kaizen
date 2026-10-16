@@ -10,7 +10,6 @@
     "iOS"
   ],
   "permissions": [
-    "biometric:default",
     "barcode-scanner:default",
     "focus:default",
     "audiofx:default"

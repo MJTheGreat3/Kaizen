@@ -17,7 +17,7 @@ Status: planning (updated 2026-10-13)
 
 - **One app, every device.** The same codebase and UI on desktop and mobile.
 - **Local-first.** Data lives in a local database on each device. The app works fully offline. Network is used only to reach external APIs (Codeforces, LeetCode) and to sync between my own devices.
-- **Single user.** No accounts, no multi-tenant backend, no auth server. One encryption passphrase protects the data.
+- **Single user.** No accounts, no multi-tenant backend, no auth server. The data is encrypted; the app opens without a passphrase, which guards private photos, backups and recovery.
 - **Beautiful and fast.** Keyboard-driven on desktop, thumb-friendly on mobile, dark/light themes, smooth animations, opens in under a second.
 - **Capture first, organise later.** Adding anything (task, idea, expense, set) should take under 5 seconds.
 - **My data is portable.** One-click export to JSON/CSV/Markdown and automatic encrypted backups.
@@ -750,6 +750,13 @@ Known limits: the snapshot is plain text in the app's private storage (task titl
 - Streaks and Up next are worked out by the app and written to `widget-app.json` with the Today snapshot (after changes, on opening and on leaving).
 - **Waking Spotify, fixed on the phone**: Android 11+ hides other apps unless the manifest names them (`<queries>`), so Spotify looked uninstalled. When Kaizen has to open Spotify to wake it, it now comes back to the front before asking Spotify for devices (apps in the background have no network), and Spotify requests that fail on a dropped connection are retried for a few seconds.
 - **More app shortcuts**: Start workout, Log sports, New board, Add debt (before New task, New idea, Start focus; launchers show the first few, and any can be dragged to the home screen).
+
+### 6.14 Changes after Phase 8 (2026-10-16)
+
+- **No passphrase to open Kaizen.** The database stays encrypted, but its key is now kept on each device (macOS keychain; app-private storage on Android) and the app opens straight away. The passphrase is asked for once on a device that has no key yet (a new install or after a restore). It still wraps the key in `vault.json`, so backups and recovery work as before. Auto-lock, the Lock buttons, fingerprint and Touch ID prompts are gone, along with the biometric plugin and the Touch ID code.
+- **Private photos.** Progress photos are the one thing still behind the passphrase. `private_unlock` checks it against `vault.json` and opens private files for 10 minutes; `attachment_read` refuses otherwise. They close sooner when Kaizen goes to the background or with Settings → Security → Lock now, and decrypted photos are dropped from the cache. This gate is enforced in Rust, but the photos are still encrypted with the database key, so someone who can read the device's key store could decrypt them.
+- **Details for Watch and Read.** Books come from Open Library (author, year, pages, subjects, cover). Films and shows come from IMDb's search suggestions (lead actors, year, poster), and anime from AniList (studio, year, episodes, length, genres). None of these needs a key (`src-tauri/src/media.rs`). A new item is filled in automatically when a match has the same title; otherwise the editor lists matches to choose from. Items show their cover, creator and year. The fields are stored in `tasks.meta`: `creator`, `year`, `genres`, `cover`, `episodes`, `runtimeMinutes` and `sourceId`.
+- **Short and long term goals** (migration v17, `goals.horizon`). The Goals page shows the two sections, each with its own Add button. The new "Done or not" kind is a goal with nothing to measure. It is ticked off on its card and stored as a manual goal with `metric = 'check'`, because widening the kind check would mean rebuilding a synced table.
 
 ## 7. Open questions
 

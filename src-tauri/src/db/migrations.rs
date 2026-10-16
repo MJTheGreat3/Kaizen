@@ -1754,7 +1754,18 @@ CREATE TABLE lyrics (
     Ok(())
 }
 
-pub const LATEST: i64 = 16;
+/// Goals are short or long term, and a goal can simply be done or not
+/// (`metric = 'check'` on a manual goal; the kind check cannot be widened
+/// without rebuilding the table).
+fn v17(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "ALTER TABLE goals ADD COLUMN horizon TEXT NOT NULL DEFAULT 'long' CHECK (horizon IN ('short', 'long'));",
+    )?;
+    install_clock_triggers(conn, "goals")?;
+    Ok(())
+}
+
+pub const LATEST: i64 = 17;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -1798,6 +1809,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             14 => v14(&tx)?,
             15 => v15(&tx)?,
             16 => v16(&tx)?,
+            17 => v17(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;

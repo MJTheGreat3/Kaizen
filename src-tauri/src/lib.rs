@@ -8,14 +8,13 @@ mod db;
 mod desktop;
 mod error;
 mod logging;
+mod media;
 mod music;
 mod oauth;
 mod practice;
 mod quick;
 mod sports;
 mod sync;
-#[cfg(target_os = "macos")]
-mod touchid;
 mod vault;
 mod widget;
 
@@ -28,6 +27,9 @@ use tauri::Manager;
 pub(crate) struct Session {
     db: db::Database,
     key: vault::DataKey,
+    /// Until when (ms) private files such as progress photos may be read;
+    /// opened with the passphrase.
+    private_until: std::sync::atomic::AtomicI64,
 }
 
 pub(crate) struct AppState {
@@ -45,7 +47,6 @@ pub fn run() {
 
     #[cfg(mobile)]
     let builder = builder
-        .plugin(tauri_plugin_biometric::init())
         .plugin(tauri_plugin_barcode_scanner::init())
         .plugin(tauri_plugin_focus::init())
         .plugin(tauri_plugin_audiofx::init());
@@ -83,7 +84,9 @@ pub fn run() {
             commands::vault_unlock,
             commands::vault_recover,
             commands::vault_unlock_device,
-            commands::vault_set_device_unlock,
+            commands::private_status,
+            commands::private_unlock,
+            commands::private_lock,
             commands::vault_lock,
             commands::db_query,
             commands::backup_create,
@@ -106,6 +109,7 @@ pub fn run() {
             commands::practice_contests,
             commands::github_refresh,
             commands::sports_search,
+            commands::media_search,
             commands::sports_refresh,
             commands::sports_mute,
             commands::sports_schedule,

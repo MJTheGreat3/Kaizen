@@ -6,6 +6,8 @@ import { db, schema } from "@/core/db/client";
 import type { Task, TaskList } from "@/core/db/schema";
 import type { ParsedTask } from "@/core/nl/parse";
 import { todayKey } from "@/lib/dates";
+import { ipc } from "@/lib/ipc";
+import { exactMatch, metaFrom } from "./details";
 import { nextDue } from "./recurrence";
 
 const t = schema.tasks;
@@ -31,20 +33,49 @@ function useTaskMutation<A>(fn: (arg: A) => Promise<unknown>) {
   });
 }
 
+/**
+ * Looks up a new book or title and fills in its details when the match is
+ * clear (same title). Offline or unclear, the item is left as typed.
+ */
+async function fillDetails(id: string, list: "read" | "watch", title: string): Promise<boolean> {
+  try {
+    const match = exactMatch(await ipc.mediaSearch(list, title), title);
+    if (!match) return false;
+    const [row] = await db.select({ meta: t.meta }).from(t).where(eq(t.id, id));
+    if (!row || row.meta.sourceId) return false;
+    await db
+      .update(t)
+      .set({ meta: metaFrom(match, row.meta) })
+      .where(eq(t.id, id));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function useAddTask() {
-  return useTaskMutation((p: ParsedTask & { notes?: string | null; remind?: boolean }) =>
-    db.insert(t).values({
-      list: p.list,
-      title: p.title,
-      notes: p.notes ?? null,
-      dueDate: p.dueDate,
-      dueTime: p.dueTime,
-      remind: p.remind ?? !!p.dueTime,
-      recurrence: p.recurrence,
-      priority: p.priority,
-      tags: p.tags,
-    }),
-  );
+  const client = useQueryClient();
+  return useTaskMutation(async (p: ParsedTask & { notes?: string | null; remind?: boolean }) => {
+    const [created] = await db
+      .insert(t)
+      .values({
+        list: p.list,
+        title: p.title,
+        notes: p.notes ?? null,
+        dueDate: p.dueDate,
+        dueTime: p.dueTime,
+        remind: p.remind ?? !!p.dueTime,
+        recurrence: p.recurrence,
+        priority: p.priority,
+        tags: p.tags,
+      })
+      .returning({ id: t.id });
+    if (created && p.list !== "todo") {
+      void fillDetails(created.id, p.list, p.title).then((filled) => {
+        if (filled) client.invalidateQueries({ queryKey: ["tasks"] });
+      });
+    }
+  });
 }
 
 export function useUpdateTask() {

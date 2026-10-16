@@ -8,7 +8,7 @@ import { NativeSelect, Segmented, Skeleton } from "@/components/ui/controls";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, Input } from "@/components/ui/input";
 import { CheckCircle, ColorPicker, ConfirmDialog, DateTimeInput, EmptyState, RowMenu, SectionTitle, Textarea } from "@/components/ui/kit";
-import type { GoalKind } from "@/core/db/schema";
+import type { Goal, GoalKind } from "@/core/db/schema";
 import { useOpenTarget } from "@/core/shell/openRequest";
 import { Page, PageHeader } from "@/core/shell/PageHeader";
 import { daysBetween, formatLongDate, fromKey, relativeDay, todayKey, type DateKey } from "@/lib/dates";
@@ -30,7 +30,7 @@ import {
   type GoalView,
 } from "./data";
 import { goalAmount } from "./format";
-import { PACE_LABEL, type Pace, type Point } from "./logic";
+import { isCheckGoal, PACE_LABEL, type Pace, type Point } from "./logic";
 
 const mod = modules.find((m) => m.id === "goals")!;
 const HUE = mod.hue;
@@ -118,8 +118,48 @@ function GoalChart({ v, height = 56, detailed = false }: { v: GoalView; height?:
 // Card
 // ---------------------------------------------------------------------------
 
+/** A goal that is simply done or not: a tick, its title and when it is due. */
+function CheckGoalCard({ v, onOpen }: { v: GoalView; onOpen: () => void }) {
+  const { goal, progress: p } = v;
+  const status = useGoalStatus();
+  const done = goal.status === "done";
+  const line = paceLine(v);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onOpen()}
+      className="flex h-full w-full cursor-pointer items-center gap-3.5 rounded-2xl border border-border bg-surface px-5 py-4 text-left shadow-soft transition-transform active:scale-[0.99]"
+    >
+      <span onClick={(e) => e.stopPropagation()}>
+        <CheckCircle
+          checked={done}
+          hue={goal.color}
+          label={done ? `Mark "${goal.title}" as not done` : `Mark "${goal.title}" done`}
+          onChange={(on) => status.mutate({ id: goal.id, status: on ? "done" : "active" })}
+        />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h3 className={cn("truncate text-[16px] font-semibold tracking-tight", done && "text-muted-foreground line-through decoration-muted-foreground/50")}>{goal.title}</h3>
+        <p className="mt-0.5 truncate text-[12px] text-muted-foreground">{line ?? "No end date"}</p>
+      </div>
+      {p.pace === "overdue" ? (
+        <span
+          className="shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+          style={{ background: `color-mix(in srgb, ${PACE_COLOR.overdue} 14%, transparent)`, color: PACE_COLOR.overdue }}
+        >
+          {PACE_LABEL.overdue}
+        </span>
+      ) : null}
+      <span className="size-2.5 shrink-0 rounded-full" style={{ background: goal.color }} />
+    </div>
+  );
+}
+
 function GoalCard({ v, onOpen }: { v: GoalView; onOpen: () => void }) {
   const { goal, progress: p } = v;
+  if (isCheckGoal(goal)) return <CheckGoalCard v={v} onOpen={onOpen} />;
   const line = paceLine(v);
   return (
     <button
@@ -184,6 +224,7 @@ function GoalDetail({ v, onClose, onEdit }: { v: GoalView; onClose: () => void; 
   const [date, setDate] = useState(todayKey());
   const [confirm, setConfirm] = useState(false);
   const line = paceLine(v);
+  const check = isCheckGoal(goal);
 
   async function addEntry() {
     const n = Number(value);
@@ -203,7 +244,7 @@ function GoalDetail({ v, onClose, onEdit }: { v: GoalView; onClose: () => void; 
               <RowMenu
                 items={[
                   { label: "Edit", icon: PencilSimple, onSelect: onEdit },
-                  ...(goal.status === "done" ? [] : [{ label: "Mark reached", icon: CheckFat, onSelect: () => status.mutate({ id: goal.id, status: "done" }) }]),
+                  ...(goal.status === "done" || check ? [] : [{ label: "Mark reached", icon: CheckFat, onSelect: () => status.mutate({ id: goal.id, status: "done" }) }]),
                   goal.status === "archived"
                     ? { label: "Unarchive", icon: ArrowCounterClockwise, onSelect: () => status.mutate({ id: goal.id, status: "active" }) }
                     : { label: "Archive", icon: Archive, onSelect: () => status.mutate({ id: goal.id, status: "archived" }) },
@@ -215,6 +256,21 @@ function GoalDetail({ v, onClose, onEdit }: { v: GoalView; onClose: () => void; 
           {goal.notes ? <DialogDescription className="whitespace-pre-wrap">{goal.notes}</DialogDescription> : null}
         </DialogHeader>
 
+        {check ? (
+          <div className="grid gap-3">
+            <p className="text-[14px] text-muted-foreground">
+              {goal.horizon === "short" ? "Short term" : "Long term"} · {line ?? "No end date"}
+            </p>
+            <Button
+              variant={goal.status === "done" ? "secondary" : "primary"}
+              loading={status.isPending}
+              onClick={() => status.mutate({ id: goal.id, status: goal.status === "done" ? "active" : "done" })}
+            >
+              {goal.status === "done" ? <ArrowCounterClockwise /> : <CheckFat />}
+              {goal.status === "done" ? "Mark not done" : "Mark done"}
+            </Button>
+          </div>
+        ) : (
         <div className="grid gap-1">
           <div className="flex items-end justify-between gap-3">
             <p className="text-[28px] font-semibold leading-none tracking-tight tabular-nums">{Math.round(p.fraction * 100)}%</p>
@@ -240,8 +296,9 @@ function GoalDetail({ v, onClose, onEdit }: { v: GoalView; onClose: () => void; 
             <p className="text-[13px] text-muted-foreground">Planned pace for today: {goalAmount(v, p.expected)}</p>
           ) : null}
         </div>
+        )}
 
-        {goal.metric?.startsWith("rating:") ? (
+        {check ? null : goal.metric?.startsWith("rating:") ? (
           <p className="text-[13px] text-muted-foreground">Follows your {platformOf(goal.metric.slice("rating:".length))?.name} rating after each contest.</p>
         ) : goal.kind === "manual" ? (
           <section className="grid gap-3">
@@ -335,9 +392,14 @@ function GoalDetail({ v, onClose, onEdit }: { v: GoalView; onClose: () => void; 
 export interface GoalDraft {
   title?: string;
   notes?: string;
+  horizon?: Goal["horizon"];
 }
 
-const KIND_HELP: Record<GoalKind, string> = {
+/** What the editor offers; a check goal is stored as a manual goal with `metric = "check"`. */
+type EditorKind = GoalKind | "check";
+
+const KIND_HELP: Record<EditorKind, string> = {
+  check: "Nothing to measure: it's done or it isn't. Tick it off when it is.",
   manual: "A number: a contest rating, a lift or your weight. Ratings can update themselves.",
   activity: "Counts what you already track: focus time, problems solved, books read…",
   habits: "Check-ins of the habits it is made of.",
@@ -351,7 +413,8 @@ function GoalEditor({ v, draft, onClose, defaultColor }: { v: GoalView | null; d
   const [title, setTitle] = useState(goal?.title ?? draft?.title ?? "");
   const [notes, setNotes] = useState(goal?.notes ?? draft?.notes ?? "");
   const [color, setColor] = useState(goal?.color ?? defaultColor);
-  const [kind, setKind] = useState<GoalKind>(goal?.kind ?? "activity");
+  const [kind, setKind] = useState<EditorKind>(goal ? (isCheckGoal(goal) ? "check" : goal.kind) : draft?.horizon === "short" ? "check" : "activity");
+  const [horizon, setHorizon] = useState<Goal["horizon"]>(goal?.horizon ?? draft?.horizon ?? "long");
   const [activityType, setActivityType] = useState(goal?.activityType ?? "focus");
   const [activityTag, setActivityTag] = useState(goal?.activityTag ?? "");
   const minutes = isMinutes(activityType);
@@ -359,7 +422,7 @@ function GoalEditor({ v, draft, onClose, defaultColor }: { v: GoalView | null; d
   const [target, setTarget] = useState(initialTarget !== null ? String(initialTarget) : "");
   const [start, setStart] = useState(goal ? String(goal.startValue) : "");
   const [unit, setUnit] = useState(goal?.unit ?? "");
-  const [metric, setMetric] = useState(goal?.metric ?? "");
+  const [metric, setMetric] = useState(goal && !isCheckGoal(goal) ? (goal.metric ?? "") : "");
   const [startDate, setStartDate] = useState(goal?.startDate ?? todayKey());
   const [targetDate, setTargetDate] = useState(goal?.targetDate ?? "");
   const [habitIds, setHabitIds] = useState<string[]>(v?.links.filter((l) => l.kind === "habit").map((l) => l.refId) ?? []);
@@ -370,25 +433,28 @@ function GoalEditor({ v, draft, onClose, defaultColor }: { v: GoalView | null; d
     [options.data, taskIds],
   );
   const targetNumber = Number(target);
-  const valid =
-    title.trim() &&
+  const measured =
     (kind === "tasks" ? taskIds.length > 0 : target.trim() !== "" && !Number.isNaN(targetNumber)) &&
     (kind !== "manual" || (start.trim() !== "" && !Number.isNaN(Number(start)) && Number(start) !== targetNumber)) &&
     (kind !== "activity" || targetNumber > 0) &&
-    (kind !== "habits" || (habitIds.length > 0 && targetNumber > 0)) &&
-    (!targetDate || targetDate > startDate);
+    (kind !== "habits" || (habitIds.length > 0 && targetNumber > 0));
+  const valid = title.trim() && (kind === "check" || measured) && (!targetDate || targetDate > startDate);
 
   async function submit() {
     if (!valid) return;
-    const targetValue = kind === "tasks" ? taskIds.length : kind === "activity" && minutes ? targetNumber * 60 : targetNumber;
+    const check = kind === "check";
+    const stored: GoalKind = check ? "manual" : kind;
+    const targetValue = check ? 1 : kind === "tasks" ? taskIds.length : kind === "activity" && minutes ? targetNumber * 60 : targetNumber;
     // A reached goal given a new target is back in progress; the goal check closes it again if it is still met.
-    const retargeted = goal?.status === "done" && (goal.kind !== kind || goal.targetValue !== targetValue || goal.startDate !== startDate);
+    const retargeted =
+      goal?.status === "done" && !check && (isCheckGoal(goal) || goal.kind !== stored || goal.targetValue !== targetValue || goal.startDate !== startDate);
     await save.mutateAsync({
       id: goal?.id,
       reopen: retargeted,
       title: title.trim(),
       notes: notes.trim() || null,
-      kind,
+      kind: stored,
+      horizon,
       unit: kind === "manual" ? unit.trim() || null : null,
       startValue: kind === "manual" ? Number(start) : 0,
       targetValue,
@@ -396,7 +462,7 @@ function GoalEditor({ v, draft, onClose, defaultColor }: { v: GoalView | null; d
       targetDate: targetDate || null,
       activityType: kind === "activity" ? activityType : null,
       activityTag: kind === "activity" && activityTag ? activityTag : null,
-      metric: kind === "manual" && metric ? metric : null,
+      metric: check ? "check" : kind === "manual" && metric ? metric : null,
       color,
       habitIds: kind === "habits" ? habitIds : [],
       taskIds: kind === "tasks" ? taskIds : [],
@@ -417,13 +483,27 @@ function GoalEditor({ v, draft, onClose, defaultColor }: { v: GoalView | null; d
             <Input id="goal-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Reach CF Expert, 100 hours of focus, finish the OS course" autoFocus />
           </Field>
           <div className="grid gap-2">
+            <span className="text-[13px] font-medium">Term</span>
+            <Segmented<Goal["horizon"]>
+              label="Term"
+              value={horizon}
+              onChange={setHorizon}
+              className="w-full"
+              options={[
+                { value: "short", label: "Short term" },
+                { value: "long", label: "Long term" },
+              ]}
+            />
+          </div>
+          <div className="grid gap-2">
             <span className="text-[13px] font-medium">Track progress by</span>
-            <Segmented
+            <Segmented<EditorKind>
               label="Track progress by"
               value={kind}
               onChange={setKind}
               className="w-full"
               options={[
+                { value: "check", label: "Done or not" },
                 { value: "activity", label: "Activity" },
                 { value: "manual", label: "A number" },
                 { value: "habits", label: "Habits" },
@@ -539,7 +619,7 @@ function GoalEditor({ v, draft, onClose, defaultColor }: { v: GoalView | null; d
           ) : null}
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Counting from" htmlFor="goal-start-date">
+            <Field label={kind === "check" ? "Starting" : "Counting from"} htmlFor="goal-start-date">
               <DateTimeInput id="goal-start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value || todayKey())} />
             </Field>
             <Field label="Finish by (optional)" htmlFor="goal-target-date">
@@ -617,7 +697,7 @@ export function GoalsPage() {
     <Page hue={HUE}>
       <PageHeader
         title="Goals"
-        description="Longer targets, tracked from everything else."
+        description="Short and long term, ticked off or tracked from everything else."
         icon={mod.icon}
         hue={HUE}
         actions={
@@ -662,7 +742,7 @@ export function GoalsPage() {
                 </Button>
               }
             >
-              Track a number you update, like a rating, or let it fill itself from focus time, problems solved, habits or tasks.
+              Tick off a short-term goal when it's done, track a number you update, like a rating, or let it fill itself from focus time, problems solved, habits or tasks.
             </EmptyState>
           </motion.div>
         ) : !shown.length ? (
@@ -670,14 +750,41 @@ export function GoalsPage() {
             {filter === "done" ? "No goals reached yet." : filter === "archived" ? "Nothing archived." : "No active goals."}
           </p>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            <AnimatePresence initial={false}>
-              {shown.map((v) => (
-                <motion.div key={v.goal.id} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ duration: 0.35, ease }}>
-                  <GoalCard v={v} onOpen={() => setOpenId(v.goal.id)} />
-                </motion.div>
-              ))}
-            </AnimatePresence>
+          <div className="grid gap-8">
+            {(["short", "long"] as const).map((horizon) => {
+              const list = shown.filter((v) => v.goal.horizon === horizon);
+              return (
+                <section key={horizon}>
+                  <SectionTitle
+                    action={
+                      filter === "active" ? (
+                        <Button variant="ghost" size="sm" onClick={() => setEditor({ id: null, draft: { horizon } })}>
+                          <Plus />
+                          Add
+                        </Button>
+                      ) : null
+                    }
+                  >
+                    {horizon === "short" ? "Short term" : "Long term"}
+                  </SectionTitle>
+                  {list.length ? (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <AnimatePresence initial={false}>
+                        {list.map((v) => (
+                          <motion.div key={v.goal.id} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ duration: 0.35, ease }}>
+                            <GoalCard v={v} onOpen={() => setOpenId(v.goal.id)} />
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                  ) : (
+                    <p className="rounded-2xl border border-dashed border-border py-6 text-center text-[13px] text-muted-foreground">
+                      {horizon === "short" ? "Nothing short term here." : "Nothing long term here."}
+                    </p>
+                  )}
+                </section>
+              );
+            })}
           </div>
         )}
       </div>

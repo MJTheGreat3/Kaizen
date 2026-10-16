@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { notify, useAfterChanges } from "@/core/afterChanges";
 import { loadGoals, setGoalStatus } from "./data";
 import { goalAmount } from "./format";
-import { justReached, PACE_LABEL } from "./logic";
+import { isCheckGoal, justReached, PACE_LABEL } from "./logic";
 
 export function useGoalCompletion(enabled: boolean) {
   const client = useQueryClient();
@@ -32,7 +32,7 @@ export async function goalReminders() {
         id: v.goal.id,
         title: v.goal.title,
         targetDate: v.goal.targetDate!,
-        left: v.goal.kind === "manual" ? `${pace}at ${goalAmount(v, p.current)} of ${goalAmount(v, p.target)}` : `${pace}${goalAmount(v, Math.max(0, left))} to go`,
+        left: isCheckGoal(v.goal) ? `${pace}not done yet` : v.goal.kind === "manual" ? `${pace}at ${goalAmount(v, p.current)} of ${goalAmount(v, p.target)}` : `${pace}${goalAmount(v, Math.max(0, left))} to go`,
       };
     });
 }

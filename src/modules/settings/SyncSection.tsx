@@ -339,8 +339,8 @@ function BackgroundRow({ status }: { status: SyncStatus }) {
       label="Sync in the background"
       description={
         status.backgroundAvailable
-          ? "About every 15 minutes, even when Kaizen is closed. Uses the fingerprint-unlock key kept on this phone."
-          : "Needs fingerprint unlock (Settings → Security), whose key lets Kaizen open your data in the background."
+          ? "About every 15 minutes, even when Kaizen is closed. Uses the key kept on this phone."
+          : "Available once Kaizen has opened on this phone, whose stored key lets it open your data in the background."
       }
     >
       <Switch

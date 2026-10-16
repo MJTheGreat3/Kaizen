@@ -1,13 +1,13 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { motion } from "motion/react";
-import { ArrowCounterClockwise, Check, Copy, Eye, EyeSlash, Fingerprint, FolderOpen, Key } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, Check, Copy, Eye, EyeSlash, FolderOpen } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
-import { Skeleton, Switch } from "@/components/ui/controls";
+import { Skeleton } from "@/components/ui/controls";
 import { AppError, ipc } from "@/lib/ipc";
-import { biometricAvailable, biometricPrompt, pickFolder } from "@/lib/native";
+import { pickFolder } from "@/lib/native";
 import { cn, formatBytes, formatDateTime } from "@/lib/utils";
 import { BrandMark, Sky } from "@/components/visual";
 import { ease, rise, stagger } from "@/lib/motion";
@@ -166,7 +166,7 @@ export function SetupScreen() {
   return (
     <Shell
       title="Set up Kaizen"
-      description="Choose a passphrase. It encrypts everything on this device and is never stored anywhere."
+      description="Choose a passphrase. Kaizen opens without it; it guards your private photos and backups, and is never stored anywhere."
     >
       <form onSubmit={submit} className="grid gap-5">
         <Field
@@ -210,18 +210,9 @@ export function SetupScreen() {
 }
 
 export function RecoveryKeyScreen({ recoveryKey }: { recoveryKey: string }) {
-  const info = useSession((s) => s.info);
   const acknowledge = useSession((s) => s.acknowledgeRecoveryKey);
   const [copied, setCopied] = useState(false);
   const [stored, setStored] = useState(false);
-  const [fingerprint, setFingerprint] = useState(true);
-  const mobile = isMobile(info);
-  const { data: canUseBiometric } = useQuery({
-    queryKey: ["biometric-available"],
-    queryFn: biometricAvailable,
-    enabled: mobile,
-  });
-  const [busy, setBusy] = useState(false);
 
   async function copy() {
     await navigator.clipboard.writeText(recoveryKey);
@@ -229,24 +220,10 @@ export function RecoveryKeyScreen({ recoveryKey }: { recoveryKey: string }) {
     setTimeout(() => setCopied(false), 1800);
   }
 
-  const touchId = !mobile && !!info?.touchId;
-
-  async function finish() {
-    setBusy(true);
-    try {
-      if (((mobile && canUseBiometric) || touchId) && fingerprint) await ipc.vaultSetDeviceUnlock(true);
-    } catch {
-      // Cancelled; it can be turned on later in Settings.
-    } finally {
-      setBusy(false);
-      acknowledge();
-    }
-  }
-
   return (
     <Shell
       title="Save your recovery key"
-      description="If you forget your passphrase, this key is the only way back in. Write it down or keep it in a password manager. It won't be shown again."
+      description="If you forget your passphrase, this key is the only way back to your private photos and backups. Write it down or keep it in a password manager. It won't be shown again."
     >
       <div className="grid gap-6">
         <div className="rounded-xl border border-border bg-surface p-4 shadow-soft">
@@ -266,20 +243,6 @@ export function RecoveryKeyScreen({ recoveryKey }: { recoveryKey: string }) {
           </div>
         </div>
 
-        {(mobile && canUseBiometric) || touchId ? (
-          <label className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface px-4 py-3">
-            <span className="flex items-center gap-3 text-[15px]">
-              <Fingerprint size={22} className="text-accent" />
-              {touchId ? "Unlock with Touch ID" : "Unlock with fingerprint"}
-            </span>
-            <Switch
-              checked={fingerprint}
-              onCheckedChange={setFingerprint}
-              aria-label={touchId ? "Unlock with Touch ID" : "Unlock with fingerprint"}
-            />
-          </label>
-        ) : null}
-
         <label className="flex cursor-pointer items-start gap-3 text-[15px] leading-snug">
           <input
             type="checkbox"
@@ -290,7 +253,7 @@ export function RecoveryKeyScreen({ recoveryKey }: { recoveryKey: string }) {
           I've stored my recovery key somewhere safe.
         </label>
 
-        <Button size="lg" disabled={!stored} loading={busy} onClick={finish}>
+        <Button size="lg" disabled={!stored} onClick={acknowledge}>
           Continue
         </Button>
       </div>
@@ -303,41 +266,15 @@ export function RecoveryKeyScreen({ recoveryKey }: { recoveryKey: string }) {
 // ---------------------------------------------------------------------------
 
 /**
- * The biometric prompt opens by itself only on the first unlock screen after
- * the app starts. After a lock (manual or automatic) it waits for the button.
+ * Shown once per device (or after a restore): the passphrase puts the key on
+ * this device, and Kaizen opens by itself from then on.
  */
-let launchPromptUsed = false;
-
-export function UnlockScreen({ deviceUnlock }: { deviceUnlock: boolean }) {
-  const info = useSession((s) => s.info);
+export function UnlockScreen() {
   const onUnlocked = useSession((s) => s.onUnlocked);
-  const mobile = isMobile(info);
   const [mode, setMode] = useState<"unlock" | "recover">("unlock");
   const [passphrase, setPassphrase] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const touchId = !mobile && !!info?.touchId;
-
-  useEffect(() => {
-    if (launchPromptUsed || !info) return;
-    launchPromptUsed = true;
-    if (deviceUnlock && (mobile || touchId)) void quickUnlock();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deviceUnlock, info]);
-
-  async function quickUnlock() {
-    setError(null);
-    if (mobile && !(await biometricPrompt("Unlock Kaizen"))) return;
-    setBusy(true);
-    try {
-      onUnlocked(await ipc.vaultUnlockDevice());
-    } catch (err) {
-      // Touch ID dismissed: the passphrase field is right there.
-      if (!(err instanceof AppError && err.code === "cancelled")) setError(message(err));
-    } finally {
-      setBusy(false);
-    }
-  }
 
   if (mode === "recover") return <RecoverScreen onBack={() => setMode("unlock")} />;
 
@@ -357,40 +294,24 @@ export function UnlockScreen({ deviceUnlock }: { deviceUnlock: boolean }) {
   }
 
   return (
-    <Shell title="Unlock Kaizen" description="Your data stays encrypted until you unlock.">
+    <Shell
+      title="Open Kaizen"
+      description="Enter your passphrase once on this device. After that Kaizen opens by itself; only private photos ask for it again."
+    >
       <div className="grid gap-5">
-        {deviceUnlock ? (
-          <>
-            <Button size="lg" onClick={quickUnlock} loading={busy && !passphrase}>
-              {mobile || touchId ? <Fingerprint /> : <Key />}
-              {mobile ? "Unlock with fingerprint" : touchId ? "Unlock with Touch ID" : "Unlock"}
-            </Button>
-            <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
-              <span className="h-px flex-1 bg-border" />
-              or use your passphrase
-              <span className="h-px flex-1 bg-border" />
-            </div>
-          </>
-        ) : null}
         <form onSubmit={submit} className="grid gap-5">
           <Field label="Passphrase" htmlFor="unlock-passphrase" error={error}>
             <PassphraseInput
               id="unlock-passphrase"
               value={passphrase}
               onChange={setPassphrase}
-              autoFocus={!mobile || !deviceUnlock}
+              autoFocus
               invalid={!!error}
               autoComplete="current-password"
             />
           </Field>
-          <Button
-            type="submit"
-            size="lg"
-            variant={deviceUnlock ? "secondary" : "primary"}
-            loading={busy && !!passphrase}
-            disabled={!passphrase}
-          >
-            Unlock
+          <Button type="submit" size="lg" loading={busy} disabled={!passphrase}>
+            Open
           </Button>
         </form>
         <Button variant="ghost" onClick={() => setMode("recover")}>

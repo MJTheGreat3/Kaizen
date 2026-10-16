@@ -7,7 +7,6 @@ import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { useScheduledBackup } from "@/core/backup/useScheduledBackup";
 import { LoadingScreen, RecoveryKeyScreen, SetupScreen, UnlockScreen } from "@/core/security/LockScreens";
 import { useSession } from "@/core/security/session";
-import { useAutoLock } from "@/core/security/useAutoLock";
 import { useNotificationSync } from "@/core/notifications/scheduler";
 import { useAutoSync } from "@/core/sync/autosync";
 import { useFocusEngine } from "@/modules/focus/engine";
@@ -39,7 +38,6 @@ export function App() {
     if (!unlocked) client.clear();
   }, [unlocked, client]);
 
-  useAutoLock(unlocked);
   useScheduledBackup(unlocked);
   const platform = info?.platform === "android" ? "android" : "desktop";
   useNotificationSync(unlocked, platform);
@@ -72,7 +70,7 @@ export function App() {
             ) : phase.kind === "recovery" ? (
               <RecoveryKeyScreen recoveryKey={phase.recoveryKey} />
             ) : phase.kind === "locked" ? (
-              <UnlockScreen deviceUnlock={phase.deviceUnlock} />
+              <UnlockScreen />
             ) : (
               <RouterProvider router={router} />
             )}

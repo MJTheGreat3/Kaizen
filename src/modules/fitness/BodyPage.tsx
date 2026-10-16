@@ -1,15 +1,18 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { ArrowLeft, Camera, ImageBroken, Plus, Trash } from "@phosphor-icons/react";
+import { ArrowLeft, Camera, ImageBroken, LockKey, Plus, Trash } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Segmented, Skeleton } from "@/components/ui/controls";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { SectionTitle } from "@/components/ui/kit";
 import type { Attachment, BodyMetric } from "@/core/db/schema";
+import { usePrivate, usePrivateFiles } from "@/core/security/private";
 import { Page } from "@/core/shell/PageHeader";
+import { AppError } from "@/lib/ipc";
 import { addDaysKey, formatLongDate, todayKey } from "@/lib/dates";
 import { rise } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -24,7 +27,7 @@ const HUE = modules.find((m) => m.id === "fitness")!.hue;
 type Series = "weight" | "bodyFat" | (typeof MEASUREMENTS)[number]["key"];
 
 function Photo({ photo, className, onOpen }: { photo: Attachment; className?: string; onOpen?: () => void }) {
-  const { data, error, isLoading } = usePhoto(photo.id);
+  const { data, error, isLoading } = usePhoto(photo.id, true);
   return (
     <button type="button" onClick={onOpen} disabled={!data} className={cn("relative grid aspect-[3/4] place-items-center overflow-hidden rounded-xl bg-surface-muted", className)}>
       {data ? <img src={data} alt={`Progress photo, ${photo.ownerId.slice(3)}`} className="size-full object-cover" /> : null}
@@ -41,7 +44,7 @@ function Photo({ photo, className, onOpen }: { photo: Attachment; className?: st
 
 function PhotoViewer({ photo, onClose }: { photo: Attachment; onClose: () => void }) {
   const remove = useRemovePhoto();
-  const { data } = usePhoto(photo.id);
+  const { data } = usePhoto(photo.id, usePrivate((s) => s.open));
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-xl">
@@ -70,11 +73,61 @@ function PhotoViewer({ photo, onClose }: { photo: Attachment; onClose: () => voi
   );
 }
 
+/** Asks for the passphrase before progress photos are shown. */
+function PhotosLocked({ count }: { count: number }) {
+  const unlock = usePrivate((s) => s.unlock);
+  const [passphrase, setPassphrase] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!passphrase) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await unlock(passphrase);
+    } catch (err) {
+      setError(err instanceof AppError && err.code === "wrong_secret" ? "That passphrase doesn't match." : err instanceof Error ? err.message : String(err));
+      setPassphrase("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="grid justify-items-center gap-3 rounded-xl border border-dashed border-border px-4 py-7 text-center">
+      <LockKey size={24} className="text-muted-foreground" />
+      <p className="text-[14px] text-muted-foreground">{count === 1 ? "1 photo" : `${count} photos`}, locked. Enter your passphrase to see them.</p>
+      <div className="flex w-full max-w-[340px] gap-2">
+        <Input
+          type="password"
+          aria-label="Passphrase"
+          value={passphrase}
+          onChange={(e) => setPassphrase(e.target.value)}
+          autoComplete="current-password"
+          placeholder="Passphrase"
+          aria-invalid={!!error}
+        />
+        <Button type="submit" loading={busy} disabled={!passphrase}>
+          Open
+        </Button>
+      </div>
+      {error ? (
+        <p role="alert" className="text-[13px] text-danger">
+          {error}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
 /** Weight, body fat and measurements over time, and progress photos. */
 export function BodyPage() {
   const { data, isLoading } = useGym();
   const unit = useUnit();
   const addPhotos = useAddPhotos();
+  const photosOpen = usePrivateFiles();
   const [editing, setEditing] = useState<BodyMetric | "new" | null>(null);
   const [series, setSeries] = useState<Series>("weight");
   const [viewing, setViewing] = useState<Attachment | null>(null);
@@ -221,7 +274,9 @@ export function BodyPage() {
 
             <motion.section variants={rise} className="rounded-2xl border border-border bg-surface p-4 shadow-soft md:p-5">
               <SectionTitle>Progress photos</SectionTitle>
-              {photosByDay.length ? (
+              {photosByDay.length && !photosOpen ? (
+                <PhotosLocked count={data?.photos.length ?? 0} />
+              ) : photosByDay.length ? (
                 <div className="grid gap-4">
                   {photosByDay.slice(0, 6).map(([day, list]) => (
                     <div key={day}>
@@ -246,7 +301,7 @@ export function BodyPage() {
       )}
 
       {editing ? <MetricDialog metric={editing === "new" ? null : editing} onClose={() => setEditing(null)} /> : null}
-      {viewing ? <PhotoViewer photo={viewing} onClose={() => setViewing(null)} /> : null}
+      {viewing && photosOpen ? <PhotoViewer photo={viewing} onClose={() => setViewing(null)} /> : null}
     </Page>
   );
 }

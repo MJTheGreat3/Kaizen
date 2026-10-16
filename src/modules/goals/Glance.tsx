@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { ease } from "@/lib/motion";
 import type { GoalView } from "./data";
 import { goalAmount } from "./format";
-import { PACE_LABEL } from "./logic";
+import { isCheckGoal, PACE_LABEL } from "./logic";
 
 export function GoalsGlance({ goals }: { goals: GoalView[] }) {
   return (
@@ -17,7 +17,7 @@ export function GoalsGlance({ goals }: { goals: GoalView[] }) {
               <span className="truncate font-medium">{v.goal.title}</span>
               <span className="shrink-0 text-[12px] text-muted-foreground">
                 {p.pace !== "none" ? `${PACE_LABEL[p.pace]} · ` : ""}
-                {goalAmount(v, p.current)} / {goalAmount(v, p.target)}
+                {isCheckGoal(v.goal) ? (v.goal.status === "done" ? "Done" : "Not done yet") : `${goalAmount(v, p.current)} / ${goalAmount(v, p.target)}`}
               </span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-surface-muted">

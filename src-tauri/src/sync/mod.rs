@@ -378,7 +378,7 @@ pub struct Status {
     pub drive_account: Option<String>,
     /// Android background sync is on.
     pub background: bool,
-    /// Android background sync can be turned on (fingerprint unlock is set up).
+    /// Android background sync can be turned on (the key is kept on this device).
     pub background_available: bool,
     pub peers: Vec<Peer>,
     pub log: Vec<LogEntry>,

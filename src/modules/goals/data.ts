@@ -114,7 +114,7 @@ function useGoalMutation<A>(fn: (a: A) => Promise<unknown>) {
 
 export type GoalInput = Pick<
   Goal,
-  "title" | "notes" | "kind" | "unit" | "startValue" | "targetValue" | "startDate" | "targetDate" | "activityType" | "activityTag" | "color" | "metric"
+  "title" | "notes" | "kind" | "unit" | "startValue" | "targetValue" | "startDate" | "targetDate" | "activityType" | "activityTag" | "color" | "metric" | "horizon"
 >;
 
 export interface SaveGoal extends GoalInput {

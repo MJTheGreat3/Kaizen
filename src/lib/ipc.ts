@@ -17,7 +17,7 @@ export type ErrorCode =
   | "keychain"
   | "tauri"
   | "http"
-  | "cancelled";
+  | "private_locked";
 
 export class AppError extends Error {
   constructor(
@@ -74,8 +74,6 @@ export interface AppInfo {
   dataDir: string;
   logDir: string;
   defaultBackupDir: string;
-  /** Touch ID is set up (macOS). */
-  touchId: boolean;
 }
 
 export interface VaultStatus {
@@ -187,6 +185,20 @@ export interface GitHubReport {
   error: string | null;
 }
 
+/** A book, film, show or anime found for a list item. */
+export interface MediaFound {
+  sourceId: string;
+  title: string;
+  creator: string | null;
+  year: number | null;
+  medium: "book" | "movie" | "show" | "anime";
+  pages: number | null;
+  episodes: number | null;
+  runtimeMinutes: number | null;
+  genres: string[];
+  cover: string | null;
+}
+
 export const ipc = {
   appInfo: () => call<AppInfo>("app_info"),
 
@@ -196,7 +208,10 @@ export const ipc = {
   vaultRecover: (recoveryKey: string, newPassphrase: string) =>
     call<Unlocked>("vault_recover", { recoveryKey, newPassphrase }),
   vaultUnlockDevice: () => call<Unlocked>("vault_unlock_device"),
-  vaultSetDeviceUnlock: (enabled: boolean) => call<void>("vault_set_device_unlock", { enabled }),
+  mediaSearch: (list: "read" | "watch", query: string) => call<MediaFound[]>("media_search", { list, query }),
+  privateStatus: () => call<boolean>("private_status"),
+  privateUnlock: (passphrase: string) => call<void>("private_unlock", { passphrase }),
+  privateLock: () => call<void>("private_lock"),
   vaultLock: () => call<void>("vault_lock"),
 
   dbQuery: (sql: string, params: unknown[], method: QueryMethod) =>

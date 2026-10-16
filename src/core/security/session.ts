@@ -5,7 +5,8 @@ import { ipc, type AppInfo, type Unlocked, type VaultStatus } from "@/lib/ipc";
 type Phase =
   | { kind: "loading" }
   | { kind: "setup" }
-  | { kind: "locked"; deviceUnlock: boolean }
+  /** No key on this device yet: the passphrase is asked for once. */
+  | { kind: "locked" }
   /** Just created: the recovery key must be shown before entering the app. */
   | { kind: "recovery"; recoveryKey: string }
   | { kind: "unlocked" };
@@ -17,12 +18,11 @@ interface SessionState {
   refresh: () => Promise<void>;
   onUnlocked: (result: Unlocked) => void;
   acknowledgeRecoveryKey: () => void;
-  lock: () => Promise<void>;
 }
 
 function phaseFrom(status: VaultStatus): Phase {
   if (!status.initialized) return { kind: "setup" };
-  if (!status.unlocked) return { kind: "locked", deviceUnlock: status.deviceUnlock };
+  if (!status.unlocked) return { kind: "locked" };
   return { kind: "unlocked" };
 }
 
@@ -33,9 +33,19 @@ export const useSession = create<SessionState>((set, get) => ({
 
   refresh: async () => {
     const [info, status] = await Promise.all([get().info ?? ipc.appInfo(), ipc.vaultStatus()]);
-    // A session that is still open on the Rust side (e.g. after a reload) is
-    // locked again so the frontend always starts from a known state.
-    if (status.unlocked) {
+    // Kaizen opens by itself with the key kept on this device; the
+    // passphrase is only asked for once per device (and for private files).
+    if (status.initialized && status.deviceUnlock) {
+      try {
+        const result = await ipc.vaultUnlockDevice();
+        set({ info });
+        get().onUnlocked(result);
+        return;
+      } catch {
+        // The stored key is gone or stale: fall back to the passphrase.
+        status.unlocked = false;
+      }
+    } else if (status.unlocked) {
       await ipc.vaultLock();
       status.unlocked = false;
     }
@@ -50,12 +60,6 @@ export const useSession = create<SessionState>((set, get) => ({
   },
 
   acknowledgeRecoveryKey: () => set({ phase: { kind: "unlocked" } }),
-
-  lock: async () => {
-    await ipc.vaultLock();
-    const status = await ipc.vaultStatus();
-    set({ phase: phaseFrom(status), deviceId: null });
-  },
 }));
 
 /** Used by the schema to stamp rows with this device's id. */

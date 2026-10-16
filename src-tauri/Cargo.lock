@@ -2131,7 +2131,6 @@ dependencies = [
  "base32",
  "base64 0.23.1",
  "blake2",
- "block2",
  "chacha20poly1305",
  "chrono",
  "flate2",
@@ -2140,9 +2139,6 @@ dependencies = [
  "jni",
  "keyring",
  "ndk-context",
- "objc2",
- "objc2-foundation",
- "objc2-local-authentication",
  "rand 0.8.8",
  "regex",
  "rusqlite",
@@ -2153,7 +2149,6 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-audiofx",
  "tauri-plugin-barcode-scanner",
- "tauri-plugin-biometric",
  "tauri-plugin-dialog",
  "tauri-plugin-focus",
  "tauri-plugin-global-shortcut",
@@ -2656,17 +2651,6 @@ dependencies = [
  "bitflags 2.13.2",
  "objc2",
  "objc2-core-foundation",
-]
-
-[[package]]
-name = "objc2-local-authentication"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e48e0b8b339e0d9d2ed4416b7f93f9d4daadff7d4dd797f89867cde11aeac607"
-dependencies = [
- "block2",
- "objc2",
- "objc2-foundation",
 ]
 
 [[package]]
@@ -4182,21 +4166,6 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
- "tauri",
- "tauri-plugin",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "tauri-plugin-biometric"
-version = "2.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3c916cf23f6fa96eff013b2ecda7d232bac2c87a87cb59f107c2c1b0aded495"
-dependencies = [
- "log",
- "serde",
- "serde_json",
- "serde_repr",
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.21",

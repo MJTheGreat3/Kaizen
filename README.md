@@ -6,9 +6,9 @@ Kaizen brings everything I want to track into one app, with all data stored on m
 
 - **DSA / CP practice**: Codeforces and LeetCode sync, rating graphs, weak-topic analysis, revisit queue, contest reminders
 - **Gym and sports**: workout logging, PRs, progressive-overload charts, sports sessions, body metrics
-- **To-do, to-watch, to-read**: natural-language input with reminders
+- **To-do, to-watch, to-read**: natural-language input with reminders; books, films, shows and anime fill in their author or cast, year and cover
 - **Finance**: monthly bank statement (CSV) import, auto-categorisation, insights and budgets
-- **Habits and goals**: streaks, reminders, goals that track progress from other modules
+- **Habits and goals**: streaks, reminders, short and long term goals that are ticked off or track progress from other modules
 - **Activity heatmap**: colour-coded per activity, with filters and streaks
 - **Focus timer**: Forest-style, a tree grows while you stay focused
 - **College timetable with attendance**: class reminders, one-tap attendance, bunk calculator; plus important dates and countdowns
@@ -20,7 +20,7 @@ Kaizen brings everything I want to track into one app, with all data stored on m
 
 ## Principles
 
-- **Local-first**: encrypted SQLite on each device, works fully offline
+- **Local-first**: encrypted SQLite on each device, works fully offline; opens without a passphrase, which still guards progress photos and backups
 - **Private sync**: laptop and phone sync end-to-end encrypted through a hidden Google Drive folder, or directly over LAN / Tailscale
 - **Single user**: no accounts, no servers
 

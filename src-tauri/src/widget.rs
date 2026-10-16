@@ -4,7 +4,7 @@
 //! Rust keeps a snapshot (`widget.json` in the data folder) for the Kotlin
 //! widget to draw: the app writes it after changes, and the widget asks for
 //! a fresh one (and applies its ticks) by opening the database with the
-//! fingerprint-unlock key kept on the phone. Without that key the widget
+//! key kept on the phone. Without that key the widget
 //! shows the last snapshot and taps open the app.
 
 use std::path::Path;
@@ -49,7 +49,7 @@ pub struct Snapshot {
     /// Due today or earlier, beyond the ones listed.
     pub more_tasks: usize,
     pub habits: Vec<WidgetHabit>,
-    /// The widget can tick things itself (fingerprint unlock is set up).
+    /// The widget can tick things itself (the key is kept on the phone).
     pub live: bool,
     pub debts: crate::quick::DebtSummary,
     pub at: i64,
@@ -360,7 +360,7 @@ pub fn act(
     write(data_dir, &snapshot(conn, today, live)?)
 }
 
-/// Opens the database with the phone's fingerprint-unlock key and applies
+/// Opens the database with the key kept on the phone and applies
 /// `action`; without the key, returns the last snapshot unchanged.
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 pub fn background(data_dir: &Path, action: &str) -> Result<String> {

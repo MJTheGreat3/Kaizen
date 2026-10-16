@@ -51,6 +51,16 @@ impl Http {
         Ok(serde_json::from_str(&self.text(url)?)?)
     }
 
+    /// POSTs JSON and reads JSON back.
+    pub fn post_json(&self, url: &str, body: JsonValue) -> Result<JsonValue> {
+        let mut resp = self.agent.post(url).send_json(body).map_err(http_err)?;
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(Error::Http(format!("{} returned {status}", host(url))));
+        }
+        resp.body_mut().read_json().map_err(http_err)
+    }
+
     /// A GraphQL request (LeetCode).
     pub fn graphql(&self, url: &str, query: &str, variables: JsonValue) -> Result<JsonValue> {
         let mut resp = self

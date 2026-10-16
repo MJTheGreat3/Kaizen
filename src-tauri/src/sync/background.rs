@@ -1,7 +1,7 @@
 //! Background sync on Android: a WorkManager job (`SyncWorker.kt`) calls
 //! into Rust every ~15 minutes, even when Kaizen is closed. It opens the
-//! database with the fingerprint-unlock key kept on the device, so it only
-//! runs when the user turned it on and fingerprint unlock is set up.
+//! database with the key kept on the device, so it only
+//! runs when the user turned it on and that key is there.
 
 use std::path::Path;
 use std::sync::Mutex;
@@ -52,7 +52,11 @@ pub fn run(data_dir: &Path) -> Result<Report> {
     let Some(group_key) = paired else {
         return Ok(Report::default());
     };
-    let session = Mutex::new(Some(Session { db, key }));
+    let session = Mutex::new(Some(Session {
+        db,
+        key,
+        private_until: std::sync::atomic::AtomicI64::new(0),
+    }));
     let _running = super::RUNNING.lock().unwrap_or_else(|e| e.into_inner());
 
     let mut mailboxes: Vec<Box<dyn Mailbox>> = Vec::new();

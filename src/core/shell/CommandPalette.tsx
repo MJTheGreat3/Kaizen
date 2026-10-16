@@ -13,7 +13,6 @@ import {
   GearSix,
   Lightbulb,
   ListPlus,
-  Lock,
   MagnifyingGlass,
   MoonStars,
   Plus,
@@ -32,7 +31,6 @@ import { usePref } from "@/core/db/prefs";
 import { parseTask } from "@/core/nl/parse";
 import { moduleOf, SEARCH_MODULES, useSearchRows } from "@/core/search/data";
 import { highlight, labelScore, parseQuery, search, type Result } from "@/core/search/match";
-import { useSession } from "@/core/security/session";
 import { useSyncAction } from "@/core/sync/useSyncAction";
 import { cycleTheme } from "@/core/theme";
 import { relativeDay } from "@/lib/dates";
@@ -100,7 +98,6 @@ export function CommandPalette() {
   const { open, setOpen } = usePalette();
   const navigate = useNavigate();
   const client = useQueryClient();
-  const lock = useSession((s) => s.lock);
   const sync = useSyncAction();
   const addTask = useAddTask();
   const [query, setQuery] = useState("");
@@ -212,9 +209,8 @@ export function CommandPalette() {
         },
       },
       { id: "theme", label: "Toggle dark mode", keywords: "theme light", icon: MoonStars, run: cycleTheme },
-      { id: "lock", label: "Lock now", icon: Lock, run: lock },
     ],
-    [navigate, sync, lock],
+    [navigate, sync],
   );
 
   const parsed = useMemo(() => parseQuery(deferred), [deferred]);

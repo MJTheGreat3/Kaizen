@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { modules } from "@/modules/registry";
 import { useAddTask, useDeleteTask, useSetDone, useTasks, useUpdateTask } from "./data";
 import { recurrenceLabel } from "./recurrence";
+import { ItemCover } from "./DetailsFinder";
 import { TaskEditor } from "./TaskEditor";
 
 const mod = modules.find((m) => m.id === "lists")!;
@@ -70,6 +71,7 @@ function TaskRow({ task, onEdit }: { task: Task; onEdit: (t: Task) => void }) {
       onClick={() => onEdit(task)}
       className="group flex cursor-pointer items-start gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-surface-muted/70"
     >
+      {task.list !== "todo" && task.meta.cover ? <ItemCover task={task} className="h-14 w-10" /> : null}
       <span className="pt-0.5">
         <CheckCircle
           checked={done}
@@ -87,7 +89,7 @@ function TaskRow({ task, onEdit }: { task: Task; onEdit: (t: Task) => void }) {
         >
           {task.title}
         </p>
-        {(task.dueDate || task.tags.length || task.recurrence || task.priority || task.meta.author || task.meta.medium || task.meta.rating) && !done ? (
+        {(task.dueDate || task.tags.length || task.recurrence || task.priority || task.meta.author || task.meta.creator || task.meta.year || task.meta.medium || task.meta.rating) && !done ? (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {task.dueDate ? (
               <Chip tone={overdue ? "danger" : task.dueDate === today ? "hue" : "muted"} hue={HUE} icon={CalendarBlank}>
@@ -102,6 +104,8 @@ function TaskRow({ task, onEdit }: { task: Task; onEdit: (t: Task) => void }) {
               </span>
             ) : null}
             {task.meta.author ? <Chip>{task.meta.author}</Chip> : null}
+            {task.meta.creator ? <Chip className="max-w-[16rem] truncate">{task.meta.creator}</Chip> : null}
+            {task.meta.year ? <Chip>{task.meta.year}</Chip> : null}
             {task.meta.medium ? <Chip className="capitalize">{task.meta.medium}</Chip> : null}
             {task.tags.map((tag) => (
               <Chip key={tag}>#{tag}</Chip>

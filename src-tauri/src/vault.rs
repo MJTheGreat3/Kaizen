@@ -3,8 +3,9 @@
 //! The database is encrypted with a random 256-bit data key (DEK). The DEK is
 //! stored in `vault.json` twice, each copy wrapped (XChaCha20-Poly1305) with a
 //! key derived by Argon2id: once from the passphrase and once from the recovery
-//! key. Optionally the raw DEK is also kept in device storage for quick unlock
-//! (OS keychain on desktop, app-private storage on Android behind biometrics).
+//! key. The raw DEK is also kept in device storage so the app opens without
+//! the passphrase (OS keychain on desktop, app-private storage on Android);
+//! the passphrase still guards private files, backups and recovery.
 
 use std::path::{Path, PathBuf};
 
@@ -249,7 +250,7 @@ mod device_store {
 }
 
 /// On Android the key is kept in app-private storage, which other apps cannot
-/// read; the UI only uses it after a successful biometric prompt.
+/// read.
 /// TODO: wrap it with an Android Keystore key once a Kotlin plugin exists.
 #[cfg(any(target_os = "android", target_os = "ios"))]
 mod device_store {

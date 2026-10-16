@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { DotsThreeOutline, GearSix, Lock, MagnifyingGlass } from "@phosphor-icons/react";
+import { DotsThreeOutline, GearSix, MagnifyingGlass } from "@phosphor-icons/react";
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Kbd } from "@/components/ui/controls";
@@ -74,7 +74,6 @@ function SidebarLink({
 function Sidebar() {
   const path = useActivePath();
   const openPalette = usePalette((s) => s.setOpen);
-  const lock = useSession((s) => s.lock);
   const mac = navigator.userAgent.includes("Mac");
 
   return (
@@ -125,13 +124,6 @@ function Sidebar() {
           hue={SETTINGS_HUE}
           active={isActive(path, "/settings")}
         />
-        <button
-          onClick={() => void lock()}
-          className="flex h-[34px] items-center gap-3 rounded-[10px] px-2.5 text-[14px] text-muted-foreground transition-colors hover:bg-surface/55 hover:text-foreground [&_svg]:size-[18px]"
-        >
-          <Lock />
-          Lock
-        </button>
       </div>
     </aside>
   );
@@ -139,7 +131,6 @@ function Sidebar() {
 
 function MobileTopBar() {
   const openPalette = usePalette((s) => s.setOpen);
-  const lock = useSession((s) => s.lock);
 
   return (
     <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 pt-safe backdrop-blur-xl md:hidden">
@@ -157,13 +148,6 @@ function MobileTopBar() {
             <MagnifyingGlass size={20} />
           </button>
           <SyncButton variant="icon" />
-          <button
-            aria-label="Lock"
-            onClick={() => void lock()}
-            className="grid size-10 place-items-center rounded-xl text-muted-foreground transition-transform active:scale-90 active:bg-surface-muted"
-          >
-            <Lock size={20} />
-          </button>
         </div>
       </div>
     </header>

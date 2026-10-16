@@ -8,8 +8,6 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "./client";
 
 export interface Prefs {
-  /** Minutes of inactivity before auto-lock; 0 disables. */
-  "lock.timeoutMinutes": number;
   /** Backup folder; empty means the app's default folder. */
   "backup.dir": string;
   "backup.frequency": "off" | "daily" | "weekly";
@@ -79,7 +77,6 @@ export interface Prefs {
 }
 
 export const defaultPrefs: Prefs = {
-  "lock.timeoutMinutes": 5,
   "backup.dir": "",
   "backup.frequency": "daily",
   "backup.keep": 10,

@@ -37,8 +37,8 @@ import { runBackupNow } from "@/core/backup/useScheduledBackup";
 import { isMobile, useSession } from "@/core/security/session";
 import { Page, PageHeader } from "@/core/shell/PageHeader";
 import { setTheme, useTheme } from "@/core/theme";
-import { AppError, ipc, type BackupInfo } from "@/lib/ipc";
-import { biometricAvailable, biometricPrompt, pickFolder } from "@/lib/native";
+import { ipc, type BackupInfo } from "@/lib/ipc";
+import { pickFolder } from "@/lib/native";
 import { formatBytes, formatDateTime } from "@/lib/utils";
 import { Row, Section } from "./layout";
 import { SyncSection } from "./SyncSection";
@@ -70,68 +70,22 @@ function AppearanceSection() {
 }
 
 function SecuritySection() {
-  const info = useSession((s) => s.info);
-  const mobile = isMobile(info);
-  const client = useQueryClient();
-  const [timeout, setTimeoutPref] = usePref("lock.timeoutMinutes");
-  const status = useQuery({ queryKey: ["vault-status"], queryFn: ipc.vaultStatus });
-  const biometric = useQuery({ queryKey: ["biometric-available"], queryFn: biometricAvailable, enabled: mobile });
-
-  const toggleDevice = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      if (enabled && mobile && !(await biometricPrompt("Confirm to enable fingerprint unlock"))) {
-        throw new Error("Fingerprint not confirmed");
-      }
-      await ipc.vaultSetDeviceUnlock(enabled);
-    },
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["vault-status"] });
-      // Background sync depends on it.
-      client.invalidateQueries({ queryKey: ["sync-status"] });
-    },
-    onError: (e) => {
-      if (!(e instanceof AppError && e.code === "cancelled")) toast.error(errorText(e));
-    },
+  const lockPhotos = useMutation({
+    mutationFn: ipc.privateLock,
+    onSuccess: () => toast.success("Private photos locked"),
+    onError: (e) => toast.error(errorText(e)),
   });
 
-  const touchId = !mobile && !!info?.touchId;
-  const deviceLabel = mobile ? "Unlock with fingerprint" : touchId ? "Unlock with Touch ID" : "Remember on this computer";
-  const deviceDescription = mobile
-    ? "Use your fingerprint instead of the passphrase."
-    : touchId
-      ? "Use Touch ID (or your Mac password) instead of the passphrase. The key is kept in your keychain."
-      : "Unlock with one click. The key is kept in your system keychain.";
-
   return (
-    <Section title="Security" description="Your data is encrypted with your passphrase.">
-      {mobile && biometric.data === false ? (
-        <Row label={deviceLabel} description="No fingerprint is set up on this phone." />
-      ) : (
-        <Row label={deviceLabel} description={deviceDescription} inline>
-          <Switch
-            aria-label={deviceLabel}
-            checked={status.data?.deviceUnlock ?? false}
-            disabled={status.isLoading || toggleDevice.isPending}
-            onCheckedChange={(v) => toggleDevice.mutate(v)}
-          />
-        </Row>
-      )}
-      <Row label="Auto-lock" description="Lock after this long without activity.">
-        <NativeSelect
-          aria-label="Auto-lock"
-          value={timeout}
-          onChange={async (e) => {
-            const minutes = Number(e.target.value);
-            await setTimeoutPref(minutes);
-            window.dispatchEvent(new CustomEvent("kaizen:lock-timeout", { detail: minutes }));
-          }}
-        >
-          <option value={1}>1 minute</option>
-          <option value={5}>5 minutes</option>
-          <option value={15}>15 minutes</option>
-          <option value={60}>1 hour</option>
-          <option value={0}>Never</option>
-        </NativeSelect>
+    <Section title="Security" description="Kaizen opens without a passphrase. Your data stays encrypted, with the key kept on this device.">
+      <Row
+        label="Private photos"
+        description="Progress photos ask for your passphrase, then stay open for 10 minutes or until Kaizen is in the background."
+        inline
+      >
+        <Button variant="secondary" size="sm" loading={lockPhotos.isPending} onClick={() => lockPhotos.mutate()}>
+          Lock now
+        </Button>
       </Row>
     </Section>
   );

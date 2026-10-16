@@ -30,8 +30,6 @@ pub struct AppInfo {
     data_dir: String,
     log_dir: String,
     default_backup_dir: String,
-    /// Touch ID is set up (macOS); quick unlock then asks for it.
-    touch_id: bool,
 }
 
 #[derive(Serialize)]
@@ -66,7 +64,19 @@ fn open_session(state: &AppState, key: DataKey, recovery_key: Option<String>) ->
     }
     sync::register_device(db.conn(), std::env::consts::OS, &own_addresses())?;
     let device_id = db.device_id()?;
-    *state.session.lock().unwrap() = Some(Session { db, key });
+    // Kaizen opens without the passphrase from now on: the key stays on
+    // this device (keychain, or app-private storage on Android).
+    if !device_unlock_enabled(&state.data_dir) {
+        match vault::save_device_key(&state.data_dir, &key) {
+            Ok(()) => std::fs::write(state.data_dir.join(DEVICE_UNLOCK_MARKER), b"1")?,
+            Err(e) => tracing::warn!(error = %e, "could not keep the key on this device"),
+        }
+    }
+    *state.session.lock().unwrap() = Some(Session {
+        db,
+        key,
+        private_until: std::sync::atomic::AtomicI64::new(0),
+    });
     tracing::info!("unlocked");
     Ok(Unlocked {
         device_id,
@@ -96,27 +106,7 @@ pub fn app_info(app: tauri::AppHandle, state: State<'_, AppState>) -> AppInfo {
         default_backup_dir: backup::default_dir(&state.data_dir)
             .to_string_lossy()
             .into_owned(),
-        touch_id: touch_id_available(),
     }
-}
-
-fn touch_id_available() -> bool {
-    #[cfg(target_os = "macos")]
-    return crate::touchid::available();
-    #[cfg(not(target_os = "macos"))]
-    false
-}
-
-/// On macOS, asks for Touch ID (or the login password) before the quick
-/// unlock key is used or stored. Elsewhere this is a no-op: Android shows
-/// its biometric prompt from the frontend.
-async fn confirm_owner(reason: &'static str) -> Result<()> {
-    #[cfg(target_os = "macos")]
-    if !blocking(move || Ok(crate::touchid::prompt(reason))).await? {
-        return Err(Error::Cancelled);
-    }
-    let _ = reason;
-    Ok(())
 }
 
 #[tauri::command]
@@ -150,35 +140,56 @@ pub async fn vault_recover(
     open_session(&state, key, None)
 }
 
-/// Quick unlock with the key kept on this device. On Android the frontend
-/// calls this only after a successful biometric prompt.
+/// Opens with the key kept on this device, without asking for anything.
 #[tauri::command]
 pub async fn vault_unlock_device(state: State<'_, AppState>) -> Result<Unlocked> {
     if !device_unlock_enabled(&state.data_dir) {
         return Err(Error::DeviceUnlockUnavailable);
     }
-    confirm_owner("unlock your data").await?;
     let key = vault::load_device_key(&state.data_dir)?.ok_or(Error::DeviceUnlockUnavailable)?;
     open_session(&state, key, None)
 }
 
+/// How long private files stay open after the passphrase is entered.
+const PRIVATE_OPEN_MS: i64 = 10 * 60_000;
+
+fn private_open(session: &Session) -> bool {
+    session
+        .private_until
+        .load(std::sync::atomic::Ordering::Relaxed)
+        > chrono::Utc::now().timestamp_millis()
+}
+
+/// Whether private files (progress photos) are open right now.
 #[tauri::command]
-pub async fn vault_set_device_unlock(state: State<'_, AppState>, enabled: bool) -> Result<()> {
-    let marker = state.data_dir.join(DEVICE_UNLOCK_MARKER);
-    if enabled {
-        confirm_owner("turn on quick unlock").await?;
-        with_session(&state, |s| vault::save_device_key(&state.data_dir, &s.key))?;
-        std::fs::write(marker, b"1")?;
-    } else {
-        vault::clear_device_key(&state.data_dir)?;
-        // Background sync relies on the device key.
-        sync::background::set_enabled(&state.data_dir, false)?;
-        if marker.exists() {
-            std::fs::remove_file(marker)?;
-        }
-    }
-    tracing::info!(enabled, "device unlock changed");
-    Ok(())
+pub fn private_status(state: State<'_, AppState>) -> Result<bool> {
+    with_session(&state, |s| Ok(private_open(s)))
+}
+
+/// Opens private files for a while; they are the one thing still behind
+/// the passphrase.
+#[tauri::command]
+pub async fn private_unlock(app: tauri::AppHandle, passphrase: String) -> Result<()> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        vault::unlock_with_passphrase(&state.data_dir, &passphrase)?;
+        with_session(&state, |s| {
+            let until = chrono::Utc::now().timestamp_millis() + PRIVATE_OPEN_MS;
+            s.private_until
+                .store(until, std::sync::atomic::Ordering::Relaxed);
+            Ok(())
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+pub fn private_lock(state: State<'_, AppState>) -> Result<()> {
+    with_session(&state, |s| {
+        s.private_until
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        Ok(())
+    })
 }
 
 #[tauri::command]
@@ -296,12 +307,12 @@ pub async fn sync_status(state: State<'_, AppState>) -> Result<Status> {
     Ok(status)
 }
 
-/// Turns Android background sync on or off. It needs fingerprint unlock,
-/// whose on-device key lets the background job open the database.
+/// Turns Android background sync on or off. It needs the key kept on the
+/// device, which lets the background job open the database.
 #[tauri::command]
 pub async fn sync_background_set(state: State<'_, AppState>, enabled: bool) -> Result<()> {
     if enabled && !device_unlock_enabled(&state.data_dir) {
-        return Err(Error::Invalid("turn on fingerprint unlock first".into()));
+        return Err(Error::Invalid("open Kaizen once to set this up".into()));
     }
     sync::background::set_enabled(&state.data_dir, enabled)
 }
@@ -647,6 +658,15 @@ pub async fn github_refresh(
     .await
 }
 
+/// Books (`read`) or films, shows and anime (`watch`) matching a title.
+#[tauri::command]
+pub async fn media_search(list: String, query: String) -> Result<Vec<crate::media::Found>> {
+    if query.trim().chars().count() < 2 {
+        return Ok(Vec::new());
+    }
+    blocking(move || crate::media::search(&list, &query)).await
+}
+
 /// Teams or players matching a search, ready to follow.
 #[tauri::command]
 pub async fn sports_search(
@@ -848,6 +868,9 @@ pub async fn attachment_read(app: tauri::AppHandle, id: String) -> Result<String
     blocking(move || {
         let state = app.state::<AppState>();
         let bytes = with_session(&state, |s| {
+            if !private_open(s) {
+                return Err(Error::PrivateLocked);
+            }
             attachments::read(&state.data_dir, &s.key, s.db.conn(), &id)
         })?;
         Ok(base64::engine::general_purpose::STANDARD.encode(bytes))

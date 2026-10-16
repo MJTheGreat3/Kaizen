@@ -64,4 +64,13 @@ describe("goal progress", () => {
   it("builds running totals", () => {
     expect(cumulative([{ date: "2026-10-02", value: 2 }, { date: "2026-10-01", value: 1 }], "2026-10-01").map((p) => p.value)).toEqual([1, 3]);
   });
+
+  it("treats a check goal as done or not, with no auto-completion", () => {
+    const g = { ...base, kind: "manual" as const, targetValue: 1, metric: "check", targetDate: "2026-10-10" };
+    const open = progress(g, { ...none, entries: [{ date: "2026-10-05", value: 5 }] }, "2026-10-14");
+    expect(open).toMatchObject({ fraction: 0, current: 0, target: 1, pace: "overdue" });
+    expect(justReached(g, open)).toBe(false);
+    expect(progress({ ...g, status: "done" }, none, "2026-10-14")).toMatchObject({ fraction: 1, pace: "done" });
+    expect(progress({ ...g, targetDate: null }, none, "2026-10-14").pace).toBe("none");
+  });
 });
