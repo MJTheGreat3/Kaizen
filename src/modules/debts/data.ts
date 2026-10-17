@@ -32,6 +32,7 @@ function useDebtMutation<A>(fn: (arg: A) => Promise<unknown>) {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["debts"] });
       client.invalidateQueries({ queryKey: ["today"] });
+      client.invalidateQueries({ queryKey: ["finance"] });
     },
   });
 }
@@ -52,6 +53,8 @@ export interface NewDebt {
   occurredOn: string;
   reason: string | null;
   dueOn?: string | null;
+  /** The account the money left (lent) or went into (borrowed). */
+  accountId?: string | null;
 }
 
 export function useAddDebt() {
@@ -64,6 +67,7 @@ export function useAddDebt() {
       occurredOn: d.occurredOn,
       reason: d.reason,
       dueOn: d.dueOn ?? null,
+      accountId: d.accountId || null,
     });
   });
 }
@@ -74,6 +78,8 @@ export interface NewPayment {
   amountPaise: number;
   paidOn: string;
   note: string | null;
+  /** The account the money went into (to me) or came from (from me). */
+  accountId?: string | null;
 }
 
 export function useAddPayment() {
@@ -85,6 +91,7 @@ export function useAddPayment() {
       amountPaise: p.amountPaise,
       paidOn: p.paidOn,
       note: p.note,
+      accountId: p.accountId || null,
     });
   });
 }

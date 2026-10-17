@@ -329,7 +329,7 @@ mod dump {
         // Clock triggers need a device id before any row is inserted.
         sql.push_str("INSERT INTO local_meta VALUES ('device_id', '01mock-device-0000');\n");
         // Rows the migrations seed.
-        for table in ["activity_types", "exercises"] {
+        for table in ["activity_types", "exercises", "fin_categories"] {
             let mut stmt = db
                 .conn()
                 .prepare(&format!("SELECT * FROM {table}"))

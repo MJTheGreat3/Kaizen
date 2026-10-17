@@ -32,6 +32,12 @@ export interface Prefs {
   "sync.lanHost": string;
   /** Streak milestones already celebrated: type id -> "since:milestone". */
   "streak.celebrated": Record<string, string>;
+  /** The day before a subscription or bill is due. */
+  "notify.bills": boolean;
+  /** Account picked first for new transactions and repayments. */
+  "finance.defaultAccount": string;
+  /** Where Finance opens: a tab, and for Analytics the page ("all" or an account id). */
+  "finance.home": { tab: string; scope: string };
   /** The reading session running on this device, if any. */
   "reading.running": { taskId: string; startedAt: number; pausedAt: number | null; pausedMs: number } | null;
   /** When this device last fetched upcoming contests. */
@@ -85,6 +91,9 @@ export const defaultPrefs: Prefs = {
   "sync.folder": "",
   "sync.lanHost": "",
   "streak.celebrated": {},
+  "notify.bills": true,
+  "finance.defaultAccount": "",
+  "finance.home": { tab: "overview", scope: "all" },
   "reading.running": null,
   "practice.contestsAt": 0,
   "sports.refreshedAt": 0,

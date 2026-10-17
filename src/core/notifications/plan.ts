@@ -36,6 +36,8 @@ export interface PlanInput {
   matches?: { id: string; title: string; startAt: number; detail: string }[];
   /** Active goals with a finish date, and what is left. */
   goals?: { id: string; title: string; targetDate: DateKey; left: string }[];
+  /** Active scheduled payments: subscriptions, bills, allowances. */
+  bills?: { id: string; name: string; nextOn: DateKey; amount: string; kind: "expense" | "income"; auto: boolean }[];
 }
 
 /** 31-bit positive integer from a string (FNV-1a). */
@@ -177,6 +179,15 @@ export function buildPlan(input: PlanInput, horizonDays = 3): PlannedNotificatio
       ] as const) {
         push({ key: `goal:${g.id}:${g.targetDate}:${offset}`, at: atTime(addDaysKey(g.targetDate, -offset), DAY_START), title: `${g.title}: ${when}`, body: g.left });
       }
+    }
+  }
+
+  // The day before a subscription or bill, and on the day for one waiting to be marked paid.
+  if (prefs["notify.bills"]) {
+    for (const b of input.bills ?? []) {
+      if (b.kind !== "expense") continue;
+      push({ key: `bill:${b.id}:${b.nextOn}:1`, at: atTime(addDaysKey(b.nextOn, -1), DAY_START), title: `${b.name} due tomorrow`, body: b.amount });
+      if (!b.auto) push({ key: `bill:${b.id}:${b.nextOn}:0`, at: atTime(b.nextOn, DAY_START), title: `${b.name} is due today`, body: `${b.amount}. Mark it paid in Finance.` });
     }
   }
 

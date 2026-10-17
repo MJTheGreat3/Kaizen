@@ -13,6 +13,7 @@ import { useStreakMilestones } from "@/modules/activity/milestones";
 import { useGoalCompletion } from "@/modules/goals/watch";
 import { usePracticeAutoRefresh } from "@/modules/practice/data";
 import { useSportsAutoRefresh } from "@/modules/sports/data";
+import { useFinanceSchedule } from "@/modules/finance/data";
 import { setAudioFxPlatform } from "@/modules/music/native";
 import { useTheme } from "@/core/theme";
 import { log } from "@/lib/log";
@@ -47,6 +48,7 @@ export function App() {
   useGoalCompletion(unlocked);
   usePracticeAutoRefresh(unlocked);
   useSportsAutoRefresh(unlocked);
+  useFinanceSchedule(unlocked);
 
   return (
     <>

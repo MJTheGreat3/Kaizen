@@ -188,8 +188,8 @@ export const modules: ModuleDef[] = [
     title: "Finance",
     icon: Wallet,
     group: "track",
-    summary: "Monthly statements, categories and insights.",
-    planned: ["CSV statement import per bank", "Auto-categorisation that learns", "Budgets and recurring payments"],
+    summary: "Accounts, spending, income, subscriptions and insights.",
+    planned: ["Accounts of every kind, with real balances", "Categories and subcategories with icons", "Split bills into Debts, subscriptions and allowances"],
     phase: 9,
   },
   {

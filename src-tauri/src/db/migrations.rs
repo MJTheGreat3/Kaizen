@@ -374,6 +374,7 @@ pub fn synced_tables() -> impl Iterator<Item = &'static str> {
         .chain(V15_SYNCED)
         .chain(V16_SYNCED)
         .chain(V18_SYNCED)
+        .chain(V19_SYNCED)
         .copied()
 }
 
@@ -1801,7 +1802,354 @@ CREATE INDEX reading_sessions_task ON reading_sessions (task_id);
     Ok(())
 }
 
-pub const LATEST: i64 = 18;
+const V19_SYNCED: &[&str] = &[
+    "fin_accounts",
+    "fin_categories",
+    "fin_transactions",
+    "fin_recurring",
+];
+
+/// Built-in categories: (slug, parent slug, name, kind, icon, colour). Ids are
+/// `cat:{slug}` on every device, so both devices start with the same rows.
+const CATEGORIES: &[(&str, &str, &str, &str, &str, &str)] = &[
+    (
+        "food",
+        "",
+        "Food and drink",
+        "expense",
+        "fork-knife",
+        "#f0a03c",
+    ),
+    (
+        "groceries",
+        "food",
+        "Groceries",
+        "expense",
+        "basket",
+        "#f0a03c",
+    ),
+    (
+        "eating-out",
+        "food",
+        "Eating out",
+        "expense",
+        "hamburger",
+        "#f0a03c",
+    ),
+    (
+        "coffee",
+        "food",
+        "Coffee and snacks",
+        "expense",
+        "coffee",
+        "#f0a03c",
+    ),
+    ("transport", "", "Transport", "expense", "car", "#3d8bd9"),
+    (
+        "cab",
+        "transport",
+        "Cabs and autos",
+        "expense",
+        "taxi",
+        "#3d8bd9",
+    ),
+    (
+        "fuel",
+        "transport",
+        "Fuel",
+        "expense",
+        "gas-pump",
+        "#3d8bd9",
+    ),
+    (
+        "public-transport",
+        "transport",
+        "Bus and metro",
+        "expense",
+        "train",
+        "#3d8bd9",
+    ),
+    (
+        "shopping",
+        "",
+        "Shopping",
+        "expense",
+        "shopping-bag",
+        "#d9608f",
+    ),
+    (
+        "clothes", "shopping", "Clothes", "expense", "t-shirt", "#d9608f",
+    ),
+    (
+        "electronics",
+        "shopping",
+        "Electronics",
+        "expense",
+        "device-mobile",
+        "#d9608f",
+    ),
+    ("bills", "", "Bills", "expense", "lightning", "#d4b62c"),
+    ("rent", "bills", "Rent", "expense", "house", "#d4b62c"),
+    (
+        "phone",
+        "bills",
+        "Phone and internet",
+        "expense",
+        "wifi-high",
+        "#d4b62c",
+    ),
+    (
+        "utilities",
+        "bills",
+        "Electricity and water",
+        "expense",
+        "drop",
+        "#d4b62c",
+    ),
+    (
+        "subscriptions",
+        "",
+        "Subscriptions",
+        "expense",
+        "repeat",
+        "#8e6bd8",
+    ),
+    (
+        "entertainment",
+        "",
+        "Entertainment",
+        "expense",
+        "film-slate",
+        "#c94fd6",
+    ),
+    ("health", "", "Health", "expense", "heartbeat", "#e05a5a"),
+    (
+        "medicine", "health", "Medicine", "expense", "pill", "#e05a5a",
+    ),
+    (
+        "fitness",
+        "health",
+        "Gym and sports",
+        "expense",
+        "barbell",
+        "#e05a5a",
+    ),
+    (
+        "education",
+        "",
+        "Education",
+        "expense",
+        "graduation-cap",
+        "#5b6ee1",
+    ),
+    (
+        "books",
+        "education",
+        "Books",
+        "expense",
+        "book-open",
+        "#5b6ee1",
+    ),
+    (
+        "courses",
+        "education",
+        "Courses and fees",
+        "expense",
+        "chalkboard-teacher",
+        "#5b6ee1",
+    ),
+    (
+        "travel",
+        "",
+        "Travel",
+        "expense",
+        "airplane-tilt",
+        "#2fa5a0",
+    ),
+    (
+        "personal",
+        "",
+        "Personal care",
+        "expense",
+        "sparkle",
+        "#e8673a",
+    ),
+    ("gifts", "", "Gifts", "expense", "gift", "#e8673a"),
+    (
+        "other-expense",
+        "",
+        "Other",
+        "expense",
+        "dots-three",
+        "#7487a3",
+    ),
+    (
+        "allowance",
+        "",
+        "Allowance",
+        "income",
+        "hand-coins",
+        "#3fa66b",
+    ),
+    ("salary", "", "Salary", "income", "briefcase", "#3fa66b"),
+    (
+        "stipend",
+        "",
+        "Stipend and scholarships",
+        "income",
+        "graduation-cap",
+        "#3fa66b",
+    ),
+    (
+        "gift-received",
+        "",
+        "Gifts received",
+        "income",
+        "gift",
+        "#3fa66b",
+    ),
+    (
+        "refund",
+        "",
+        "Refunds and cashback",
+        "income",
+        "arrow-u-up-left",
+        "#3fa66b",
+    ),
+    (
+        "interest",
+        "",
+        "Interest",
+        "income",
+        "piggy-bank",
+        "#3fa66b",
+    ),
+    (
+        "other-income",
+        "",
+        "Other",
+        "income",
+        "dots-three",
+        "#7487a3",
+    ),
+];
+
+/// Phase 9: finance as a money log.
+///
+/// Amounts are paise. A transaction is an `expense`, `income` or
+/// `transfer` (from `account_id` to `to_account_id`). An expense's
+/// `amount_paise` is what left the account; when it is split, the others'
+/// shares are `debts` (owed to me) carrying its `txn_id`, and my share is the
+/// amount less those. An expense someone else paid has no account and a
+/// linked `i_owe` debt. Debts and repayments made through an account carry
+/// `account_id`, so lending, borrowing and settling up move its balance.
+/// `fin_recurring` holds subscriptions and allowances; each due date posts
+/// a transaction with the id `rec:{recurring id}:{date}`, so two devices
+/// posting the same one agree.
+fn v19(conn: &Connection) -> Result<()> {
+    conn.execute_batch(&format!(
+        "
+CREATE TABLE fin_accounts (
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
+  kind          TEXT NOT NULL DEFAULT 'bank' CHECK (kind IN ('bank', 'cash', 'wallet', 'credit', 'savings', 'investment')),
+  opening_paise INTEGER NOT NULL DEFAULT 0,
+  color         TEXT NOT NULL,
+  archived      INTEGER NOT NULL DEFAULT 0,
+  sort_order    REAL NOT NULL DEFAULT 0,{BASE_COLUMNS}
+) STRICT;
+
+CREATE TABLE fin_categories (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  kind       TEXT NOT NULL CHECK (kind IN ('expense', 'income')),
+  parent_id  TEXT,
+  icon       TEXT NOT NULL,
+  color      TEXT NOT NULL,
+  archived   INTEGER NOT NULL DEFAULT 0,
+  sort_order REAL NOT NULL DEFAULT 0,{BASE_COLUMNS}
+) STRICT;
+
+CREATE TABLE fin_transactions (
+  id            TEXT PRIMARY KEY,
+  kind          TEXT NOT NULL CHECK (kind IN ('expense', 'income', 'transfer')),
+  amount_paise  INTEGER NOT NULL CHECK (amount_paise > 0),
+  account_id    TEXT,
+  to_account_id TEXT,
+  category_id   TEXT,
+  date          TEXT NOT NULL,
+  note          TEXT,
+  recurring_id  TEXT,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX fin_transactions_date ON fin_transactions (date);
+CREATE INDEX fin_transactions_account ON fin_transactions (account_id);
+
+CREATE TABLE fin_recurring (
+  id           TEXT PRIMARY KEY,
+  kind         TEXT NOT NULL CHECK (kind IN ('expense', 'income')),
+  name         TEXT NOT NULL,
+  amount_paise INTEGER NOT NULL CHECK (amount_paise > 0),
+  account_id   TEXT,
+  category_id  TEXT,
+  cadence      TEXT NOT NULL DEFAULT 'monthly' CHECK (cadence IN ('weekly', 'monthly', 'yearly')),
+  every        INTEGER NOT NULL DEFAULT 1,
+  anchor_date  TEXT NOT NULL,
+  next_on      TEXT NOT NULL,
+  auto         INTEGER NOT NULL DEFAULT 1,
+  active       INTEGER NOT NULL DEFAULT 1,
+  note         TEXT,{BASE_COLUMNS}
+) STRICT;
+
+ALTER TABLE debts ADD COLUMN account_id TEXT;
+ALTER TABLE debts ADD COLUMN txn_id TEXT;
+CREATE INDEX debts_txn ON debts (txn_id);
+ALTER TABLE debt_payments ADD COLUMN account_id TEXT;
+"
+    ))?;
+    // Built-in categories go in before the clock triggers, so they are never sent.
+    let device: String = conn.query_row(
+        "SELECT value FROM local_meta WHERE key = 'device_id'",
+        [],
+        |r| r.get(0),
+    )?;
+    let mut stmt = conn.prepare(
+        "INSERT OR IGNORE INTO fin_categories
+           (id, name, kind, parent_id, icon, color, sort_order, created_at, updated_at, device_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0, ?8)",
+    )?;
+    for (i, (slug, parent, name, kind, icon, color)) in CATEGORIES.iter().enumerate() {
+        let parent = (!parent.is_empty()).then(|| format!("cat:{parent}"));
+        stmt.execute(rusqlite::params![
+            format!("cat:{slug}"),
+            name,
+            kind,
+            parent,
+            icon,
+            color,
+            i as f64,
+            device
+        ])?;
+    }
+    for table in V19_SYNCED.iter().chain(&["debts", "debt_payments"]) {
+        install_clock_triggers(conn, table)?;
+    }
+    install_search_triggers(
+        conn,
+        &SearchSource {
+            table: "fin_transactions",
+            module: "'finance'",
+            title: "coalesce(nullif(R.note, ''), (SELECT name FROM fin_categories WHERE id = R.category_id), 'Transfer')",
+            body: "concat_ws(' ', (SELECT name FROM fin_categories WHERE id = R.category_id), (SELECT name FROM fin_accounts WHERE id = R.account_id))",
+            tags: "''",
+            date: "R.date",
+            amount: "R.amount_paise / 100.0",
+            status: "R.kind",
+        },
+    )?;
+    Ok(())
+}
+
+pub const LATEST: i64 = 19;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -1847,6 +2195,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             16 => v16(&tx)?,
             17 => v17(&tx)?,
             18 => v18(&tx)?,
+            19 => v19(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;
@@ -1901,6 +2250,41 @@ mod tests {
             )
             .unwrap();
         assert_eq!(old, 0);
+    }
+
+    #[test]
+    fn v19_seeds_categories_and_indexes_transactions() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrate(&mut conn).unwrap();
+        let count = |sql: &str| -> i64 { conn.query_row(sql, [], |r| r.get(0)).unwrap() };
+        assert_eq!(
+            count("SELECT count(*) FROM fin_categories"),
+            CATEGORIES.len() as i64
+        );
+        assert_eq!(
+            count("SELECT count(*) FROM fin_categories WHERE parent_id = 'cat:food'"),
+            3
+        );
+        // Seeded rows are never sent; edits to them are.
+        assert_eq!(
+            count("SELECT count(*) FROM sync_clock WHERE table_name = 'fin_categories'"),
+            0
+        );
+        conn.execute_batch(
+            "INSERT INTO fin_transactions (id, kind, amount_paise, account_id, category_id, date, note, created_at, updated_at, device_id)
+               VALUES ('t1', 'expense', 120000, 'a1', 'cat:eating-out', '2026-10-17', 'Dinner at Toit', 1, 1, 'd');
+             UPDATE debts SET account_id = NULL WHERE 0;",
+        )
+        .unwrap();
+        let (module, amount): (String, f64) = conn
+            .query_row(
+                "SELECT module, amount FROM search_index WHERE ref_id = 't1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((module.as_str(), amount), ("finance", 1200.0));
+        assert!(count("SELECT count(*) FROM sync_clock WHERE table_name = 'fin_transactions'") > 0);
     }
 
     #[test]

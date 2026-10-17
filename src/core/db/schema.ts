@@ -324,6 +324,10 @@ export const debts = sqliteTable("debts", {
   reason: text("reason"),
   dueOn: text("due_on"),
   notes: text("notes"),
+  /** Money lent or borrowed through an account (moves its balance). */
+  accountId: text("account_id"),
+  /** The expense this is a share of (a split, or someone else paying). */
+  txnId: text("txn_id"),
   ...base,
 });
 
@@ -336,6 +340,8 @@ export const debtPayments = sqliteTable("debt_payments", {
   amountPaise: integer("amount_paise").notNull(),
   paidOn: text("paid_on").notNull(),
   note: text("note"),
+  /** The account the money went into or came from. */
+  accountId: text("account_id"),
   ...base,
 });
 
@@ -855,3 +861,79 @@ export const readingSessions = sqliteTable("reading_sessions", {
 });
 
 export type ReadingSession = typeof readingSessions.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Phase 9 (migration v19): finance. Amounts in paise.
+// ---------------------------------------------------------------------------
+
+export type AccountKind = "bank" | "cash" | "wallet" | "credit" | "savings" | "investment";
+
+export const finAccounts = sqliteTable("fin_accounts", {
+  id: id(),
+  name: text("name").notNull(),
+  kind: text("kind").$type<AccountKind>().notNull().default("bank"),
+  openingPaise: integer("opening_paise").notNull().default(0),
+  color: text("color").notNull(),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  sortOrder: real("sort_order").notNull().default(0),
+  ...base,
+});
+
+export type MoneyKind = "expense" | "income";
+
+export const finCategories = sqliteTable("fin_categories", {
+  id: id(),
+  name: text("name").notNull(),
+  kind: text("kind").$type<MoneyKind>().notNull(),
+  /** Set on a subcategory. */
+  parentId: text("parent_id"),
+  /** Key into the finance icon set. */
+  icon: text("icon").notNull(),
+  color: text("color").notNull(),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  sortOrder: real("sort_order").notNull().default(0),
+  ...base,
+});
+
+export const finTransactions = sqliteTable("fin_transactions", {
+  id: id(),
+  kind: text("kind").$type<MoneyKind | "transfer">().notNull(),
+  /** What left or reached the account: the full bill, even when split. */
+  amountPaise: integer("amount_paise").notNull(),
+  /** Null for an expense someone else paid. */
+  accountId: text("account_id"),
+  /** Transfers: where the money went. */
+  toAccountId: text("to_account_id"),
+  categoryId: text("category_id"),
+  date: text("date").notNull(),
+  note: text("note"),
+  recurringId: text("recurring_id"),
+  ...base,
+});
+
+export type Cadence = "weekly" | "monthly" | "yearly";
+
+/** A subscription (expense) or allowance (income) on a schedule. */
+export const finRecurring = sqliteTable("fin_recurring", {
+  id: id(),
+  kind: text("kind").$type<MoneyKind>().notNull(),
+  name: text("name").notNull(),
+  amountPaise: integer("amount_paise").notNull(),
+  accountId: text("account_id"),
+  categoryId: text("category_id"),
+  cadence: text("cadence").$type<Cadence>().notNull().default("monthly"),
+  every: integer("every").notNull().default(1),
+  /** The first due date; later ones keep its day of the month. */
+  anchorDate: text("anchor_date").notNull(),
+  nextOn: text("next_on").notNull(),
+  /** Post the transaction on the day, rather than waiting to be marked paid. */
+  auto: integer("auto", { mode: "boolean" }).notNull().default(true),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  note: text("note"),
+  ...base,
+});
+
+export type Account = typeof finAccounts.$inferSelect;
+export type Category = typeof finCategories.$inferSelect;
+export type Transaction = typeof finTransactions.$inferSelect;
+export type Recurring = typeof finRecurring.$inferSelect;

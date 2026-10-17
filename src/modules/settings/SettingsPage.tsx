@@ -109,7 +109,7 @@ function LeadTime({ kind }: { kind: "contests" | "matches" }) {
   );
 }
 
-function NotifyToggle({ prefKey, label, description }: { prefKey: "notify.classes" | "notify.attendance" | "notify.habits" | "notify.tasks" | "notify.dates" | "notify.debts" | "notify.streaks" | "notify.goals" | "notify.contests" | "notify.matches" | "notify.results" | "notify.performances" | "notify.review"; label: string; description: string }) {
+function NotifyToggle({ prefKey, label, description }: { prefKey: "notify.classes" | "notify.attendance" | "notify.habits" | "notify.tasks" | "notify.dates" | "notify.debts" | "notify.streaks" | "notify.goals" | "notify.bills" | "notify.contests" | "notify.matches" | "notify.results" | "notify.performances" | "notify.review"; label: string; description: string }) {
   const [value, setValue] = usePref(prefKey);
   return (
     <Row label={label} description={description} inline>
@@ -164,6 +164,7 @@ function NotificationsSection() {
       <NotifyToggle prefKey="notify.debts" label="Debts due" description="On the due date." />
       <NotifyToggle prefKey="notify.streaks" label="Streaks" description="At 8:30 pm if a streak of 3+ days isn't done yet." />
       <NotifyToggle prefKey="notify.goals" label="Goals" description="A week and a day before a goal's finish date." />
+      <NotifyToggle prefKey="notify.bills" label="Bills and subscriptions" description="The day before one is due, and on the day if it waits to be marked paid." />
       <NotifyToggle prefKey="notify.review" label="Reviews" description="Sunday at 7 pm for the week, and the 1st at 10 am for the month." />
       <NotifyToggle prefKey="notify.contests" label="Contests" description="Before contests on the sites chosen in Practice." />
       <LeadTime kind="contests" />

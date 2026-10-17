@@ -19,7 +19,7 @@ import { Segmented, Skeleton } from "@/components/ui/controls";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, Input } from "@/components/ui/input";
 import { Chip, DateTimeInput, EmptyState, QuickAdd, RowMenu, SectionTitle } from "@/components/ui/kit";
-import type { Person } from "@/core/db/schema";
+import type { Account, Person } from "@/core/db/schema";
 import { parseDebt } from "@/core/nl/parse";
 import { Page, PageHeader } from "@/core/shell/PageHeader";
 import { useOpenTarget } from "@/core/shell/openRequest";
@@ -27,6 +27,8 @@ import { daysBetween, relativeDay, todayKey } from "@/lib/dates";
 import { ease, rise } from "@/lib/motion";
 import { formatPaise, parseRupees } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { AccountSelect } from "@/modules/finance/parts";
+import { saveTransaction, useAccounts, useMoneyMutation } from "@/modules/finance/data";
 import { modules } from "@/modules/registry";
 import { nudgeMessage, splitEvenly, totals } from "./balances";
 import { useAddDebt, useAddMany, useAddPayment, useDebts, useDeleteEntry, type DebtsData } from "./data";
@@ -118,6 +120,10 @@ function EntryDialog({
   const [reason, setReason] = useState("");
   const [date, setDate] = useState(todayKey());
   const [due, setDue] = useState("");
+  const { accounts, fallback } = useAccounts();
+  const [accountPick, setAccountPick] = useState<string | null>(null);
+  // Lending and repayments move money; owing someone for what they paid doesn't, unless chosen.
+  const account = accountPick ?? (kind === "payment" || direction === "in" ? fallback : "");
   const paise = parseRupees(amount);
 
   async function save() {
@@ -130,6 +136,7 @@ function EntryDialog({
         occurredOn: date,
         reason: reason.trim() || null,
         dueOn: due || null,
+        accountId: account || null,
       });
     } else {
       await addPayment.mutateAsync({
@@ -138,6 +145,7 @@ function EntryDialog({
         amountPaise: paise,
         paidOn: date,
         note: reason.trim() || null,
+        accountId: account || null,
       });
     }
     toast.success(kind === "debt" ? "Recorded" : "Payment recorded");
@@ -193,6 +201,15 @@ function EntryDialog({
               </Field>
             ) : null}
           </div>
+          {accounts.length ? (
+            <Field
+              label={direction === "in" ? (kind === "debt" ? "Paid from" : "Into") : kind === "debt" ? "Into" : "Paid from"}
+              htmlFor="debt-account"
+              hint={account ? "Moves this account's balance in Finance." : "Doesn't change any balance."}
+            >
+              <AccountSelect id="debt-account" accounts={accounts} value={account} onChange={setAccountPick} extra={[{ value: "", label: "No account" }]} />
+            </Field>
+          ) : null}
         </div>
         <DialogFooter>
           <Button variant="secondary" onClick={onClose}>
@@ -209,6 +226,10 @@ function EntryDialog({
 
 function SplitDialog({ open, onClose, people }: { open: boolean; onClose: () => void; people: Person[] }) {
   const addMany = useAddMany();
+  const addExpense = useMoneyMutation((v: Parameters<typeof saveTransaction>[0]) => saveTransaction(v, v.note ?? "Split bill"));
+  const { accounts, fallback } = useAccounts();
+  const [accountPick, setAccountPick] = useState<string | null>(null);
+  const account = accountPick ?? fallback;
   const [total, setTotal] = useState("");
   const [reason, setReason] = useState("");
   const [names, setNames] = useState("");
@@ -223,6 +244,23 @@ function SplitDialog({ open, onClose, people }: { open: boolean; onClose: () => 
 
   async function save() {
     if (!totalPaise || !list.length) return;
+    if (account) {
+      // Paid from an account: the whole bill leaves it, my share counts as spent, the rest is owed to me.
+      await addExpense.mutateAsync({
+        kind: "expense",
+        amountPaise: totalPaise,
+        accountId: account,
+        toAccountId: null,
+        categoryId: null,
+        date: todayKey(),
+        note: reason.trim() || "Split bill",
+        split: list.map((person, i) => ({ person, amountPaise: shares[i] })),
+        paidBy: null,
+      });
+      toast.success(`Split between ${list.length + (includeMe ? 1 : 0)} people`, { description: "Added to Finance too; pick a category there." });
+      onClose();
+      return;
+    }
     await addMany.mutateAsync(
       list.map((person, i) => ({
         person,
@@ -259,6 +297,11 @@ function SplitDialog({ open, onClose, people }: { open: boolean; onClose: () => 
             <input type="checkbox" checked={includeMe} onChange={(e) => setIncludeMe(e.target.checked)} className="size-[18px] accent-[var(--accent)]" />
             Include my own share
           </label>
+          {accounts.length ? (
+            <Field label="Paid from" htmlFor="split-account" hint={account ? "Also added to Finance as an expense at your share." : "Only recorded here."}>
+              <AccountSelect id="split-account" accounts={accounts} value={account} onChange={setAccountPick} extra={[{ value: "", label: "Not tracked in Finance" }]} />
+            </Field>
+          ) : null}
           {each ? (
             <p className="rounded-xl bg-surface-muted px-4 py-3 text-[14px]">
               Each person owes about <span className="font-semibold">{formatPaise(each)}</span>
@@ -269,8 +312,65 @@ function SplitDialog({ open, onClose, people }: { open: boolean; onClose: () => 
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={save} disabled={!totalPaise || !list.length} loading={addMany.isPending}>
+          <Button onClick={save} disabled={!totalPaise || !list.length} loading={addMany.isPending || addExpense.isPending}>
             Add {list.length || ""} entries
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Records a repayment, by default the whole balance, into or out of an account. */
+function SettleDialog({ person, balance, accounts, onClose }: { person: Person; balance: number; accounts: Account[]; onClose: () => void }) {
+  const addPayment = useAddPayment();
+  const { fallback } = useAccounts();
+  const [amount, setAmount] = useState(String(Math.abs(balance) / 100));
+  const [accountPick, setAccountPick] = useState<string | null>(null);
+  const [date, setDate] = useState(todayKey());
+  const account = accountPick ?? fallback;
+  const paise = parseRupees(amount);
+  const toMe = balance > 0;
+
+  async function save() {
+    if (!paise) return;
+    await addPayment.mutateAsync({ person: person.name, direction: toMe ? "to_me" : "from_me", amountPaise: paise, paidOn: date, note: paise >= Math.abs(balance) ? "Settled up" : "Part payment", accountId: account || null });
+    const name = accounts.find((a) => a.id === account)?.name;
+    toast.success(paise >= Math.abs(balance) ? `Settled with ${person.name}` : `${formatPaise(paise)} recorded`, {
+      description: name ? `${toMe ? "Added to" : "Taken from"} ${name}.` : undefined,
+    });
+    onClose();
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{toMe ? `${person.name} paid you` : `You paid ${person.name}`}</DialogTitle>
+          <DialogDescription>
+            {toMe ? "Owes you " : "You owe "}
+            {formatPaise(Math.abs(balance))}. A smaller amount leaves the rest open.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Amount (₹)" htmlFor="settle-amount" error={amount && !paise ? "Enter an amount" : null}>
+            <Input id="settle-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+          </Field>
+          <Field label="Date" htmlFor="settle-date">
+            <DateTimeInput id="settle-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
+          {accounts.length ? (
+            <Field label={toMe ? "Into" : "Paid from"} htmlFor="settle-account" className="col-span-2">
+              <AccountSelect id="settle-account" accounts={accounts} value={account} onChange={setAccountPick} extra={[{ value: "", label: "No account" }]} />
+            </Field>
+          ) : null}
+        </div>
+        <DialogFooter>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={!paise} loading={addPayment.isPending}>
+            Save
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -283,31 +383,20 @@ function SplitDialog({ open, onClose, people }: { open: boolean; onClose: () => 
 // ---------------------------------------------------------------------------
 
 function PersonDialog({ person, data, onClose }: { person: Person | null; data: DebtsData; onClose: () => void }) {
-  const addPayment = useAddPayment();
   const remove = useDeleteEntry();
+  const { accounts } = useAccounts();
   const [entryOpen, setEntryOpen] = useState(false);
+  const [settling, setSettling] = useState(false);
   if (!person) return null;
   const balance = data.balance.get(person.id) ?? 0;
   const history = [
     ...data.debts
       .filter((d) => d.personId === person.id)
-      .map((d) => ({ kind: "debt" as const, id: d.id, date: d.occurredOn, amount: d.amountPaise, in: d.direction === "owed_to_me", text: d.reason, due: d.dueOn, created: d.createdAt })),
+      .map((d) => ({ kind: "debt" as const, id: d.id, date: d.occurredOn, amount: d.amountPaise, in: d.direction === "owed_to_me", text: d.reason, due: d.dueOn, created: d.createdAt, accountId: d.accountId, split: !!d.txnId })),
     ...data.payments
       .filter((p) => p.personId === person.id)
-      .map((p) => ({ kind: "payment" as const, id: p.id, date: p.paidOn, amount: p.amountPaise, in: p.direction === "to_me", text: p.note, due: null, created: p.createdAt })),
+      .map((p) => ({ kind: "payment" as const, id: p.id, date: p.paidOn, amount: p.amountPaise, in: p.direction === "to_me", text: p.note, due: null, created: p.createdAt, accountId: p.accountId, split: false })),
   ].sort((a, b) => (a.date === b.date ? b.created - a.created : a.date < b.date ? 1 : -1));
-
-  async function settle() {
-    if (!person || !balance) return;
-    await addPayment.mutateAsync({
-      person: person.name,
-      direction: balance > 0 ? "to_me" : "from_me",
-      amountPaise: Math.abs(balance),
-      paidOn: todayKey(),
-      note: "Settled up",
-    });
-    toast.success(`Settled with ${person.name}`);
-  }
 
   async function nudge() {
     if (!person) return;
@@ -345,7 +434,7 @@ function PersonDialog({ person, data, onClose }: { person: Person | null; data: 
             Add entry
           </Button>
           {balance !== 0 ? (
-            <Button size="sm" variant="secondary" onClick={settle} loading={addPayment.isPending}>
+            <Button size="sm" variant="secondary" onClick={() => setSettling(true)}>
               <CheckIcon />
               Settle up
             </Button>
@@ -377,6 +466,8 @@ function PersonDialog({ person, data, onClose }: { person: Person | null; data: 
                 <p className="text-[12px] text-muted-foreground">
                   {relativeDay(h.date)}
                   {h.due ? `, due ${relativeDay(h.due).toLowerCase()}` : ""}
+                  {h.split ? " · split in Finance" : ""}
+                  {h.accountId ? ` · ${accounts.find((a) => a.id === h.accountId)?.name ?? "account"}` : ""}
                 </p>
               </div>
               <span className="text-[14px] font-semibold tabular-nums">{formatPaise(h.amount)}</span>
@@ -385,6 +476,7 @@ function PersonDialog({ person, data, onClose }: { person: Person | null; data: 
           ))}
         </ul>
         <EntryDialog open={entryOpen} onClose={() => setEntryOpen(false)} defaults={{ person: person.name }} />
+        {settling ? <SettleDialog person={person} balance={balance} accounts={accounts} onClose={() => setSettling(false)} /> : null}
       </DialogContent>
     </Dialog>
   );
@@ -416,6 +508,7 @@ export function DebtsPage() {
   const { data, isLoading } = useDebts();
   const addDebt = useAddDebt();
   const addPayment = useAddPayment();
+  const { fallback } = useAccounts();
   const [entryOpen, setEntryOpen] = useState(false);
   const [splitOpen, setSplitOpen] = useState(false);
   const [selected, setSelected] = useState<Person | null>(null);
@@ -485,7 +578,7 @@ export function DebtsPage() {
             if (p.type === "debt") {
               await addDebt.mutateAsync({ person: p.person, direction: p.direction, amountPaise: p.amountPaise, occurredOn: p.occurredOn, reason: p.reason });
             } else {
-              await addPayment.mutateAsync({ person: p.person, direction: p.direction, amountPaise: p.amountPaise, paidOn: p.occurredOn, note: p.reason });
+              await addPayment.mutateAsync({ person: p.person, direction: p.direction, amountPaise: p.amountPaise, paidOn: p.occurredOn, note: p.reason, accountId: fallback });
             }
             toast.success("Recorded");
           }}

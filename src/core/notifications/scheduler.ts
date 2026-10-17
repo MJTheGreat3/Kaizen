@@ -13,6 +13,8 @@ import { loadCalendar, loadDates } from "@/modules/calendar/data";
 import { loadDebts } from "@/modules/debts/data";
 import { currentStreaks } from "@/modules/activity/milestones";
 import { goalReminders } from "@/modules/goals/watch";
+import { loadFinance } from "@/modules/finance/data";
+import { formatPaise } from "@/lib/money";
 import { loadContests } from "@/modules/practice/data";
 import { gameMuteId, isGameMuted, loadMatches, loadMutes } from "@/modules/sports/data";
 import { ipc } from "@/lib/ipc";
@@ -113,7 +115,7 @@ async function applyDesktop(plan: PlannedNotification[]) {
 /** Rebuilds the plan from the database and (re)schedules everything. */
 export async function syncNotifications(platform: Platform) {
   if (!(await notificationsAllowed())) return;
-  const [prefs, tasks, habits, calendar, dates, debts, streaks, goals, contests, games, mutes] = await Promise.all([
+  const [prefs, tasks, habits, calendar, dates, debts, streaks, goals, contests, games, mutes, money] = await Promise.all([
     getAllPrefs(),
     loadTasks(),
     loadHabits(14),
@@ -125,7 +127,11 @@ export async function syncNotifications(platform: Platform) {
     loadContests(),
     loadMatches(),
     loadMutes(),
+    loadFinance(),
   ]);
+  const bills = money.recurring
+    .filter((r) => r.active)
+    .map((r) => ({ id: r.id, name: r.name, nextOn: r.nextOn, amount: formatPaise(r.amountPaise), kind: r.kind, auto: r.auto }));
   const chosen = contests
     .filter((c) => prefs["practice.contestPlatforms"].includes(c.platform))
     .map((c) => ({ id: c.id, name: c.name, startAt: c.startAt, site: platformOf(c.platform)?.name ?? c.platform }));
@@ -147,7 +153,7 @@ export async function syncNotifications(platform: Platform) {
         log.warn(`game reminders failed: ${String(e)}`);
         return false;
       }));
-  const plan = buildPlan({ now: new Date(), prefs, tasks, habits, calendar, dates, debts, streaks, goals, contests: chosen, matches: native ? [] : matches });
+  const plan = buildPlan({ now: new Date(), prefs, tasks, habits, calendar, dates, debts, streaks, goals, bills, contests: chosen, matches: native ? [] : matches });
   if (platform === "android") await applyAndroid(plan);
   else await applyDesktop(plan);
   log.info(`scheduled ${plan.length} notifications`);

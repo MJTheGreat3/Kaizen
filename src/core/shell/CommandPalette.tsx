@@ -16,6 +16,7 @@ import {
   MoonStars,
   Plus,
   Target,
+  Wallet,
   X,
   type Icon,
 } from "@phosphor-icons/react";
@@ -66,7 +67,7 @@ function subtitle(r: Result) {
   const { row } = r;
   const parts: string[] = [];
   if (row.status && STATUS_LABEL[row.status]) parts.push(STATUS_LABEL[row.status]);
-  if (row.amount !== null) parts.push(row.src === "debts" ? formatPaise(Math.round(row.amount * 100)) : `${Math.round(row.amount)}`);
+  if (row.amount !== null) parts.push(row.src === "debts" || row.src === "fin_transactions" ? formatPaise(Math.round(row.amount * 100)) : `${Math.round(row.amount)}`);
   if (row.src === "debts" && row.body) parts.push(row.body.split(" ")[0]);
   // Books and shows: the author or medium says more than when they were added.
   if ((row.module === "read" || row.module === "watch") && row.body) parts.push(row.body.slice(0, 60));
@@ -147,6 +148,16 @@ export function CommandPalette() {
         run: () => {
           useOpenRequest.getState().request({ module: "read", id: "session" });
           return navigate({ to: pathOf("lists") });
+        },
+      },
+      {
+        id: "expense",
+        label: "Add an expense or income",
+        keywords: "money spent paid finance transaction income",
+        icon: Wallet,
+        run: () => {
+          useOpenRequest.getState().request({ module: "finance", id: "new" });
+          return navigate({ to: pathOf("finance") });
         },
       },
       {

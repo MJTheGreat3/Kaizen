@@ -78,6 +78,16 @@ describe("buildPlan", () => {
     expect(goals.map((n) => [n.title, n.body])).toEqual([["100 h reading: due tomorrow", "Behind: 12 h to go"]]);
   });
 
+  it("reminds the day before a bill, and on the day when it waits to be marked paid", () => {
+    const bills = plan({
+      bills: [
+        { id: "s", name: "Spotify", nextOn: "2026-10-15", amount: "₹119", kind: "expense", auto: false },
+        { id: "a", name: "Allowance", nextOn: "2026-10-15", amount: "₹5,000", kind: "income", auto: true },
+      ],
+    }).filter((n) => n.key.startsWith("bill:"));
+    expect(bills.map((n) => n.title)).toEqual(["Spotify due tomorrow", "Spotify is due today"]);
+  });
+
   it("announces contests ahead of their start", () => {
     const start = new Date(2026, 9, 14, 20, 0).getTime();
     const n = plan({ contests: [{ id: "cc:START260", name: "Starters 260", startAt: start, site: "CodeChef" }] }).filter((x) => x.key.startsWith("contest:"));
