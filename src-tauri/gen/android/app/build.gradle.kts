@@ -58,8 +58,11 @@ android {
         }
         getByName("release") {
             signingConfigs.findByName("release")?.let { signingConfig = it }
+            // R8 strips classes Android and the Rust side reach by reflection
+            // (WorkManager's database, JNI entry points), so the app crashed on
+            // start; the size it saves isn't worth it.
             optimization {
-               enable = true
+               enable = false
             }
             proguardFiles(
                 *fileTree(".") {
