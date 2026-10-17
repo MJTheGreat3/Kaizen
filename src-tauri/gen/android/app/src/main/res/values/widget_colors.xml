@@ -12,6 +12,9 @@
     <color name="widget_upnext_hue">#3FA66B</color>
     <color name="widget_debts_tint">#F8ECDC</color>
     <color name="widget_debts_hue">#C2843D</color>
+    <color name="widget_finance_tint">#EEF2DA</color>
+    <color name="widget_finance_hue">#8E9C2C</color>
+    <color name="widget_finance_spend">#C9603A</color>
     <color name="widget_row">#0D000000</color>
     <color name="widget_good">#2F8F57</color>
 </resources>

@@ -18,4 +18,6 @@
     <string name="widget_music_description">A record that turns while music plays.</string>
     <string name="widget_debts_name">Debts</string>
     <string name="widget_debts_description">Who owes whom, and a quick way to add an entry.</string>
+    <string name="widget_finance_name">Money</string>
+    <string name="widget_finance_description">What you spent today and this month, with quick Expense and Income buttons.</string>
 </resources>

@@ -15,6 +15,8 @@ const SHORTCUTS: Record<string, { module: string; id: string; page: string }> = 
   activity: { module: "activity", id: "open", page: "activity" },
   music: { module: "music", id: "open", page: "music" },
   debts: { module: "debts", id: "open", page: "debts" },
+  expense: { module: "finance", id: "new-expense", page: "finance" },
+  income: { module: "finance", id: "new-income", page: "finance" },
 };
 
 /**

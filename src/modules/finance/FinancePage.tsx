@@ -228,7 +228,10 @@ export function FinancePage() {
   const [recurringOpen, setRecurringOpen] = useState<{ item: Recurring | null; kind?: MoneyKind } | null>(null);
 
   useOpenTarget(["finance"], !!data, ({ id }) => {
+    if (id.startsWith("new") && !data?.accounts.some((x) => !x.archived)) return setAccountOpen({ account: null });
     if (id === "new") return setTxnOpen({ txn: null });
+    // From the widget: "new-expense", "new-income".
+    if (id.startsWith("new-")) return setTxnOpen({ txn: null, draft: { kind: id.slice(4) as TxnDraft["kind"] } });
     const txn = data?.txns.find((t) => t.id === id);
     if (txn) setTxnOpen({ txn });
   });

@@ -57,6 +57,7 @@ object Native {
     StreakWidget.updateAll(context)
     UpNextWidget.updateAll(context)
     DebtWidget.updateAll(context)
+    FinanceWidget.updateAll(context)
     return ""
   }
 

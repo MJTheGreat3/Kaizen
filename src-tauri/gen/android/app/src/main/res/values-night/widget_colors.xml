@@ -9,6 +9,9 @@
     <color name="widget_today_tint">#2E261A</color>
     <color name="widget_upnext_tint">#172A20</color>
     <color name="widget_debts_tint">#2D2418</color>
+    <color name="widget_finance_tint">#23271A</color>
+    <color name="widget_finance_hue">#A3B13B</color>
+    <color name="widget_finance_spend">#E07B52</color>
     <color name="widget_row">#14FFFFFF</color>
     <color name="widget_good">#6BD49A</color>
 </resources>

@@ -52,6 +52,7 @@ pub struct Snapshot {
     /// The widget can tick things itself (the key is kept on the phone).
     pub live: bool,
     pub debts: crate::quick::DebtSummary,
+    pub money: crate::quick::MoneySummary,
     pub at: i64,
 }
 
@@ -151,6 +152,7 @@ pub fn snapshot(conn: &Connection, today: NaiveDate, live: bool) -> Result<Snaps
         })
         .collect();
 
+    let money = crate::quick::money_summary(conn, &day)?;
     Ok(Snapshot {
         label: today.format("%a %-d %b").to_string(),
         date: day,
@@ -159,6 +161,7 @@ pub fn snapshot(conn: &Connection, today: NaiveDate, live: bool) -> Result<Snaps
         habits,
         live,
         debts: crate::quick::debt_summary(conn)?,
+        money,
         at: chrono::Utc::now().timestamp_millis(),
     })
 }
