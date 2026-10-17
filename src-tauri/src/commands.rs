@@ -63,6 +63,7 @@ fn open_session(state: &AppState, key: DataKey, recovery_key: Option<String>) ->
         std::fs::remove_file(restored)?;
     }
     sync::register_device(db.conn(), std::env::consts::OS, &own_addresses())?;
+    crate::keys::load(db.conn())?;
     let device_id = db.device_id()?;
     // Kaizen opens without the passphrase from now on: the key stays on
     // this device (keychain, or app-private storage on Android).
@@ -189,6 +190,23 @@ pub fn private_lock(state: State<'_, AppState>) -> Result<()> {
         s.private_until
             .store(0, std::sync::atomic::Ordering::Relaxed);
         Ok(())
+    })
+}
+
+/// This device's own OAuth clients for Drive and Spotify (the secret is never sent back).
+#[tauri::command]
+pub fn keys_status(state: State<'_, AppState>) -> Result<crate::keys::KeysStatus> {
+    with_session(&state, |_| Ok(crate::keys::status()))
+}
+
+#[tauri::command]
+pub fn keys_save(
+    state: State<'_, AppState>,
+    keys: crate::keys::KeysInput,
+) -> Result<crate::keys::KeysStatus> {
+    with_session(&state, |s| {
+        crate::keys::save(s.db.conn(), &keys)?;
+        Ok(crate::keys::status())
     })
 }
 

@@ -17,6 +17,15 @@ Kaizen brings everything I want to track into one app, with all data stored on m
 - **Whiteboard**: free-form canvas
 - **Universal search**: across everything, with a command palette
 
+## Install
+
+Download the latest build from [Releases](https://github.com/MJTheGreat3/Kaizen/releases):
+
+- **Android**: the `.apk` (arm64). Allow installs from your browser or file manager when asked.
+- **macOS** (Apple Silicon): the `.dmg`. The app is not notarized, so the first time, right-click Kaizen in Applications and choose **Open** (or run `xattr -dr com.apple.quarantine /Applications/Kaizen.app`).
+
+On first open you choose a passphrase and get a recovery key. Google Drive sync and Spotify need your own free developer keys, entered under **Settings → Connections** (see [Google Drive sync](#google-drive-sync-one-time-setup)); everything else works without them, including syncing over your own network.
+
 ## Principles
 
 - **Local-first**: encrypted SQLite on each device, works fully offline; opens without a passphrase, which still guards progress photos and backups
@@ -54,7 +63,7 @@ rustup target add aarch64-linux-android
 
 ### Google Drive sync (one-time setup)
 
-Sync goes through the hidden app folder of a Google account you choose, so the build needs your own Google OAuth client. It is free and needs no billing account. Using the Google account that will hold the sync data:
+Sync goes through the hidden app folder of a Google account you choose, so Kaizen needs your own Google OAuth client. It is free and needs no billing account. Using the Google account that will hold the sync data:
 
 1. In the [Google Cloud console](https://console.cloud.google.com/), create a project (e.g. "Kaizen").
 2. **APIs & Services → Library**: enable the **Google Drive API**.
@@ -62,12 +71,9 @@ Sync goes through the hidden app folder of a Google account you choose, so the b
 4. **Data access → Add or remove scopes**: add `.../auth/drive.appdata`, `openid` and `.../auth/userinfo.email`.
 5. **Audience**: under Publishing status, click **Publish app** so it is **In production**. In "Testing", Google signs you out every 7 days.
 6. **Clients → Create client**: application type **Desktop app**, name `Kaizen`. Copy the client ID and secret.
-7. Add them to `~/.zshrc`, open a new terminal and rebuild (desktop and Android):
+7. In Kaizen, paste them under **Settings → Connections**, on each device. (For your own builds you can bake them in instead, with `KAIZEN_GOOGLE_CLIENT_ID` and `KAIZEN_GOOGLE_CLIENT_SECRET` set when building; published releases never carry them.)
 
-```sh
-export KAIZEN_GOOGLE_CLIENT_ID="…apps.googleusercontent.com"
-export KAIZEN_GOOGLE_CLIENT_SECRET="…"
-```
+Spotify works the same way: create an app at [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) with **Web API** ticked and the redirect URI `http://127.0.0.1:43821/callback`, then paste its client ID under **Settings → Connections** (or build with `KAIZEN_SPOTIFY_CLIENT_ID`).
 
 Then in Kaizen: on the laptop, **Settings → Sync → Show code**; on the phone, **Settings → Sync → Join** and scan it. Connect the same Google account on both. When signing in, Google warns that it "hasn't verified this app": that is expected for your own app; choose **Advanced → Go to Kaizen**. On the phone, come back to Kaizen after signing in.
 
@@ -81,6 +87,15 @@ Then in Kaizen: on the laptop, **Settings → Sync → Show code**; on the phone
 | Install it on a USB-connected phone | `adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk` |
 | Frontend tests / Rust tests | `pnpm test` / `pnpm test:rust` |
 | Lint / format | `pnpm lint` / `pnpm format` |
+
+### Releases
+
+Releases are built without any OAuth clients (unset `KAIZEN_GOOGLE_CLIENT_ID`, `KAIZEN_GOOGLE_CLIENT_SECRET` and `KAIZEN_SPOTIFY_CLIENT_ID`), so people enter their own under Settings → Connections.
+
+- Android is signed with the release key in `~/.android/kaizen-release.jks`, read through `src-tauri/gen/android/key.properties` (gitignored: `storeFile`, `storePassword`, `keyAlias`, `keyPassword`). Keep both backed up: every update must be signed with the same key.
+- Android: `env -u KAIZEN_GOOGLE_CLIENT_ID -u KAIZEN_GOOGLE_CLIENT_SECRET -u KAIZEN_SPOTIFY_CLIENT_ID pnpm tauri android build --target aarch64 --apk`
+- macOS: `env -u KAIZEN_GOOGLE_CLIENT_ID -u KAIZEN_GOOGLE_CLIENT_SECRET -u KAIZEN_SPOTIFY_CLIENT_ID pnpm tauri build --bundles dmg`
+- Bump the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, tag `vX.Y.Z` and attach both files to a GitHub release.
 
 ### Layout
 

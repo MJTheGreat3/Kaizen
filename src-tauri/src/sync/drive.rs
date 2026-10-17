@@ -35,20 +35,15 @@ const REFRESH_META: &str = "sync.drive.refresh";
 const EMAIL_META: &str = "sync.drive.email";
 
 struct Client {
-    id: &'static str,
-    secret: &'static str,
+    id: String,
+    secret: String,
 }
 
 fn client() -> Result<Client> {
-    match (
-        option_env!("KAIZEN_GOOGLE_CLIENT_ID"),
-        option_env!("KAIZEN_GOOGLE_CLIENT_SECRET"),
-    ) {
-        (Some(id), Some(secret)) if !id.is_empty() => Ok(Client { id, secret }),
-        _ => Err(Error::Invalid(
-            "Google Drive sync is not configured in this build".into(),
-        )),
-    }
+    let (id, secret) = crate::keys::google().ok_or_else(|| {
+        Error::Invalid("add a Google client ID and secret in Settings → Connections first".into())
+    })?;
+    Ok(Client { id, secret })
 }
 
 pub fn configured() -> bool {
@@ -111,7 +106,7 @@ pub fn start_sign_in() -> Result<SignIn> {
     let state = random_token();
     let url = format!(
         "{AUTH_URL}?client_id={}&redirect_uri={}&response_type=code&scope={}&code_challenge={challenge}&code_challenge_method=S256&access_type=offline&prompt=consent&state={state}",
-        percent_encode(client.id),
+        percent_encode(&client.id),
         percent_encode(&redirect_uri),
         percent_encode(SCOPES),
     );
@@ -138,8 +133,8 @@ pub fn finish_sign_in(sign_in: SignIn) -> Result<(String, Option<String>)> {
     let resp = loop {
         let attempt = agent.post(TOKEN_URL).send_form([
             ("code", code.as_str()),
-            ("client_id", client.id),
-            ("client_secret", client.secret),
+            ("client_id", client.id.as_str()),
+            ("client_secret", client.secret.as_str()),
             ("redirect_uri", sign_in.redirect_uri.as_str()),
             ("grant_type", "authorization_code"),
             ("code_verifier", sign_in.verifier.as_str()),
@@ -237,8 +232,8 @@ impl DriveMailbox {
             .post(TOKEN_URL)
             .send_form([
                 ("refresh_token", refresh),
-                ("client_id", client.id),
-                ("client_secret", client.secret),
+                ("client_id", client.id.as_str()),
+                ("client_secret", client.secret.as_str()),
                 ("grant_type", "refresh_token"),
             ])
             .map_err(http_err)?;

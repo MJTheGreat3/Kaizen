@@ -38,10 +38,10 @@ const HISTORY_META: &str = "music.history.after";
 /// The current access token and when it stops working.
 static ACCESS: Mutex<Option<(String, Instant)>> = Mutex::new(None);
 
-fn client_id() -> Result<&'static str> {
-    option_env!("KAIZEN_SPOTIFY_CLIENT_ID")
-        .filter(|id| !id.is_empty())
-        .ok_or_else(|| Error::Invalid("Spotify is not configured in this build".into()))
+fn client_id() -> Result<String> {
+    crate::keys::spotify().ok_or_else(|| {
+        Error::Invalid("add a Spotify client ID in Settings → Connections first".into())
+    })
 }
 
 pub fn configured() -> bool {
@@ -90,7 +90,7 @@ pub fn start_sign_in() -> Result<SignIn> {
     let state = random_token();
     let url = format!(
         "{AUTH_URL}?client_id={}&response_type=code&redirect_uri={}&scope={}&code_challenge_method=S256&code_challenge={}&state={state}",
-        percent_encode(id),
+        percent_encode(&id),
         percent_encode(REDIRECT_URI),
         percent_encode(SCOPES),
         oauth::challenge(&verifier),
@@ -146,7 +146,7 @@ pub fn finish_sign_in(sign_in: SignIn) -> Result<String> {
             ("grant_type", "authorization_code"),
             ("code", code.as_str()),
             ("redirect_uri", REDIRECT_URI),
-            ("client_id", id),
+            ("client_id", id.as_str()),
             ("code_verifier", sign_in.verifier.as_str()),
         ]) {
             Ok(resp) => break resp,
@@ -238,7 +238,7 @@ pub fn refresh_access(refresh: &str) -> Result<(String, Option<String>)> {
         .send_form([
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh),
-            ("client_id", client_id()?),
+            ("client_id", client_id()?.as_str()),
         ])
         .map_err(http_err)?;
     let (access, expires, rotated) = read_tokens(resp)?;

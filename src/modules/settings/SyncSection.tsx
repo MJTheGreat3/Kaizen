@@ -225,7 +225,7 @@ function DriveRow({ status, mobile }: { status: SyncStatus; mobile: boolean }) {
     return (
       <Row
         label="Google Drive"
-        description="Not set up in this build. Add the Google OAuth client (see README → Sync) and rebuild."
+        description="Add your Google client ID and secret under Connections below first."
       />
     );
   }

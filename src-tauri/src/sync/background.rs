@@ -43,6 +43,7 @@ pub fn run(data_dir: &Path) -> Result<Report> {
     )?;
     let (paired, refresh, hosts) = {
         let conn = db.conn();
+        crate::keys::load(conn)?;
         (
             super::group_key(conn)?,
             drive::refresh_token(conn)?,

@@ -41,6 +41,7 @@ import { ipc, type BackupInfo } from "@/lib/ipc";
 import { pickFolder } from "@/lib/native";
 import { formatBytes, formatDateTime } from "@/lib/utils";
 import { Row, Section } from "./layout";
+import { ConnectionsSection } from "./ConnectionsSection";
 import { SyncSection } from "./SyncSection";
 
 function errorText(e: unknown) {
@@ -464,11 +465,12 @@ function DiagnosticsSection() {
 export function SettingsPage() {
   return (
     <Page hue="#7d8696">
-      <PageHeader title="Settings" description="Appearance, security, sync, backups and your data." icon={GearSix} hue="#7d8696" />
+      <PageHeader title="Settings" description="Appearance, security, sync, connections, backups and your data." icon={GearSix} hue="#7d8696" />
       <div className="mt-8 grid gap-10">
         <AppearanceSection />
         <SecuritySection />
         <SyncSection />
+        <ConnectionsSection />
         <NotificationsSection />
         <BackupsSection />
         <DataSection />

@@ -7,6 +7,7 @@ mod db;
 #[cfg(desktop)]
 mod desktop;
 mod error;
+mod keys;
 mod logging;
 mod media;
 mod music;
@@ -86,6 +87,8 @@ pub fn run() {
             commands::private_status,
             commands::private_unlock,
             commands::private_lock,
+            commands::keys_status,
+            commands::keys_save,
             commands::vault_lock,
             commands::db_query,
             commands::backup_create,

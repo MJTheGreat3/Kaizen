@@ -186,6 +186,15 @@ export interface GitHubReport {
 }
 
 /** A book, film, show or anime found for a list item. */
+/** This device's own OAuth clients (the Google secret is never sent back). */
+export interface KeysStatus {
+  googleId: string;
+  googleSecretSet: boolean;
+  spotifyId: string;
+  googleBuiltIn: boolean;
+  spotifyBuiltIn: boolean;
+}
+
 export interface MediaFound {
   sourceId: string;
   title: string;
@@ -212,6 +221,9 @@ export const ipc = {
   privateStatus: () => call<boolean>("private_status"),
   privateUnlock: (passphrase: string) => call<void>("private_unlock", { passphrase }),
   privateLock: () => call<void>("private_lock"),
+  keysStatus: () => call<KeysStatus>("keys_status"),
+  /** `googleSecret` undefined keeps the stored one; "" removes it. */
+  keysSave: (keys: { googleId: string; googleSecret?: string; spotifyId: string }) => call<KeysStatus>("keys_save", { keys }),
   vaultLock: () => call<void>("vault_lock"),
 
   dbQuery: (sql: string, params: unknown[], method: QueryMethod) =>

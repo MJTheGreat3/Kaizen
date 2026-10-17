@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
@@ -33,8 +34,11 @@ function Steps({ redirectUri, configured }: { redirectUri: string; configured: b
         </button>
       </li>
       <li>
-        <b>3.</b> Save, then copy the app's <b>Client ID</b> into <code>~/.zshrc</code> on the laptop as <code>export KAIZEN_SPOTIFY_CLIENT_ID=…</code>
-        {configured ? " (done: this build has it)." : ", and rebuild Kaizen for the laptop and the phone."}
+        <b>3.</b> Save, then copy the app's <b>Client ID</b> into Kaizen under{" "}
+        <Link to="/settings" className="font-medium underline">
+          Settings → Connections
+        </Link>{" "}
+        on each device{configured ? " (done here)." : "."}
       </li>
       <li>
         <b>4.</b> Connect below on each device. Audio plays in the Spotify app; Kaizen is its remote, with lyrics, the disc and stats.
