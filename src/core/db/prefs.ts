@@ -32,16 +32,8 @@ export interface Prefs {
   "sync.lanHost": string;
   /** Streak milestones already celebrated: type id -> "since:milestone". */
   "streak.celebrated": Record<string, string>;
-  /** Focus timer defaults on this device. */
-  "focus.minutes": number;
-  "focus.rest": number;
-  "focus.species": string;
-  /** Leaving (another app, or the window on desktop) withers the tree. */
-  "focus.strict": boolean;
-  /** Turn on Do Not Disturb during sessions (Android). */
-  "focus.dnd": boolean;
-  /** Seconds allowed away before the tree withers. */
-  "focus.grace": number;
+  /** The reading session running on this device, if any. */
+  "reading.running": { taskId: string; startedAt: number; pausedAt: number | null; pausedMs: number } | null;
   /** When this device last fetched upcoming contests. */
   "practice.contestsAt": number;
   /** Last time followed teams' games were refreshed. */
@@ -93,12 +85,7 @@ export const defaultPrefs: Prefs = {
   "sync.folder": "",
   "sync.lanHost": "",
   "streak.celebrated": {},
-  "focus.minutes": 25,
-  "focus.rest": 5,
-  "focus.species": "oak",
-  "focus.strict": true,
-  "focus.dnd": true,
-  "focus.grace": 10,
+  "reading.running": null,
   "practice.contestsAt": 0,
   "sports.refreshedAt": 0,
   "gym.unit": "kg",

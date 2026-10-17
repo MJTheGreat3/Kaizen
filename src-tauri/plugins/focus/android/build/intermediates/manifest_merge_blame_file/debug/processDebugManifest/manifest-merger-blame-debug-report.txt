@@ -1,0 +1,50 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    xmlns:tools="http://schemas.android.com/tools"
+4    package="com.matt.kaizen.focus" >
+5
+6    <uses-sdk android:minSdkVersion="24" />
+6-->INJECTED
+6-->INJECTED
+7
+8    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+8-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:4:5-77
+8-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:4:22-74
+9    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+9-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:5:5-89
+9-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:5:22-86
+10    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+10-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:6:5-77
+10-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:6:22-74
+11    <!-- Strict mode: notice when another app comes to the front. -->
+12    <uses-permission
+12-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:8:5-10:47
+13        android:name="android.permission.PACKAGE_USAGE_STATS"
+13-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:9:9-62
+14        tools:ignore="ProtectedPermissions" />
+14-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:10:9-44
+15    <!-- Do Not Disturb during sessions. -->
+16    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+16-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:12:5-85
+16-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:12:22-82
+17
+18    <application>
+18-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:14:5-23:19
+19        <service
+19-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:15:9-22:19
+20            android:name="com.matt.kaizen.focus.FocusService"
+20-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:16:13-62
+21            android:exported="false"
+21-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:17:13-37
+22            android:foregroundServiceType="specialUse" >
+22-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:18:13-55
+23            <property
+23-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:19:13-21:117
+24                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+24-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:20:17-76
+25                android:value="Focus timer that keeps counting and watches for app switches while a session runs" />
+25-->/Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:21:17-114
+26        </service>
+27    </application>
+28
+29</manifest>

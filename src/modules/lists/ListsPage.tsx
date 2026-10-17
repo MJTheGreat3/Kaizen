@@ -12,6 +12,7 @@ import {
   PencilSimple,
   Star,
   Sun,
+  Timer,
   Trash,
 } from "@phosphor-icons/react";
 
@@ -28,6 +29,9 @@ import { modules } from "@/modules/registry";
 import { useAddTask, useDeleteTask, useSetDone, useTasks, useUpdateTask } from "./data";
 import { recurrenceLabel } from "./recurrence";
 import { ItemCover } from "./DetailsFinder";
+import { byBook, totalsOf, useReadingSessions } from "./reading";
+import { BookPicker, ReadingBar, StartReading } from "./ReadingSession";
+import { hoursMinutes } from "@/modules/review/logic";
 import { TaskEditor } from "./TaskEditor";
 
 const mod = modules.find((m) => m.id === "lists")!;
@@ -60,6 +64,8 @@ function TaskRow({ task, onEdit }: { task: Task; onEdit: (t: Task) => void }) {
   const overdue = !done && task.dueDate !== null && task.dueDate < today;
   const progress =
     task.list === "read" && task.meta.pagesTotal ? Math.min(1, (task.meta.pagesRead ?? 0) / task.meta.pagesTotal) : null;
+  const sessions = useReadingSessions();
+  const read = task.list === "read" ? totalsOf(byBook(sessions.data).get(task.id) ?? []) : null;
 
   return (
     <motion.li
@@ -89,7 +95,7 @@ function TaskRow({ task, onEdit }: { task: Task; onEdit: (t: Task) => void }) {
         >
           {task.title}
         </p>
-        {(task.dueDate || task.tags.length || task.recurrence || task.priority || task.meta.author || task.meta.creator || task.meta.year || task.meta.medium || task.meta.rating) && !done ? (
+        {(task.dueDate || task.tags.length || task.recurrence || task.priority || task.meta.author || task.meta.creator || task.meta.year || task.meta.medium || task.meta.rating || read?.sessions) && !done ? (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {task.dueDate ? (
               <Chip tone={overdue ? "danger" : task.dueDate === today ? "hue" : "muted"} hue={HUE} icon={CalendarBlank}>
@@ -107,6 +113,11 @@ function TaskRow({ task, onEdit }: { task: Task; onEdit: (t: Task) => void }) {
             {task.meta.creator ? <Chip className="max-w-[16rem] truncate">{task.meta.creator}</Chip> : null}
             {task.meta.year ? <Chip>{task.meta.year}</Chip> : null}
             {task.meta.medium ? <Chip className="capitalize">{task.meta.medium}</Chip> : null}
+            {read?.sessions ? (
+              <Chip icon={Timer}>
+                {read.sessions} {read.sessions === 1 ? "session" : "sessions"} · {hoursMinutes(read.minutes)}
+              </Chip>
+            ) : null}
             {task.tags.map((tag) => (
               <Chip key={tag}>#{tag}</Chip>
             ))}
@@ -136,6 +147,11 @@ function TaskRow({ task, onEdit }: { task: Task; onEdit: (t: Task) => void }) {
           </div>
         ) : null}
       </div>
+      {task.list === "read" && !done ? (
+        <span onClick={(e) => e.stopPropagation()}>
+          <StartReading task={task} hue={HUE} />
+        </span>
+      ) : null}
       <span className="opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
         <RowMenu
           items={[
@@ -224,11 +240,17 @@ function ParsedPreview({ text, list }: { text: string; list: TaskList }) {
 export function ListsPage() {
   const [list, setList] = useState<TaskList>("todo");
   const [editing, setEditing] = useState<Task | null>(null);
+  const [picking, setPicking] = useState(false);
   const all = useTasks();
   const add = useAddTask();
   const today = todayKey();
 
-  useOpenTarget(["todo", "watch", "read"], !!all.data, ({ id }) => {
+  useOpenTarget(["todo", "watch", "read"], !!all.data, ({ module, id }) => {
+    if (module === "read" && id === "session") {
+      setList("read");
+      setPicking(true);
+      return;
+    }
     const task = all.data?.find((t) => t.id === id);
     if (!task) return;
     setList(task.list);
@@ -247,6 +269,8 @@ export function ListsPage() {
     .filter((t) => t.status === "done")
     .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0))
     .slice(0, 50);
+  const books = (all.data ?? []).filter((t) => t.list === "read");
+  const unread = books.filter((t) => t.status !== "done").sort((a, b) => (a.status === b.status ? 0 : a.status === "in_progress" ? -1 : 1));
 
   return (
     <Page hue={HUE}>
@@ -278,6 +302,8 @@ export function ListsPage() {
         />
       </motion.div>
 
+      <ReadingBar books={books} hue={HUE} />
+
       <motion.div variants={rise} className="mt-4 rounded-2xl border border-border bg-surface p-2 shadow-soft">
         {all.isLoading ? (
           <div className="grid gap-2 p-2">
@@ -295,7 +321,7 @@ export function ListsPage() {
               {
                 todo: 'Type above and press enter. Dates, times, #tags, !priority and "every week" are understood.',
                 watch: "Movies, shows and videos you want to get to.",
-                read: "Books you're reading or want to read, with page progress.",
+                read: "Books you're reading or want to read. Press Read on one to time a session and log the page you got to.",
               }[list]
             }
           </EmptyState>
@@ -318,6 +344,7 @@ export function ListsPage() {
       </motion.div>
 
       <TaskEditor key={editing?.id ?? "none"} task={editing} onClose={() => setEditing(null)} />
+      <BookPicker open={picking} books={unread} onClose={() => setPicking(false)} />
     </Page>
   );
 }

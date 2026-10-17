@@ -60,7 +60,7 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
 function summaryLine(s: PeriodStats): string {
   const parts = [
     s.workouts ? `worked out ${s.workouts === 1 ? "once" : `${s.workouts} times`}` : null,
-    s.focusMinutes >= 1 ? `focused for ${hoursMinutes(s.focusMinutes)}` : null,
+    s.readingMinutes >= 1 ? `read for ${hoursMinutes(s.readingMinutes)}` : null,
     s.problems ? `solved ${s.problems} ${s.problems === 1 ? "problem" : "problems"}` : null,
     s.tasksDone ? `finished ${s.tasksDone} ${s.tasksDone === 1 ? "task" : "tasks"}` : null,
     s.musicMinutes >= 30 ? `listened to ${hoursMinutes(s.musicMinutes)} of music` : null,
@@ -189,10 +189,10 @@ export function ReviewPage() {
               }
             />
             <Tile
-              label="Focus"
-              value={hoursMinutes(c.focusMinutes)}
-              sub={`${c.focusSessions} ${c.focusSessions === 1 ? "tree" : "trees"} grown`}
-              change={delta(c.focusMinutes, p.focusMinutes, true)}
+              label="Reading"
+              value={hoursMinutes(c.readingMinutes)}
+              sub={`${c.readingSessions} ${c.readingSessions === 1 ? "session" : "sessions"}${c.pagesRead ? ` · ${c.pagesRead} pages` : ""}`}
+              change={delta(c.readingMinutes, p.readingMinutes, true)}
             />
             <Tile
               label="Gym"
@@ -212,7 +212,7 @@ export function ReviewPage() {
               value={hoursMinutes(c.sportsMinutes)}
               change={delta(c.sportsMinutes, p.sportsMinutes, true)}
             />
-            <Tile label="Ideas and boards" value={`${c.ideas} · ${c.boards}`} sub="ideas · boards made" />
+            <Tile label="Boards" value={String(c.boards)} sub="made" change={delta(c.boards, p.boards)} />
           </div>
 
           <Card title="Day by day">
@@ -282,9 +282,9 @@ export function ReviewPage() {
                   {c.activity.bestDay.count === 1 ? "thing" : "things"} logged.
                 </li>
               ) : null}
-              {c.longestFocus >= 1 ? (
+              {c.longestRead >= 1 ? (
                 <li>
-                  <b>Longest focus:</b> {hoursMinutes(c.longestFocus)} in one sitting.
+                  <b>Longest read:</b> {hoursMinutes(c.longestRead)} in one sitting.
                 </li>
               ) : null}
               {c.topSong ? (
@@ -297,7 +297,7 @@ export function ReviewPage() {
                   <b>Finished reading:</b> {c.booksFinished.join(", ")}.
                 </li>
               ) : null}
-              {!c.activity.bestDay && c.longestFocus < 1 && !c.topSong && !c.booksFinished.length ? (
+              {!c.activity.bestDay && c.longestRead < 1 && !c.topSong && !c.booksFinished.length ? (
                 <li className="text-muted-foreground">Nothing stands out yet this {name}.</li>
               ) : null}
             </ul>

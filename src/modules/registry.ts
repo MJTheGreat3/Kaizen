@@ -7,14 +7,12 @@ import {
   Code,
   GridFour,
   HandCoins,
-  Lightbulb,
   Notebook,
   ListChecks,
   MusicNotes,
   Scribble,
   SunHorizon,
   Target,
-  Tree,
   Wallet,
 } from "@phosphor-icons/react";
 
@@ -50,7 +48,7 @@ export const modules: ModuleDef[] = [
     planned: [
       "Today's classes, tasks and habits",
       "Upcoming contests, matches and important dates",
-      "Debts due and a random idea",
+      "Debts due and goals in progress",
     ],
     phase: 1,
     mobilePrimary: true,
@@ -98,18 +96,6 @@ export const modules: ModuleDef[] = [
     phase: 1,
   },
   {
-    id: "focus",
-    hue: "#2fa5a0",
-    path: "/focus",
-    title: "Focus",
-    icon: Tree,
-    group: "daily",
-    summary: "Grow a tree while you stay focused.",
-    planned: ["Pomodoro or custom sessions", "Strict mode on Android", "Your forest, day by day"],
-    phase: 3,
-    mobilePrimary: true,
-  },
-  {
     id: "debts",
     hue: "#c2843d",
     path: "/debts",
@@ -144,7 +130,7 @@ export const modules: ModuleDef[] = [
     icon: Notebook,
     group: "track",
     summary: "Your week or month at a glance.",
-    planned: ["Active days, tasks, habits, focus, gym, practice and music", "Against the period before", "Highlights and a reminder on Sundays"],
+    planned: ["Active days, tasks, habits, reading, gym, practice and music", "Against the period before", "Highlights and a reminder on Sundays"],
     phase: 8,
   },
   {
@@ -155,7 +141,7 @@ export const modules: ModuleDef[] = [
     icon: Flag,
     group: "track",
     summary: "Longer targets that fill themselves from other modules.",
-    planned: ["Numbers you log, activity totals, habits or tasks", "Pace against a finish date", "Promote an idea into a goal"],
+    planned: ["Numbers you log, activity totals, habits or tasks", "Pace against a finish date", "Short and long term"],
     phase: 3,
   },
   {
@@ -207,17 +193,6 @@ export const modules: ModuleDef[] = [
     phase: 9,
   },
   {
-    id: "ideas",
-    hue: "#d4b62c",
-    path: "/ideas",
-    title: "Ideas",
-    icon: Lightbulb,
-    group: "create",
-    summary: "A scrapbook for ideas with no deadlines.",
-    planned: ["Capture in under five seconds", "Text, links, images and voice", "Resurface an old idea now and then"],
-    phase: 1,
-  },
-  {
     id: "music",
     hue: "#c94fd6",
     path: "/music",
@@ -240,7 +215,7 @@ export const modules: ModuleDef[] = [
     icon: Scribble,
     group: "create",
     summary: "Whiteboards to sketch, plan and think on.",
-    planned: ["Freehand drawing, shapes, text and images", "Pen and touch on the phone", "Boards from ideas, export to PNG and SVG"],
+    planned: ["Freehand drawing, shapes, text and images", "Pen and touch on the phone", "Export to PNG and SVG"],
     phase: 6,
   },
 ];

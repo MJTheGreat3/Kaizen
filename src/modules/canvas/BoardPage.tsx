@@ -1,17 +1,15 @@
 import { lazy, Suspense, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { ArrowLeft, CircleNotch, Lightbulb, PencilSimple, PushPin, PushPinSlash, Scribble, Trash } from "@phosphor-icons/react";
+import { ArrowLeft, CircleNotch, PencilSimple, PushPin, PushPinSlash, Scribble, Trash } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import { RowMenu } from "@/components/ui/kit";
-import { useOpenRequest } from "@/core/shell/openRequest";
-import { modules, pathOf } from "@/modules/registry";
+import { pathOf } from "@/modules/registry";
 import { useBoard, useRemoveBoard, useRestoreBoard, useUpdateBoard } from "./data";
 import { RenameDialog } from "./parts";
 
 const Editor = lazy(() => import("./Editor"));
-const IDEAS_HUE = modules.find((m) => m.id === "ideas")!.hue;
 
 function Loading() {
   return (
@@ -33,12 +31,6 @@ export function BoardPage() {
   const board = data?.board;
   const back = () => void navigate({ to: pathOf("canvas") });
 
-  function openIdea() {
-    if (!board?.ideaId) return;
-    useOpenRequest.getState().request({ module: "ideas", id: board.ideaId });
-    void navigate({ to: pathOf("ideas") });
-  }
-
   return (
     <div data-no-pull className="fixed inset-0 z-40 flex flex-col bg-background pl-safe pr-safe pt-safe pb-safe">
       <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border/70 px-2">
@@ -57,16 +49,6 @@ export function BoardPage() {
         >
           {board?.title ?? ""}
         </button>
-        {board?.ideaId ? (
-          <button
-            type="button"
-            onClick={openIdea}
-            className="flex h-7 shrink-0 items-center gap-1 rounded-full border border-border px-2.5 text-[12px] font-medium text-muted-foreground hover:text-foreground"
-          >
-            <Lightbulb size={13} weight="fill" style={{ color: IDEAS_HUE }} />
-            Idea
-          </button>
-        ) : null}
         <span className="flex-1" />
         {board ? (
           <RowMenu

@@ -19,7 +19,7 @@ const rows: SearchRow[] = [
   row({ title: "Submit OS assignment", tags: "college", date: "2026-10-17", status: "open" }),
   row({ title: "Dune Messiah", module: "read", body: "Frank Herbert", tags: "scifi" }),
   row({ title: "Swiggy dinner", src: "debts", module: "debts", body: "Rahul", amount: 450, date: "2026-09-12", status: "owed_to_me" }),
-  row({ title: "Café ideas for the weekend", module: "ideas", date: "2026-08-01" }),
+  row({ title: "Café Society", src: "goals", module: "goals", date: "2026-08-01" }),
   row({ title: "OS lab record", tags: "college", status: "done", date: "2026-09-02" }),
   row({ title: "Knapsack for Beginners", src: "cp_problems", module: "problems", body: "codeforces 1700A", tags: "dp", amount: 1700, status: "solved" }),
 ];
@@ -30,7 +30,7 @@ describe("search", () => {
     expect(titles("assign")).toEqual(["Submit OS assignment"]);
     expect(titles("herb")).toEqual(["Dune Messiah"]);
     expect(titles("ssiah")).toEqual(["Dune Messiah"]);
-    expect(titles("cafe")).toEqual(["Café ideas for the weekend"]);
+    expect(titles("cafe")).toEqual(["Café Society"]);
   });
 
   it("forgives typos in longer words", () => {
@@ -51,7 +51,7 @@ describe("search", () => {
     expect(titles("in:finance swiggy")).toEqual([]);
     expect(titles("tag:college")).toHaveLength(2);
     expect(titles("#coll os")).toHaveLength(2);
-    expect(titles("before:2026-09-01")).toEqual(["Café ideas for the weekend"]);
+    expect(titles("before:2026-09-01")).toEqual(["Café Society"]);
     expect(titles("after:2026-09 college")).toEqual(["Submit OS assignment", "OS lab record"]);
     expect(titles("amount:>400")).toEqual(["Swiggy dinner"]);
     expect(titles("amount:<400")).toEqual([]);
@@ -71,9 +71,9 @@ describe("search", () => {
   });
 
   it("scores command labels", () => {
-    expect(labelScore("Start focus", ["foc"])).toBeGreaterThan(0);
-    expect(labelScore("Start focus", ["sart"])).toBeGreaterThan(0);
-    expect(labelScore("Start focus", ["habit"])).toBe(0);
+    expect(labelScore("Start workout", ["wor"])).toBeGreaterThan(0);
+    expect(labelScore("Start workout", ["sart"])).toBeGreaterThan(0);
+    expect(labelScore("Start workout", ["habit"])).toBe(0);
   });
 
   it("measures edit distance with transpositions", () => {

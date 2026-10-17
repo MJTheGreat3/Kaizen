@@ -16,9 +16,10 @@ export interface PeriodStats {
   booksFinished: string[];
   /** Share of planned habit check-ins done, or null with no habits. */
   habits: number | null;
-  focusMinutes: number;
-  focusSessions: number;
-  longestFocus: number;
+  readingMinutes: number;
+  readingSessions: number;
+  pagesRead: number;
+  longestRead: number;
   workouts: number;
   /** kg */
   volume: number;
@@ -27,7 +28,6 @@ export interface PeriodStats {
   musicMinutes: number;
   topSong: { title: string; artist: string; plays: number } | null;
   topArtist: { name: string; plays: number } | null;
-  ideas: number;
   boards: number;
 }
 
@@ -58,18 +58,18 @@ async function statsFor(
   const from = startMs(p.start);
   const to = endMs(p.end);
   const t = schema.tasks;
-  const f = schema.focusSessions;
+  const r = schema.readingSessions;
   const w = schema.workouts;
   const mp = schema.musicPlays;
-  const [done, focus, workouts, plays, ideas, boards] = await Promise.all([
+  const [done, reading, workouts, plays, boards] = await Promise.all([
     db
       .select({ list: t.list, title: t.title })
       .from(t)
       .where(and(isNull(t.deletedAt), eq(t.status, "done"), between(t.completedAt, from, to))),
     db
-      .select({ minutes: f.focusedMinutes, status: f.status })
-      .from(f)
-      .where(and(isNull(f.deletedAt), gte(f.date, p.start), lte(f.date, p.end))),
+      .select({ minutes: r.minutes, pages: r.pages })
+      .from(r)
+      .where(and(isNull(r.deletedAt), gte(r.date, p.start), lte(r.date, p.end))),
     db
       .select({ volume: w.volume })
       .from(w)
@@ -78,10 +78,6 @@ async function statsFor(
       .select()
       .from(mp)
       .where(and(isNull(mp.deletedAt), between(mp.playedAt, from, to))),
-    db
-      .select({ id: schema.ideas.id })
-      .from(schema.ideas)
-      .where(and(isNull(schema.ideas.deletedAt), between(schema.ideas.createdAt, from, to))),
     db
       .select({ id: schema.boards.id })
       .from(schema.boards)
@@ -96,15 +92,15 @@ async function statsFor(
     plays.flatMap((x) => x.artists.slice(0, 1)),
     (a) => a,
   );
-  const completed = focus.filter((s) => s.status === "completed");
   return {
     activity: summarize(events, p),
     tasksDone: done.filter((d) => d.list === "todo").length,
     booksFinished: done.filter((d) => d.list === "read").map((d) => d.title),
     habits: rate,
-    focusMinutes: focus.reduce((s, x) => s + (x.minutes ?? 0), 0),
-    focusSessions: completed.length,
-    longestFocus: Math.max(0, ...focus.map((x) => x.minutes ?? 0)),
+    readingMinutes: reading.reduce((s, x) => s + x.minutes, 0),
+    readingSessions: reading.length,
+    pagesRead: reading.reduce((s, x) => s + x.pages, 0),
+    longestRead: Math.max(0, ...reading.map((x) => x.minutes)),
     workouts: workouts.length,
     volume: workouts.reduce((s, x) => s + (x.volume ?? 0), 0),
     problems: inPeriod.filter((e) => e.typeId === "cp").length,
@@ -112,7 +108,6 @@ async function statsFor(
     musicMinutes: plays.reduce((s, x) => s + x.durationMs / 60_000, 0),
     topSong: song && song[1] > 1 ? { title: song[2].title, artist: song[2].artists[0] ?? "", plays: song[1] } : null,
     topArtist: artist && artist[1] > 1 ? { name: artist[0], plays: artist[1] } : null,
-    ideas: ideas.length,
     boards: boards.length,
   };
 }

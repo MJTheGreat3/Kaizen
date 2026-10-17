@@ -70,7 +70,6 @@ class TodayWidget : AppWidgetProvider() {
         val views = RemoteViews(context.packageName, R.layout.widget_today)
         views.setOnClickPendingIntent(R.id.widget_title, openApp(context, 1, null))
         views.setOnClickPendingIntent(R.id.widget_add_task, openApp(context, 2, "task"))
-        views.setOnClickPendingIntent(R.id.widget_add_idea, openApp(context, 3, "idea"))
         views.setOnClickPendingIntent(R.id.widget_add_board, openApp(context, 4, "board"))
 
         val today = LocalDate.now().toString()

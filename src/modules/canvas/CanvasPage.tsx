@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { Lightbulb, MagnifyingGlass, PencilSimple, Plus, PushPin, PushPinSlash, Scribble, Trash } from "@phosphor-icons/react";
+import { MagnifyingGlass, PencilSimple, Plus, PushPin, PushPinSlash, Scribble, Trash } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/controls";
@@ -50,7 +50,6 @@ function BoardCard({ board, now, onRename }: { board: BoardSummary; now: number;
             <span className="truncate">{board.title}</span>
           </span>
           <span className="flex items-center gap-1.5 truncate text-[12px] text-muted-foreground">
-            {board.ideaId ? <Lightbulb size={12} weight="fill" className="shrink-0" style={{ color: modules.find((m) => m.id === "ideas")!.hue }} /> : null}
             {board.shapes ? `${board.shapes} ${board.shapes === 1 ? "shape" : "shapes"}` : "Empty"} · {timeAgo(board.updatedAt, now)}
           </span>
         </button>
@@ -146,7 +145,7 @@ export function CanvasPage() {
               </Button>
             }
           >
-            Diagrams, sketches, plans and mind maps. Draw with a finger, pen or mouse; ideas can grow into boards too.
+            Diagrams, sketches, plans and mind maps. Draw with a finger, pen or mouse.
           </EmptyState>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

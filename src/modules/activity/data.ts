@@ -16,7 +16,7 @@ export interface TypeWithRule extends ActivityType {
 export interface ActivityData {
   types: TypeWithRule[];
   events: ActivityEvent[];
-  /** Tags of each event's source (tasks and focus sessions), by event id. */
+  /** Tags of each event's source (tasks, and the book of a reading session), by event id. */
   tags: Map<string, string[]>;
   allTags: string[];
 }
@@ -26,14 +26,14 @@ export async function loadActivity(): Promise<ActivityData> {
     db.select().from(t).where(isNull(t.deletedAt)).orderBy(asc(t.sortOrder)),
     db.select().from(e).where(isNull(e.deletedAt)),
     db.select({ id: schema.tasks.id, tags: schema.tasks.tags }).from(schema.tasks),
-    db.select({ id: schema.focusSessions.id, tag: schema.focusSessions.tag }).from(schema.focusSessions),
+    db.select({ id: schema.readingSessions.id, taskId: schema.readingSessions.taskId }).from(schema.readingSessions),
   ]);
   const taskTags = new Map(tasks.map((x) => [x.id, x.tags ?? []]));
-  const focusTags = new Map(sessions.map((x) => [x.id, x.tag ? [x.tag] : []]));
+  const bookOf = new Map(sessions.map((x) => [x.id, x.taskId]));
   const tags = new Map<string, string[]>();
   for (const ev of events) {
-    const found =
-      ev.sourceTable === "tasks" ? taskTags.get(ev.sourceId ?? "") : ev.sourceTable === "focus_sessions" ? focusTags.get(ev.sourceId ?? "") : undefined;
+    const source = ev.sourceTable === "reading_sessions" ? bookOf.get(ev.sourceId ?? "") : ev.sourceTable === "tasks" ? ev.sourceId : undefined;
+    const found = source ? taskTags.get(source) : undefined;
     if (found?.length) tags.set(ev.id, found);
   }
   const allTags = [...new Set([...tags.values()].flat())].sort();
@@ -77,8 +77,12 @@ export async function loadDayLog(date: DateKey): Promise<DayLogItem[]> {
           .innerJoin(schema.subjects, eq(schema.subjects.id, schema.attendance.subjectId))
           .where(inArray(schema.attendance.classKey, ids("attendance")))
       : [],
-    ids("focus_sessions").length
-      ? db.select().from(schema.focusSessions).where(inArray(schema.focusSessions.id, ids("focus_sessions")))
+    ids("reading_sessions").length
+      ? db
+          .select({ id: schema.readingSessions.id, book: schema.tasks.title })
+          .from(schema.readingSessions)
+          .innerJoin(schema.tasks, eq(schema.tasks.id, schema.readingSessions.taskId))
+          .where(inArray(schema.readingSessions.id, ids("reading_sessions")))
       : [],
     ids("sport_sessions").length
       ? db.select().from(schema.sportSessions).where(inArray(schema.sportSessions.id, ids("sport_sessions")))
@@ -96,10 +100,8 @@ export async function loadDayLog(date: DateKey): Promise<DayLogItem[]> {
         const m = marks.find((x) => x.key === id);
         return m ? `${m.subject}${m.kind === "lecture" ? "" : ` ${m.kind}`}` : "Class";
       }
-      case "focus_sessions": {
-        const s = sessions.find((x) => x.id === id);
-        return s?.tag ? `Focus on ${s.tag}` : "Focus session";
-      }
+      case "reading_sessions":
+        return sessions.find((x) => x.id === id)?.book ?? "Reading";
       case "github":
         return "GitHub";
       case "sport_sessions":

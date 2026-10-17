@@ -7,10 +7,8 @@ import { SettingsPage } from "@/modules/settings/SettingsPage";
 import { TodayPage } from "@/modules/today/TodayPage";
 import { ListsPage } from "@/modules/lists/ListsPage";
 import { DebtsPage } from "@/modules/debts/DebtsPage";
-import { IdeasPage } from "@/modules/ideas/IdeasPage";
 import { HabitsPage } from "@/modules/habits/HabitsPage";
 import { CalendarPage } from "@/modules/calendar/CalendarPage";
-import { FocusPage } from "@/modules/focus/FocusPage";
 import { ActivityPage } from "@/modules/activity/ActivityPage";
 import { GoalsPage } from "@/modules/goals/GoalsPage";
 import { PracticePage } from "@/modules/practice/PracticePage";
@@ -30,10 +28,8 @@ const pages: Record<string, () => React.ReactNode> = {
   today: TodayPage,
   lists: ListsPage,
   debts: DebtsPage,
-  ideas: IdeasPage,
   habits: HabitsPage,
   calendar: CalendarPage,
-  focus: FocusPage,
   activity: ActivityPage,
   goals: GoalsPage,
   practice: PracticePage,

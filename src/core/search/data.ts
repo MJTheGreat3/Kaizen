@@ -26,7 +26,6 @@ export const SEARCH_MODULES: Record<string, ModuleInfo> = {
   goals: { label: "Goals", moduleId: "goals" },
   problems: { label: "Problems", moduleId: "practice" },
   habits: { label: "Habits", moduleId: "habits" },
-  ideas: { label: "Ideas", moduleId: "ideas" },
   dates: { label: "Dates", moduleId: "calendar" },
   subjects: { label: "Subjects", moduleId: "calendar" },
   watch: { label: "To watch", moduleId: "lists" },

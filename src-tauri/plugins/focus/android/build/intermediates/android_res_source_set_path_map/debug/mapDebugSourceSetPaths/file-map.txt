@@ -1,0 +1,9 @@
+com.matt.kaizen.focus.tauri-plugin-focus-pngs-0 /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/build/generated/res/pngs/debug
+com.matt.kaizen.focus.tauri-plugin-focus-updated_navigation_xml-1 /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/build/generated/updated_navigation_xml/debug
+com.matt.kaizen.focus.tauri-plugin-focus-mergeDebugResources-2 /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/build/intermediates/incremental/debug/mergeDebugResources/merged.dir
+com.matt.kaizen.focus.tauri-plugin-focus-mergeDebugResources-3 /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/build/intermediates/incremental/debug/mergeDebugResources/stripped.dir
+com.matt.kaizen.focus.tauri-plugin-focus-debug-4 /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/build/intermediates/merged_res/debug/mergeDebugResources
+com.matt.kaizen.focus.tauri-plugin-focus-debug-5 /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/build/intermediates/packaged_res/debug/packageDebugResources
+com.matt.kaizen.focus.tauri-plugin-focus-debug-6 /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/debug/res
+com.matt.kaizen.focus.tauri-plugin-focus-main-7 /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/res
+gradleHome-0 /Users/mj/.gradle

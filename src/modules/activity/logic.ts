@@ -22,7 +22,6 @@ const DEFAULT_RULE: ActiveRule = { period: "day", min: 1, perWeek: 3, restDays: 
 
 /** Sensible defaults per built-in type, used until the user changes the rule. */
 const TYPE_DEFAULTS: Record<string, Partial<ActiveRule>> = {
-  focus: { min: 25 },
   gym: { period: "week", perWeek: 3 },
   sports: { min: 20 },
 };

@@ -2,22 +2,20 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Command } from "cmdk";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowsClockwise,
   Barbell,
+  BookOpen,
   Scribble,
   ClockCounterClockwise,
   CloudArrowUp,
   Flag,
   GearSix,
-  Lightbulb,
   ListPlus,
   MagnifyingGlass,
   MoonStars,
   Plus,
   Target,
-  Tree,
   X,
   type Icon,
 } from "@phosphor-icons/react";
@@ -26,7 +24,6 @@ import { toast } from "sonner";
 import { Kbd } from "@/components/ui/controls";
 import { ModuleTile } from "@/components/visual";
 import { runBackupNow } from "@/core/backup/useScheduledBackup";
-import { db, schema } from "@/core/db/client";
 import { usePref } from "@/core/db/prefs";
 import { parseTask } from "@/core/nl/parse";
 import { moduleOf, SEARCH_MODULES, useSearchRows } from "@/core/search/data";
@@ -74,7 +71,7 @@ function subtitle(r: Result) {
   // Books and shows: the author or medium says more than when they were added.
   if ((row.module === "read" || row.module === "watch") && row.body) parts.push(row.body.slice(0, 60));
   else if (row.date && row.src !== "habits") parts.push(relativeDay(row.date));
-  if (!parts.length && row.body && row.src !== "ideas") parts.push(row.body.slice(0, 60));
+  if (!parts.length && row.body) parts.push(row.body.slice(0, 60));
   return parts.join(" · ");
 }
 
@@ -97,7 +94,6 @@ function Highlighted({ text, ranges }: { text: string; ranges: [number, number][
 export function CommandPalette() {
   const { open, setOpen } = usePalette();
   const navigate = useNavigate();
-  const client = useQueryClient();
   const sync = useSyncAction();
   const addTask = useAddTask();
   const [query, setQuery] = useState("");
@@ -144,13 +140,13 @@ export function CommandPalette() {
   const actions: Action[] = useMemo(
     () => [
       {
-        id: "focus",
-        label: "Start a focus session",
-        keywords: "timer pomodoro tree",
-        icon: Tree,
+        id: "reading",
+        label: "Log a reading session",
+        keywords: "book read timer pages",
+        icon: BookOpen,
         run: () => {
-          useOpenRequest.getState().request({ module: "focus", id: "start" });
-          return navigate({ to: pathOf("focus") });
+          useOpenRequest.getState().request({ module: "read", id: "session" });
+          return navigate({ to: pathOf("lists") });
         },
       },
       {
@@ -239,13 +235,6 @@ export function CommandPalette() {
     toast.success(`Added to ${p.list === "todo" ? "To-do" : p.list === "watch" ? "Watch" : "Read"}`, { description: p.title });
   }
 
-  async function quickIdea() {
-    const tags = [...new Set([...plainText.matchAll(/#([\p{L}\p{N}_-]+)/gu)].map((m) => m[1].toLowerCase()))];
-    await db.insert(schema.ideas).values({ body: plainText, tags });
-    await client.invalidateQueries({ queryKey: ["ideas"] });
-    toast.success("Idea saved");
-  }
-
   const goToGroup = matchedGoTo.length ? (
     <Command.Group heading="Go to" className={groupClass}>
       {matchedGoTo.map((g) => (
@@ -262,20 +251,12 @@ export function CommandPalette() {
     matchedActions.length || plainText ? (
       <Command.Group heading="Actions" className={groupClass}>
         {plainText ? (
-          <>
-            <Command.Item value="quick:task" onSelect={() => run(quickTask)} className={itemClass}>
-              <ListPlus />
-              <span className="min-w-0 flex-1 truncate">
-                Add task <span className="text-muted-foreground">“{plainText}”</span>
-              </span>
-            </Command.Item>
-            <Command.Item value="quick:idea" onSelect={() => run(quickIdea)} className={itemClass}>
-              <Lightbulb />
-              <span className="min-w-0 flex-1 truncate">
-                Save idea <span className="text-muted-foreground">“{plainText}”</span>
-              </span>
-            </Command.Item>
-          </>
+          <Command.Item value="quick:task" onSelect={() => run(quickTask)} className={itemClass}>
+            <ListPlus />
+            <span className="min-w-0 flex-1 truncate">
+              Add task <span className="text-muted-foreground">“{plainText}”</span>
+            </span>
+          </Command.Item>
         ) : null}
         {matchedActions.map((a) => (
           <Command.Item key={a.id} value={`action:${a.id}`} onSelect={() => run(a.run)} className={itemClass}>
@@ -395,7 +376,7 @@ export function CommandPalette() {
             </Command.List>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
               <Plus size={12} className="-mr-2" />
-              {["in:ideas", "tag:college", "#dsa", "amount:>500", "rating:>1600", "before:2026-09", "is:done"].map((hint) => (
+              {["in:books", "tag:college", "#dsa", "amount:>500", "rating:>1600", "before:2026-09", "is:done"].map((hint) => (
                 <button
                   key={hint}
                   type="button"

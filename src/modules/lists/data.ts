@@ -97,7 +97,6 @@ export async function setTaskDone(task: Task, done: boolean) {
   if (done) {
     await db.update(t).set({ status: "done", completedAt: Date.now() }).where(eq(t.id, task.id));
     if (task.list === "todo") await recordActivity("tasks", today, "tasks", task.id);
-    if (task.list === "read") await recordActivity("reading", today, "tasks", task.id);
     if (task.recurrence) {
       await db.insert(t).values({
         list: task.list,

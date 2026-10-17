@@ -56,7 +56,6 @@ strip = true
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-barcode-scanner = "2"
-tauri-plugin-focus = { path = "plugins/focus" }
 tauri-plugin-audiofx = { path = "plugins/audiofx" }
 
 [target.'cfg(target_os = "android")'.dependencies]

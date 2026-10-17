@@ -202,15 +202,6 @@ export const habitLogs = sqliteTable("habit_logs", {
   ...base,
 });
 
-export const ideas = sqliteTable("ideas", {
-  id: id(),
-  body: text("body").notNull(),
-  tags: json<string[]>("tags").notNull().default([]),
-  pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
-  color: text("color"),
-  ...base,
-});
-
 export type DateKind = "birthday" | "anniversary" | "exam" | "deadline" | "renewal" | "other";
 
 export const importantDates = sqliteTable("important_dates", {
@@ -351,7 +342,6 @@ export const debtPayments = sqliteTable("debt_payments", {
 export type Task = typeof tasks.$inferSelect;
 export type Habit = typeof habits.$inferSelect;
 export type HabitLog = typeof habitLogs.$inferSelect;
-export type Idea = typeof ideas.$inferSelect;
 export type ImportantDate = typeof importantDates.$inferSelect;
 export type Semester = typeof semesters.$inferSelect;
 export type Subject = typeof subjects.$inferSelect;
@@ -361,42 +351,6 @@ export type AttendanceMark = typeof attendance.$inferSelect;
 export type Person = typeof people.$inferSelect;
 export type Debt = typeof debts.$inferSelect;
 export type DebtPayment = typeof debtPayments.$inferSelect;
-
-// ---------------------------------------------------------------------------
-// Phase 3 (migration v6)
-// ---------------------------------------------------------------------------
-
-export type FocusStatus = "running" | "paused" | "completed" | "withered" | "given_up";
-
-export const focusSessions = sqliteTable("focus_sessions", {
-  id: id(),
-  /** Local day the session started. */
-  date: text("date").notNull(),
-  startedAt: integer("started_at").notNull(),
-  plannedMinutes: integer("planned_minutes").notNull(),
-  status: text("status", { enum: ["running", "paused", "completed", "withered", "given_up"] })
-    .notNull()
-    .default("running"),
-  pausedAt: integer("paused_at"),
-  pausedMs: integer("paused_ms").notNull().default(0),
-  endedAt: integer("ended_at"),
-  focusedMinutes: real("focused_minutes").notNull().default(0),
-  tag: text("tag"),
-  taskId: text("task_id"),
-  species: text("species").notNull().default("oak"),
-  strict: integer("strict", { mode: "boolean" }).notNull().default(false),
-  note: text("note"),
-  ...base,
-});
-
-/** Unlocked tree species; `id` is the species key. */
-export const focusUnlocks = sqliteTable("focus_unlocks", {
-  id: text("id").primaryKey(),
-  ...base,
-});
-
-export type FocusSession = typeof focusSessions.$inferSelect;
-export type FocusUnlock = typeof focusUnlocks.$inferSelect;
 
 export type ActivityType = typeof activityTypes.$inferSelect;
 export type ActivityEvent = typeof activityEvents.$inferSelect;
@@ -465,7 +419,7 @@ export const searchIndex = sqliteTable("search_index", {
   /** Source table and row. */
   src: text("src").notNull(),
   refId: text("ref_id").notNull(),
-  /** Where the row lives: todo, watch, read, ideas, habits, dates, subjects, people, debts, goals. */
+  /** Where the row lives: todo, watch, read, habits, dates, subjects, people, debts, goals. */
   module: text("module").notNull(),
   title: text("title").notNull(),
   body: text("body").notNull(),
@@ -844,7 +798,6 @@ export const boards = sqliteTable("boards", {
   appState: json<BoardAppState>("app_state").notNull().default({}),
   /** Small PNG data URL for the board list. */
   preview: text("preview"),
-  ideaId: text("idea_id"),
   pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
   ...base,
 });
@@ -882,3 +835,23 @@ export const musicPlays = sqliteTable("music_plays", {
 });
 
 export type MusicPlay = typeof musicPlays.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Migration v18: reading sessions
+// ---------------------------------------------------------------------------
+
+/** Time spent reading a book on the read list, and the pages it covered. */
+export const readingSessions = sqliteTable("reading_sessions", {
+  id: id(),
+  taskId: text("task_id").notNull(),
+  /** Local day the session started. */
+  date: text("date").notNull(),
+  startedAt: integer("started_at").notNull(),
+  minutes: real("minutes").notNull().default(0),
+  pages: integer("pages").notNull().default(0),
+  /** The page the session stopped on, if given. */
+  pageEnd: integer("page_end"),
+  ...base,
+});
+
+export type ReadingSession = typeof readingSessions.$inferSelect;

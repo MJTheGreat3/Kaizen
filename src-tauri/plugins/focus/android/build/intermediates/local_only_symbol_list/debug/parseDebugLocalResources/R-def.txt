@@ -1,0 +1,17 @@
+R_DEF: Internal format may change without notice
+local
+drawable ic_focus_tree
+string focus_away_body
+string focus_away_title
+string focus_channel_alerts
+string focus_channel_ongoing
+string focus_done_body
+string focus_done_title
+string focus_give_up
+string focus_pause
+string focus_paused_text
+string focus_resume
+string focus_running
+string focus_running_strict
+string focus_withered_body
+string focus_withered_title

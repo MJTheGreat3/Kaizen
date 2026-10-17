@@ -48,7 +48,6 @@ class StreakWidget : AppWidgetProvider() {
       id.startsWith("habit:") || id == "type:habits" -> "habits"
       id == "type:gym" -> "fitness"
       id == "type:cp" || id == "type:github" -> "practice"
-      id == "type:focus" -> "focus"
       id == "type:sports" -> "sports"
       id == "type:tasks" || id == "type:reading" -> "lists"
       id == "type:classes" -> "calendar"

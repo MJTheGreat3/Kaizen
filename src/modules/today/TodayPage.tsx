@@ -2,7 +2,6 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { isNull } from "drizzle-orm";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -12,10 +11,9 @@ import {
   HandCoins,
   Hourglass,
   GridFour,
-  Lightbulb,
+  BookOpen,
   ListChecks,
   Plus,
-  Shuffle,
   Target,
   Trophy,
 } from "@phosphor-icons/react";
@@ -26,8 +24,6 @@ import { Skeleton } from "@/components/ui/controls";
 import { CheckCircle, Chip } from "@/components/ui/kit";
 import { ProgressRing } from "@/components/ui/ring";
 import { ModuleTile, Sky, Wash } from "@/components/visual";
-import { db, schema } from "@/core/db/client";
-import type { Idea } from "@/core/db/schema";
 import { notificationsAllowed, requestNotifications, syncNotifications } from "@/core/notifications/scheduler";
 import { parseTask } from "@/core/nl/parse";
 import { useSession } from "@/core/security/session";
@@ -45,6 +41,7 @@ import { loadDebts } from "@/modules/debts/data";
 import { loadHabits, logHabit } from "@/modules/habits/data";
 import { isDone, isScheduled } from "@/modules/habits/streaks";
 import { loadTasks, setTaskDone, useAddTask } from "@/modules/lists/data";
+import { ReadingGlance } from "@/modules/lists/ReadingSession";
 import { modules } from "@/modules/registry";
 import { ActivityGlance } from "@/modules/activity/Glance";
 import { useGoals } from "@/modules/goals/data";
@@ -63,13 +60,12 @@ const CALENDAR_PATH: string = "/calendar";
 const hueOf = (id: string) => modules.find((m) => m.id === id)?.hue ?? "var(--accent)";
 
 async function loadToday() {
-  const [tasks, habits, calendar, dates, debts, ideas, contests, contestPlatforms, games] = await Promise.all([
+  const [tasks, habits, calendar, dates, debts, contests, contestPlatforms, games] = await Promise.all([
     loadTasks("todo"),
     loadHabits(14),
     loadCalendar(),
     loadDates(),
     loadDebts(),
-    db.select().from(schema.ideas).where(isNull(schema.ideas.deletedAt)),
     loadContests(),
     getPref("practice.contestPlatforms"),
     loadMatches(),
@@ -78,7 +74,7 @@ async function loadToday() {
   const soon = contests.filter((c) => contestPlatforms.includes(c.platform) && c.startAt < Date.now() + 7 * 86_400_000).slice(0, 3);
   // Followed teams' games that are live or start within two days.
   const matches = games.filter((g) => g.startAt < Date.now() + 2 * 86_400_000).slice(0, 3);
-  return { tasks, habits, calendar, dates, debts, ideas, contests: soon, matches };
+  return { tasks, habits, calendar, dates, debts, contests: soon, matches };
 }
 
 /**
@@ -117,14 +113,6 @@ function Muted({ children }: { children: ReactNode }) {
   return <p className="text-[14px] leading-relaxed text-muted-foreground">{children}</p>;
 }
 
-/** Stable "idea of the day", so it doesn't change on every refresh. */
-function ideaOfTheDay(ideas: Idea[], day: string, shuffle: number): Idea | null {
-  if (!ideas.length) return null;
-  let h = shuffle;
-  for (const c of day) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return ideas[h % ideas.length];
-}
-
 function QuickTask() {
   const add = useAddTask();
   const [text, setText] = useState("");
@@ -152,7 +140,6 @@ export function TodayPage() {
   const { data, isLoading } = useQuery({ queryKey: ["today"], queryFn: loadToday });
   const goals = activeGoals(useGoals().data);
   const allowed = useQuery({ queryKey: ["notify-allowed"], queryFn: notificationsAllowed });
-  const [shuffle, setShuffle] = useState(0);
   const refresh = () => {
     client.invalidateQueries({ queryKey: ["today"] });
     client.invalidateQueries({ queryKey: ["tasks"] });
@@ -194,7 +181,6 @@ export function TodayPage() {
         .sort((a, b) => Math.abs(b.b) - Math.abs(a.b))
         .slice(0, 3)
     : [];
-  const idea = data ? ideaOfTheDay(data.ideas, today, shuffle) : null;
   const liveClasses = classes.filter((o) => !o.cancelled);
   const left = habits.length - habitsDone;
   const summary = [
@@ -423,32 +409,8 @@ export function TodayPage() {
               <ActivityGlance hue={hueOf("activity")} />
             </Card>
 
-            <Card
-              to="/ideas"
-              title="From your scrapbook"
-              icon={Lightbulb}
-              hue={hueOf("ideas")}
-              className="md:col-span-3"
-              action={
-                data.ideas.length > 1 ? (
-                  <Button variant="ghost" size="sm" onClick={() => setShuffle((s) => s + 1)}>
-                    <Shuffle />
-                    Another
-                  </Button>
-                ) : null
-              }
-            >
-              <AnimatePresence mode="wait">
-                <motion.p
-                  key={idea?.id ?? "none"}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className={cn("whitespace-pre-wrap text-[15px] leading-relaxed", !idea && "text-muted-foreground")}
-                >
-                  {idea ? idea.body : "Ideas you jot down resurface here, one a day."}
-                </motion.p>
-              </AnimatePresence>
+            <Card to="/lists" title="Reading" icon={BookOpen} hue={hueOf("lists")} className="md:col-span-3">
+              <ReadingGlance hue={hueOf("lists")} />
             </Card>
           </motion.div>
         )}

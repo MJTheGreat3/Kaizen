@@ -18,7 +18,6 @@ export async function loadBoards(): Promise<BoardSummary[]> {
       id: b.id,
       title: b.title,
       preview: b.preview,
-      ideaId: b.ideaId,
       pinned: b.pinned,
       createdAt: b.createdAt,
       updatedAt: b.updatedAt,
@@ -65,15 +64,14 @@ function useBoardMutation<A, R>(fn: (a: A) => Promise<R>) {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["boards"] });
       client.invalidateQueries({ queryKey: ["board"] });
-      client.invalidateQueries({ queryKey: ["ideas"] });
     },
   });
 }
 
-/** Creates a board, optionally from an idea, and returns its id. */
-export async function createBoard(title: string, ideaId: string | null = null): Promise<string> {
+/** Creates a board and returns its id. */
+export async function createBoard(title: string): Promise<string> {
   const id = uuidv7();
-  await db.insert(b).values({ id, title, ideaId });
+  await db.insert(b).values({ id, title });
   return id;
 }
 
@@ -120,12 +118,8 @@ export async function createBoardWithImage(title: string, image: { dataUrl: stri
   return id;
 }
 
-export function useCreateBoard() {
-  return useBoardMutation(({ title, ideaId }: { title: string; ideaId?: string | null }) => createBoard(title, ideaId ?? null));
-}
-
 export function useUpdateBoard() {
-  return useBoardMutation(({ id, patch }: { id: string; patch: Partial<Pick<Board, "title" | "pinned" | "ideaId">> }) =>
+  return useBoardMutation(({ id, patch }: { id: string; patch: Partial<Pick<Board, "title" | "pinned">> }) =>
     db.update(b).set(patch).where(eq(b.id, id)),
   );
 }
@@ -181,11 +175,4 @@ export async function storedFileIds(ids: string[]): Promise<Set<string>> {
   if (!ids.length) return new Set();
   const rows = await db.select({ id: bf.id }).from(bf).where(inArray(bf.id, ids));
   return new Set(rows.map((r) => r.id));
-}
-
-/** Boards made from ideas, by idea id. */
-export function boardsByIdea(boards: BoardSummary[] | undefined): Map<string, BoardSummary> {
-  const out = new Map<string, BoardSummary>();
-  for (const x of boards ?? []) if (x.ideaId && !out.has(x.ideaId)) out.set(x.ideaId, x);
-  return out;
 }

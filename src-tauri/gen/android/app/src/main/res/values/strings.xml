@@ -6,8 +6,7 @@
     <string name="shortcut_board">New board</string>
     <string name="shortcut_debt">Add debt</string>
     <string name="shortcut_task">New task</string>
-    <string name="shortcut_idea">New idea</string>
-    <string name="shortcut_focus">Start focus</string>
+    <string name="shortcut_reading">Log reading</string>
     <string name="tile_capture">Capture</string>
     <string name="widget_today_name">Today</string>
     <string name="widget_today_description">Today\'s tasks and habits; tick them off from the home screen.</string>

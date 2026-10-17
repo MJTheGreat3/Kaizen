@@ -70,9 +70,3 @@ export const visible = <T extends SceneElement>(elements: readonly T[]) => eleme
 export function fileIds(elements: readonly SceneElement[]): Set<string> {
   return new Set(visible(elements).flatMap((e) => (e.type === "image" && e.fileId ? [e.fileId] : [])));
 }
-
-/** A board title from an idea: its first line, without tags, kept short. */
-export function titleFromIdea(body: string): string {
-  const line = body.split("\n")[0].replace(/#[\p{L}\p{N}_-]+/gu, "").replace(/\s+/g, " ").trim();
-  return (line.length > 60 ? `${line.slice(0, 57).trimEnd()}…` : line) || "Untitled board";
-}

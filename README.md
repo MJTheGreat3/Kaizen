@@ -6,16 +6,15 @@ Kaizen brings everything I want to track into one app, with all data stored on m
 
 - **DSA / CP practice**: Codeforces and LeetCode sync, rating graphs, weak-topic analysis, revisit queue, contest reminders
 - **Gym and sports**: workout logging, PRs, progressive-overload charts, sports sessions, body metrics
-- **To-do, to-watch, to-read**: natural-language input with reminders; books, films, shows and anime fill in their author or cast, year and cover
+- **To-do, to-watch, to-read**: natural-language input with reminders; books, films, shows and anime fill in their author or cast, year and cover; a timer for reading sessions that logs time and pages
 - **Finance**: monthly bank statement (CSV) import, auto-categorisation, insights and budgets
 - **Habits and goals**: streaks, reminders, short and long term goals that are ticked off or track progress from other modules
 - **Activity heatmap**: colour-coded per activity, with filters and streaks
-- **Focus timer**: Forest-style, a tree grows while you stay focused
 - **College timetable with attendance**: class reminders, one-tap attendance, bunk calculator; plus important dates and countdowns
 - **Music**: Spotify on a spinning disc (turn to seek, swipe to skip), synced lyrics, cover colours, visualiser and equaliser on the phone, top artists and tracks, local listening history
 - **Sports following**: favourite NBA and football teams and players, fixtures, live scores, stats
 - **Debt recorder**: who owes me and whom I owe, with when and why, partial repayments and bill splitting
-- **Whiteboard and idea scrapbook**: free-form canvas and zero-friction capture
+- **Whiteboard**: free-form canvas
 - **Universal search**: across everything, with a command palette
 
 ## Principles
@@ -30,7 +29,7 @@ Tauri 2 (Rust) · React · TypeScript · Tailwind CSS · SQLite + SQLCipher
 
 ## Status
 
-Phases 0 and 1 are done: encrypted storage, unlock and backups, plus Lists, Debts, Ideas, Habits, Calendar (timetable, attendance, important dates), notifications and the Today dashboard. Phase 2 is done too: end-to-end encrypted sync between laptop and phone through Google Drive or directly (LAN / Tailscale), with background sync on Android. Phase 3 is done as well: a Forest-style focus timer (strict mode and Do Not Disturb on Android), the activity heatmap with streaks, universal search with a command palette, and goals. Phase 4 adds Practice: solves, ratings, topics and contests from Codeforces, LeetCode, AtCoder and CodeChef, plus GitHub contributions (on the heatmap), recent repositories and issues. Phase 5 adds Sports (logged sessions, NBA, football and cricket teams to follow with game reminders, and up to five favourite players with season and career stats) and Gym (live workout logging with a rest timer, routines, personal records and progress per exercise, weekly volume per muscle, and body metrics with encrypted progress photos). Phase 6 adds Canvas: Excalidraw whiteboards that save as you draw, sync between devices (edits merge shape by shape), export to PNG and SVG, and grow from ideas. Phase 7 adds Music: Spotify on a spinning disc you turn to seek, with synced lyrics, colours from the cover, a visualiser and equaliser on the phone, a mini player, and listening stats from Kaizen's own history. Phase 8 adds quick capture from anywhere (share sheet, app shortcuts, a Quick Settings tile, ⌘⇧Space on the laptop), a home-screen widget for today's tasks and habits, and a weekly and monthly review. See [PLAN.md](PLAN.md) for the design and roadmap.
+Phases 0 and 1 are done: encrypted storage, unlock and backups, plus Lists, Debts, Habits, Calendar (timetable, attendance, important dates), notifications and the Today dashboard. Phase 2 is done too: end-to-end encrypted sync between laptop and phone through Google Drive or directly (LAN / Tailscale), with background sync on Android. Phase 3 is done as well: the activity heatmap with streaks, universal search with a command palette, and goals. Phase 4 adds Practice: solves, ratings, topics and contests from Codeforces, LeetCode, AtCoder and CodeChef, plus GitHub contributions (on the heatmap), recent repositories and issues. Phase 5 adds Sports (logged sessions, NBA, football and cricket teams to follow with game reminders, and up to five favourite players with season and career stats) and Gym (live workout logging with a rest timer, routines, personal records and progress per exercise, weekly volume per muscle, and body metrics with encrypted progress photos). Phase 6 adds Canvas: Excalidraw whiteboards that save as you draw, sync between devices (edits merge shape by shape), and export to PNG and SVG. Phase 7 adds Music: Spotify on a spinning disc you turn to seek, with synced lyrics, colours from the cover, a visualiser and equaliser on the phone, a mini player, and listening stats from Kaizen's own history. Phase 8 adds quick capture from anywhere (share sheet, app shortcuts, a Quick Settings tile, ⌘⇧Space on the laptop), a home-screen widget for today's tasks and habits, and a weekly and monthly review. Since then, the Focus timer and Ideas have been removed, and books on the read list have a reading-session timer instead. See [PLAN.md](PLAN.md) for the design and roadmap.
 
 ## Development
 

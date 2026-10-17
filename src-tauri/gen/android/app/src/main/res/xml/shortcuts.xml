@@ -36,18 +36,11 @@
             <extra android:name="kind" android:value="task" />
         </intent>
     </shortcut>
-    <shortcut android:shortcutId="idea" android:enabled="true" android:icon="@drawable/ic_shortcut_idea"
-        android:shortcutShortLabel="@string/shortcut_idea">
+    <shortcut android:shortcutId="reading" android:enabled="true" android:icon="@drawable/ic_shortcut_reading"
+        android:shortcutShortLabel="@string/shortcut_reading">
         <intent android:action="com.matt.kaizen.CAPTURE" android:targetPackage="com.matt.kaizen"
             android:targetClass="com.matt.kaizen.MainActivity">
-            <extra android:name="kind" android:value="idea" />
-        </intent>
-    </shortcut>
-    <shortcut android:shortcutId="focus" android:enabled="true" android:icon="@drawable/ic_shortcut_focus"
-        android:shortcutShortLabel="@string/shortcut_focus">
-        <intent android:action="com.matt.kaizen.CAPTURE" android:targetPackage="com.matt.kaizen"
-            android:targetClass="com.matt.kaizen.MainActivity">
-            <extra android:name="kind" android:value="focus" />
+            <extra android:name="kind" android:value="reading" />
         </intent>
     </shortcut>
 </shortcuts>

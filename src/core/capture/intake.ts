@@ -7,7 +7,7 @@ import { useCapture } from "./store";
 
 /** App shortcuts that open a page rather than quick capture. */
 const SHORTCUTS: Record<string, { module: string; id: string; page: string }> = {
-  focus: { module: "focus", id: "start", page: "focus" },
+  reading: { module: "read", id: "session", page: "lists" },
   gym: { module: "fitness", id: "start", page: "fitness" },
   sports: { module: "sports", id: "new", page: "sports" },
   board: { module: "canvas", id: "new", page: "canvas" },
@@ -58,7 +58,7 @@ export function useIntake(platform: "android" | "desktop" | string) {
             useOpenRequest.getState().request({ module: target.module, id: target.id });
             void navigate({ to: pathOf(target.page) });
           } else if (item.source === "capture") {
-            open({ kind: (item.kind as "task" | "idea") || "" });
+            open({ kind: (item.kind as "task" | "watch" | "read") || "" });
           } else {
             const text = [item.subject && !item.text?.includes(item.subject) ? item.subject : null, item.text]
               .filter(Boolean)

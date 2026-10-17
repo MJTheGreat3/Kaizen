@@ -62,7 +62,7 @@ describe("buildPlan", () => {
   it("nudges in the evening only for daily streaks at risk", () => {
     const titles = plan({
       streaks: [
-        { name: "Focus", current: 12, doneToday: false, unit: "days" },
+        { name: "Reading", current: 12, doneToday: false, unit: "days" },
         { name: "Tasks", current: 5, doneToday: true, unit: "days" },
         { name: "Habits", current: 2, doneToday: false, unit: "days" },
         { name: "Gym", current: 4, doneToday: false, unit: "weeks" },
@@ -70,12 +70,12 @@ describe("buildPlan", () => {
     })
       .filter((n) => n.key.startsWith("streak:"))
       .map((n) => [n.title, n.at.getHours(), n.at.getMinutes()]);
-    expect(titles).toEqual([["Keep your 12-day Focus streak", 20, 30]]);
+    expect(titles).toEqual([["Keep your 12-day Reading streak", 20, 30]]);
   });
 
   it("reminds a week and a day before a goal's finish date", () => {
-    const goals = plan({ goals: [{ id: "g", title: "100 h focus", targetDate: "2026-10-17", left: "Behind: 12 h to go" }] }).filter((n) => n.key.startsWith("goal:"));
-    expect(goals.map((n) => [n.title, n.body])).toEqual([["100 h focus: due tomorrow", "Behind: 12 h to go"]]);
+    const goals = plan({ goals: [{ id: "g", title: "100 h reading", targetDate: "2026-10-17", left: "Behind: 12 h to go" }] }).filter((n) => n.key.startsWith("goal:"));
+    expect(goals.map((n) => [n.title, n.body])).toEqual([["100 h reading: due tomorrow", "Behind: 12 h to go"]]);
   });
 
   it("announces contests ahead of their start", () => {

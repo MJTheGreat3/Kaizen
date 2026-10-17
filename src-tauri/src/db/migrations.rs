@@ -373,6 +373,7 @@ pub fn synced_tables() -> impl Iterator<Item = &'static str> {
         .chain(V12_SYNCED)
         .chain(V15_SYNCED)
         .chain(V16_SYNCED)
+        .chain(V18_SYNCED)
         .copied()
 }
 
@@ -1765,7 +1766,42 @@ fn v17(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub const LATEST: i64 = 17;
+const V18_SYNCED: &[&str] = &["reading_sessions"];
+
+/// Focus and Ideas are gone: ideas leave search and the focus activity type
+/// (with its events) is retired. Their tables stay, so nothing synced from an
+/// older build is lost. Reading sessions log time and pages against a book on
+/// the read list; each writes a `reading` activity event in minutes.
+fn v18(conn: &Connection) -> Result<()> {
+    let now = chrono::Utc::now().timestamp_millis();
+    conn.execute_batch(&format!(
+        "
+DROP TRIGGER IF EXISTS search_index_ideas_insert;
+DROP TRIGGER IF EXISTS search_index_ideas_update;
+DROP TRIGGER IF EXISTS search_index_ideas_delete;
+DELETE FROM search_index WHERE src = 'ideas';
+UPDATE activity_types SET deleted_at = {now}, updated_at = {now} WHERE id = 'focus' AND deleted_at IS NULL;
+UPDATE activity_events SET deleted_at = {now}, updated_at = {now} WHERE type_id = 'focus' AND deleted_at IS NULL;
+
+CREATE TABLE reading_sessions (
+  id         TEXT PRIMARY KEY,
+  task_id    TEXT NOT NULL,
+  date       TEXT NOT NULL,
+  started_at INTEGER NOT NULL,
+  minutes    REAL NOT NULL DEFAULT 0,
+  pages      INTEGER NOT NULL DEFAULT 0,
+  page_end   INTEGER,{BASE_COLUMNS}
+) STRICT;
+CREATE INDEX reading_sessions_task ON reading_sessions (task_id);
+"
+    ))?;
+    for table in V18_SYNCED {
+        install_clock_triggers(conn, table)?;
+    }
+    Ok(())
+}
+
+pub const LATEST: i64 = 18;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -1810,6 +1846,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             15 => v15(&tx)?,
             16 => v16(&tx)?,
             17 => v17(&tx)?,
+            18 => v18(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;
@@ -1864,6 +1901,48 @@ mod tests {
             )
             .unwrap();
         assert_eq!(old, 0);
+    }
+
+    #[test]
+    fn v18_retires_ideas_and_focus() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrate_to(&mut conn, 17).unwrap();
+        conn.execute_batch(
+            "INSERT INTO ideas (id, body, created_at, updated_at, device_id) VALUES ('i1', 'Old idea', 1, 1, 'd');
+             INSERT INTO activity_events (id, type_id, date, occurred_at, quantity, created_at, updated_at, device_id)
+               VALUES ('e1', 'focus', '2026-10-01', 1, 25, 1, 1, 'd');",
+        )
+        .unwrap();
+        migrate_to(&mut conn, LATEST).unwrap();
+        let count = |sql: &str| -> i64 { conn.query_row(sql, [], |r| r.get(0)).unwrap() };
+        assert_eq!(
+            count("SELECT count(*) FROM search_index WHERE src = 'ideas'"),
+            0
+        );
+        assert_eq!(
+            count("SELECT count(*) FROM activity_types WHERE id = 'focus' AND deleted_at IS NULL"),
+            0
+        );
+        assert_eq!(
+            count(
+                "SELECT count(*) FROM activity_events WHERE type_id = 'focus' AND deleted_at IS NULL"
+            ),
+            0
+        );
+        // Ideas are kept, just no longer indexed.
+        conn.execute("UPDATE ideas SET body = 'Changed' WHERE id = 'i1'", [])
+            .unwrap();
+        assert_eq!(
+            count("SELECT count(*) FROM search_index WHERE src = 'ideas'"),
+            0
+        );
+        conn.execute(
+            "INSERT INTO reading_sessions (id, task_id, date, started_at, minutes, pages, created_at, updated_at, device_id)
+               VALUES ('r1', 't1', '2026-10-17', 1, 30, 12, 1, 1, 'd')",
+            [],
+        )
+        .unwrap();
+        assert!(count("SELECT count(*) FROM sync_clock WHERE table_name = 'reading_sessions'") > 0);
     }
 
     #[test]

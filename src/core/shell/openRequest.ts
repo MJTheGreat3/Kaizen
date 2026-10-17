@@ -7,11 +7,11 @@ import { useEffect } from "react";
 import { create } from "zustand";
 
 export interface OpenTarget {
-  /** Search index module: todo, watch, read, ideas, habits, dates, subjects, people, debts, goals. */
+  /** Search index module: todo, watch, read, habits, dates, subjects, people, debts, goals. */
   module: string;
   /** An item id, or "new" to start creating one. */
   id: string;
-  /** Prefilled fields when creating, e.g. an idea promoted to a goal. */
+  /** Prefilled fields when creating, e.g. a goal started from elsewhere. */
   draft?: { title?: string; notes?: string };
 }
 

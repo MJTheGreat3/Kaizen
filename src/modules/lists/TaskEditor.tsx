@@ -10,11 +10,14 @@ import type { Recurrence, Task, TaskList } from "@/core/db/schema";
 import { cn } from "@/lib/utils";
 import { useDeleteTask, useUpdateTask } from "./data";
 import { DetailsFinder } from "./DetailsFinder";
+import { byBook, useReadingSessions } from "./reading";
+import { SessionHistory } from "./ReadingSession";
 import { recurrenceLabel } from "./recurrence";
 
 export function TaskEditor({ task, onClose }: { task: Task | null; onClose: () => void }) {
   const update = useUpdateTask();
   const remove = useDeleteTask();
+  const sessions = useReadingSessions();
   // Remounted per task (keyed by id), so state starts from the task.
   const [draft, setDraft] = useState<Task | null>(task);
   const [tagText, setTagText] = useState(task?.tags.join(", ") ?? "");
@@ -120,6 +123,20 @@ export function TaskEditor({ task, onClose }: { task: Task | null; onClose: () =
                 />
               </Field>
             </div>
+          ) : null}
+
+          {draft.list === "read" && task?.list === "read" ? (
+            <SessionHistory
+              task={draft}
+              sessions={byBook(sessions.data).get(draft.id) ?? []}
+              onLogged={(pageEnd) =>
+                setDraft({
+                  ...draft,
+                  status: draft.status === "open" ? "in_progress" : draft.status,
+                  meta: pageEnd !== null ? { ...draft.meta, pagesRead: Math.max(pageEnd, draft.meta.pagesRead ?? 0) } : draft.meta,
+                })
+              }
+            />
           ) : null}
 
           {draft.list === "watch" ? (

@@ -261,7 +261,7 @@ mod tests {
 
         // FTS5 with the trigram tokenizer is available.
         db.query(
-            "INSERT INTO search_index (module, ref_id, title, body, tags) VALUES ('ideas', '1', 'Kaizen sync', '', '')",
+            "INSERT INTO search_index (module, ref_id, title, body, tags) VALUES ('todo', '1', 'Kaizen sync', '', '')",
             &[],
             QueryMethod::Run,
         )

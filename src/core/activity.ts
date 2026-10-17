@@ -9,7 +9,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db, schema } from "@/core/db/client";
 import type { DateKey } from "@/lib/dates";
 
-export type ActivityType = "cp" | "gym" | "sports" | "focus" | "habits" | "reading" | "tasks" | "classes";
+export type ActivityType = "cp" | "gym" | "sports" | "habits" | "reading" | "tasks" | "classes";
 
 export async function recordActivity(
   typeId: ActivityType,

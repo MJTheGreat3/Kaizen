@@ -1,0 +1,56 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:1:1-24:12
+INJECTED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:1:1-24:12
+	package
+		INJECTED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml
+	xmlns:tools
+		ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:2:5-51
+	xmlns:android
+		ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:1:11-69
+uses-permission#android.permission.FOREGROUND_SERVICE
+ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:4:5-77
+	android:name
+		ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:4:22-74
+uses-permission#android.permission.FOREGROUND_SERVICE_SPECIAL_USE
+ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:5:5-89
+	android:name
+		ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:5:22-86
+uses-permission#android.permission.POST_NOTIFICATIONS
+ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:6:5-77
+	android:name
+		ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:6:22-74
+uses-permission#android.permission.PACKAGE_USAGE_STATS
+ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:8:5-10:47
+	tools:ignore
+		ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:10:9-44
+	android:name
+		ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:9:9-62
+uses-permission#android.permission.ACCESS_NOTIFICATION_POLICY
+ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:12:5-85
+	android:name
+		ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:12:22-82
+application
+ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:14:5-23:19
+service#com.matt.kaizen.focus.FocusService
+ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:15:9-22:19
+	android:exported
+		ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:17:13-37
+	android:foregroundServiceType
+		ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:18:13-55
+	android:name
+		ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:16:13-62
+property#android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE
+ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:19:13-21:117
+	android:value
+		ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:21:17-114
+	android:name
+		ADDED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml:20:17-76
+uses-sdk
+INJECTED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml
+INJECTED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /Users/mj/External/Kaizen/src-tauri/plugins/focus/android/src/main/AndroidManifest.xml

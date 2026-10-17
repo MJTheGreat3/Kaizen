@@ -2,12 +2,11 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { BookOpen, Camera, CheckCircle, FilmStrip, Lightbulb, Scribble, type Icon } from "@phosphor-icons/react";
+import { BookOpen, Camera, CheckCircle, FilmStrip, Scribble, type Icon } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/kit";
-import { db, schema } from "@/core/db/client";
 import { parseTask } from "@/core/nl/parse";
 import { formatLongDate, todayKey } from "@/lib/dates";
 import { cn } from "@/lib/utils";
@@ -17,12 +16,11 @@ import { useAddTask } from "@/modules/lists/data";
 import { pathOf } from "@/modules/registry";
 import { guessKind, useCapture, type CaptureDraft } from "./store";
 
-type TextKind = "task" | "idea" | "watch" | "read";
+type TextKind = "task" | "watch" | "read";
 type ImageKind = "board" | "photo";
 
 const TEXT_KINDS: { id: TextKind; label: string; icon: Icon }[] = [
   { id: "task", label: "Task", icon: CheckCircle },
-  { id: "idea", label: "Idea", icon: Lightbulb },
   { id: "watch", label: "To watch", icon: FilmStrip },
   { id: "read", label: "To read", icon: BookOpen },
 ];
@@ -32,11 +30,7 @@ const IMAGE_KINDS: { id: ImageKind; label: string; icon: Icon }[] = [
   { id: "photo", label: "Progress photo", icon: Camera },
 ];
 
-const listOf = (k: Exclude<TextKind, "idea">) => (k === "task" ? "todo" : k);
-
-const tagsOf = (text: string) => [
-  ...new Set([...text.matchAll(/#([\p{L}\p{N}_-]+)/gu)].map((m) => m[1].toLowerCase())),
-];
+const listOf = (k: TextKind) => (k === "task" ? "todo" : k);
 
 function Chip({
   active,
@@ -74,7 +68,7 @@ function imageSize(dataUrl: string): Promise<{ width: number; height: number }> 
   });
 }
 
-/** One box for anything: a task (with dates in plain words), an idea, something to watch or read, or a shared image. */
+/** One box for anything: a task (with dates in plain words), something to watch or read, or a shared image. */
 export function QuickCapture() {
   const draft = useCapture((s) => s.draft);
   const seq = useCapture((s) => s.seq);
@@ -97,7 +91,7 @@ function CaptureForm({ draft, close }: { draft: CaptureDraft; close: () => void 
   const [saving, setSaving] = useState(false);
   const image = draft.image ?? null;
 
-  const parsed = useMemo(() => (kind === "idea" ? null : parseTask(text, new Date(), listOf(kind))), [text, kind]);
+  const parsed = useMemo(() => parseTask(text, new Date(), listOf(kind)), [text, kind]);
   const preview = parsed
     ? [
         parsed.dueDate ? `${formatLongDate(parsed.dueDate)}${parsed.dueTime ? `, ${parsed.dueTime}` : ""}` : null,
@@ -127,12 +121,6 @@ function CaptureForm({ draft, close }: { draft: CaptureDraft; close: () => void 
         await addPhotos.mutateAsync({ date: todayKey(), files: [new File([blob], "shared.jpg", { type: blob.type })] });
         toast.success("Progress photo saved", {
           action: { label: "Open", onClick: () => void navigate({ to: "/fitness/body" }) },
-        });
-      } else if (kind === "idea") {
-        await db.insert(schema.ideas).values({ body: text.trim(), tags: tagsOf(text) });
-        await client.invalidateQueries({ queryKey: ["ideas"] });
-        toast.success("Idea saved", {
-          action: { label: "Open", onClick: () => void navigate({ to: pathOf("ideas") }) },
         });
       } else {
         const p = parseTask(text, new Date(), listOf(kind));
@@ -193,7 +181,7 @@ function CaptureForm({ draft, close }: { draft: CaptureDraft; close: () => void 
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey || (kind !== "idea" && !e.shiftKey))) {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey || !e.shiftKey)) {
                 e.preventDefault();
                 if (canSave) void save();
               }
@@ -201,13 +189,11 @@ function CaptureForm({ draft, close }: { draft: CaptureDraft; close: () => void 
             placeholder={
               kind === "task"
                 ? "Submit OS assignment friday 5pm #college"
-                : kind === "idea"
-                  ? "Anything worth keeping. #tags if you like"
-                  : kind === "watch"
-                    ? "Dune Part Two"
-                    : "Atomic Habits"
+                : kind === "watch"
+                  ? "Dune Part Two"
+                  : "Atomic Habits"
             }
-            className={kind === "idea" ? "min-h-32" : "min-h-20"}
+            className="min-h-20"
             autoFocus
           />
           {preview.length ? <p className="text-muted-foreground text-[13px]">{preview.join(" · ")}</p> : null}
@@ -216,7 +202,7 @@ function CaptureForm({ draft, close }: { draft: CaptureDraft; close: () => void 
 
       <div className="flex items-center justify-between gap-3">
         <span className="text-muted-foreground hidden text-[12px] sm:inline">
-          {image ? "" : kind === "idea" ? "⌘ Enter to save" : "Enter to save"}
+          {image ? "" : "Enter to save"}
         </span>
         <div className="ml-auto flex gap-2">
           <Button variant="secondary" onClick={close}>

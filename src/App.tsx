@@ -9,12 +9,10 @@ import { LoadingScreen, RecoveryKeyScreen, SetupScreen, UnlockScreen } from "@/c
 import { useSession } from "@/core/security/session";
 import { useNotificationSync } from "@/core/notifications/scheduler";
 import { useAutoSync } from "@/core/sync/autosync";
-import { useFocusEngine } from "@/modules/focus/engine";
 import { useStreakMilestones } from "@/modules/activity/milestones";
 import { useGoalCompletion } from "@/modules/goals/watch";
 import { usePracticeAutoRefresh } from "@/modules/practice/data";
 import { useSportsAutoRefresh } from "@/modules/sports/data";
-import { setNativePlatform } from "@/modules/focus/native";
 import { setAudioFxPlatform } from "@/modules/music/native";
 import { useTheme } from "@/core/theme";
 import { log } from "@/lib/log";
@@ -43,10 +41,8 @@ export function App() {
   useNotificationSync(unlocked, platform);
   useAutoSync(unlocked, platform);
   useEffect(() => {
-    setNativePlatform(platform === "android");
     setAudioFxPlatform(platform === "android");
   }, [platform]);
-  useFocusEngine(unlocked, platform);
   useStreakMilestones(unlocked);
   useGoalCompletion(unlocked);
   usePracticeAutoRefresh(unlocked);

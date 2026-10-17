@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 /** What quick capture opens with: a kind to start on, and shared text or an image. */
 export interface CaptureDraft {
-  kind?: "task" | "idea" | "watch" | "read" | "";
+  kind?: "task" | "watch" | "read" | "";
   text?: string;
   /** Shared image as a data URL. */
   image?: string;
@@ -27,9 +27,9 @@ export const useCapture = create<{
 }));
 
 /** Where shared text most likely belongs. */
-export function guessKind(text: string): "idea" | "watch" | "read" {
+export function guessKind(text: string): "task" | "watch" | "read" {
   if (/(youtube\.com|youtu\.be|netflix\.com|imdb\.com|primevideo|hotstar|letterboxd|crunchyroll)/i.test(text))
     return "watch";
   if (/(goodreads\.com|amazon\.[a-z.]+\/.*(dp|book)|books\.google|openlibrary)/i.test(text)) return "read";
-  return "idea";
+  return "task";
 }

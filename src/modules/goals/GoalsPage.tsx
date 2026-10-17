@@ -401,7 +401,7 @@ type EditorKind = GoalKind | "check";
 const KIND_HELP: Record<EditorKind, string> = {
   check: "Nothing to measure: it's done or it isn't. Tick it off when it is.",
   manual: "A number: a contest rating, a lift or your weight. Ratings can update themselves.",
-  activity: "Counts what you already track: focus time, problems solved, books read…",
+  activity: "Counts what you already track: time reading, problems solved, workouts…",
   habits: "Check-ins of the habits it is made of.",
   tasks: "Done when its tasks are done.",
 };
@@ -415,7 +415,7 @@ function GoalEditor({ v, draft, onClose, defaultColor }: { v: GoalView | null; d
   const [color, setColor] = useState(goal?.color ?? defaultColor);
   const [kind, setKind] = useState<EditorKind>(goal ? (isCheckGoal(goal) ? "check" : goal.kind) : draft?.horizon === "short" ? "check" : "activity");
   const [horizon, setHorizon] = useState<Goal["horizon"]>(goal?.horizon ?? draft?.horizon ?? "long");
-  const [activityType, setActivityType] = useState(goal?.activityType ?? "focus");
+  const [activityType, setActivityType] = useState(goal?.activityType ?? "reading");
   const [activityTag, setActivityTag] = useState(goal?.activityTag ?? "");
   const minutes = isMinutes(activityType);
   const initialTarget = goal ? (goal.kind === "activity" && isMinutes(goal.activityType ?? "") ? goal.targetValue / 60 : goal.targetValue) : null;
@@ -527,7 +527,7 @@ function GoalEditor({ v, draft, onClose, defaultColor }: { v: GoalView | null; d
               <Field label={`Target (${typeUnit})`} htmlFor="goal-target">
                 <Input id="goal-target" inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} placeholder={minutes ? "100" : "300"} />
               </Field>
-              {options.data?.tags.length && (activityType === "focus" || activityType === "tasks") ? (
+              {options.data?.tags.length && (activityType === "reading" || activityType === "tasks") ? (
                 <Field label="Only with tag (optional)" htmlFor="goal-tag">
                   <NativeSelect id="goal-tag" className="h-11 w-full text-[14px]" value={activityTag} onChange={(e) => setActivityTag(e.target.value)}>
                     <option value="">Any</option>
@@ -742,7 +742,7 @@ export function GoalsPage() {
                 </Button>
               }
             >
-              Tick off a short-term goal when it's done, track a number you update, like a rating, or let it fill itself from focus time, problems solved, habits or tasks.
+              Tick off a short-term goal when it's done, track a number you update, like a rating, or let it fill itself from time reading, problems solved, habits or tasks.
             </EmptyState>
           </motion.div>
         ) : !shown.length ? (

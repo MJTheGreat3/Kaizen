@@ -9,19 +9,19 @@ const set = (...days: string[]) => new Set(days);
 
 describe("rules", () => {
   it("fills defaults per type and keeps saved values", () => {
-    expect(ruleFor("focus", "{}").min).toBe(25);
+    expect(ruleFor("sports", "{}").min).toBe(20);
     expect(ruleFor("gym", null).period).toBe("week");
-    expect(ruleFor("focus", '{"min":50}').min).toBe(50);
+    expect(ruleFor("sports", '{"min":50}').min).toBe(50);
     expect(ruleFor("tasks", "not json").min).toBe(1);
   });
 
   it("counts only days that reach the minimum", () => {
     const totals = totalsByDay([
-      { typeId: "focus", date: back(1), quantity: 20 },
-      { typeId: "focus", date: back(1), quantity: 10 },
-      { typeId: "focus", date: back(2), quantity: 15 },
+      { typeId: "sports", date: back(1), quantity: 20 },
+      { typeId: "sports", date: back(1), quantity: 10 },
+      { typeId: "sports", date: back(2), quantity: 15 },
     ]);
-    expect([...activeDays(totals.get("focus"), ruleFor("focus", "{}"))]).toEqual([back(1)]);
+    expect([...activeDays(totals.get("sports"), ruleFor("sports", "{}"))]).toEqual([back(1)]);
   });
 });
 

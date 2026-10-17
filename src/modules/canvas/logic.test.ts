@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fileIds, KEEP_DELETED_MS, mergeElements, pruneDeleted, sameScene, titleFromIdea, type SceneElement } from "./logic";
+import { fileIds, KEEP_DELETED_MS, mergeElements, pruneDeleted, sameScene, type SceneElement } from "./logic";
 
 const el = (id: string, version = 1, extra: Partial<SceneElement> = {}): SceneElement => ({ id, version, versionNonce: 5, ...extra });
 const ids = (list: SceneElement[]) => list.map((e) => `${e.id}${e.version}`);
@@ -43,10 +43,5 @@ describe("scene helpers", () => {
   it("lists the files visible images use", () => {
     const list = [el("a", 1, { type: "image", fileId: "f1" }), el("b", 1, { type: "image", fileId: "f2", isDeleted: true }), el("c")];
     expect([...fileIds(list)]).toEqual(["f1"]);
-  });
-
-  it("titles a board from an idea's first line", () => {
-    expect(titleFromIdea("App for #college notes\nmore")).toBe("App for notes");
-    expect(titleFromIdea("#only")).toBe("Untitled board");
   });
 });

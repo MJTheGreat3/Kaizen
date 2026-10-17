@@ -1,6 +1,6 @@
 # Kaizen — Personal Life Tracker
 
-A single-user, local-first app that runs on every laptop OS (macOS, Windows, Linux) and on my phone. It tracks practice, fitness, tasks, money, habits and ideas in one place. All data stays on my own devices.
+A single-user, local-first app that runs on every laptop OS (macOS, Windows, Linux) and on my phone. It tracks practice, fitness, tasks, money, habits and reading in one place. All data stays on my own devices.
 
 Status: planning (updated 2026-10-13)
 
@@ -115,7 +115,7 @@ Status: planning (updated 2026-10-13)
 - Multiple boards; export to PNG/SVG.
 - Built on an embeddable whiteboard library (Excalidraw is the leading candidate; tldraw is an alternative).
 
-### 2.7 Idea scrapbook
+### 2.7 Idea scrapbook (removed 2026-10-17, see 6.15)
 
 - Zero-friction capture: open app, type, done. No due dates, no structure required.
 - Text (Markdown), images, links, voice notes, quick sketches.
@@ -217,7 +217,7 @@ The timetable and attendance are one feature: every scheduled class is also an a
 - Class attendance feeds the `classes` activity type on the heatmap (2.9).
 - Exams and assignment deadlines can be linked to a subject and appear in the timetable, the to-do list and the important dates countdowns.
 
-### 2.12 Focus timer (Forest-style)
+### 2.12 Focus timer (Forest-style; removed 2026-10-17, see 6.15)
 
 Inspired by the Forest app: a growing plant represents the focus session, and leaving to use distracting apps kills it.
 
@@ -757,6 +757,11 @@ Known limits: the snapshot is plain text in the app's private storage (task titl
 - **Private photos.** Progress photos are the one thing still behind the passphrase. `private_unlock` checks it against `vault.json` and opens private files for 10 minutes; `attachment_read` refuses otherwise. They close sooner when Kaizen goes to the background or with Settings → Security → Lock now, and decrypted photos are dropped from the cache. This gate is enforced in Rust, but the photos are still encrypted with the database key, so someone who can read the device's key store could decrypt them.
 - **Details for Watch and Read.** Books come from Open Library (author, year, pages, subjects, cover). Films and shows come from IMDb's search suggestions (lead actors, year, poster), and anime from AniList (studio, year, episodes, length, genres). None of these needs a key (`src-tauri/src/media.rs`). A new item is filled in automatically when a match has the same title; otherwise the editor lists matches to choose from. Items show their cover, creator and year. The fields are stored in `tasks.meta`: `creator`, `year`, `genres`, `cover`, `episodes`, `runtimeMinutes` and `sourceId`.
 - **Short and long term goals** (migration v17, `goals.horizon`). The Goals page shows the two sections, each with its own Add button. The new "Done or not" kind is a goal with nothing to measure. It is ticked off on its card and stored as a manual goal with `metric = 'check'`, because widening the kind check would mean rebuilding a synced table.
+
+### 6.15 Focus and Ideas removed, reading sessions (2026-10-17)
+
+- **Focus and Ideas are gone**: their pages, the native `focus` plugin (foreground service, strict mode, Do Not Disturb), the palette's "Start a focus session" and "Save idea", the Idea chip in quick capture, the widget's idea button, the New idea app shortcut, Today's "From your scrapbook" card, and the idea link on boards. Migration v18 drops ideas from search and soft-deletes the `focus` activity type and its events. The `ideas`, `focus_sessions` and `focus_unlocks` tables and `boards.idea_id` stay, so nothing synced from an older build is lost; nothing reads them any more. Shared text that is not a link to watch or read now defaults to a task.
+- **Reading sessions** (migration v18, `reading_sessions`, synced): Read on a book in the read list starts a timer kept on this device (`reading.running` pref), so it survives leaving Kaizen; it can be paused, discarded or finished. Finishing asks for the minutes (filled from the timer) and the page it stopped on, moves the book's progress on (and to Reading if it was Planned), and offers to mark it finished on the last page. Sessions can also be logged by hand from the book's editor, which lists them with totals and pages an hour. Each session writes a `reading` activity event in minutes (the type now counts minutes; finishing a book no longer adds one). Today shows the book being read with a Read button, Review shows time read, sessions and pages, the palette has "Log a reading session", and the old Start focus app shortcut is now Log reading. Goals that count activity default to reading time.
 
 ## 7. Open questions
 

@@ -42,7 +42,7 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
 
 export interface IntakeItem {
   source: "share" | "capture";
-  /** Capture: task, idea, focus, or empty for any. */
+  /** Capture: task, watch, read, a page shortcut, or empty for any. */
   kind?: string;
   subject?: string;
   text?: string;

@@ -36,7 +36,6 @@ const MODULE_ALIASES: Record<string, string[]> = {
   movies: ["watch"],
   read: ["read"],
   books: ["read"],
-  ideas: ["ideas"],
   habits: ["habits"],
   calendar: ["dates", "subjects"],
   dates: ["dates"],
