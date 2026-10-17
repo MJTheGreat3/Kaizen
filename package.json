@@ -12,7 +12,7 @@
     "format": "prettier --write src",
     "test": "vitest run",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "android:build": "tauri android build --debug --target aarch64 --apk"
+    "android:build": "tauri android build --debug --target aarch64 --apk && scripts/sign-android.sh src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "0.18.1",

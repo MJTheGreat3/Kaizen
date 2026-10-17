@@ -93,7 +93,8 @@ Then in Kaizen: on the laptop, **Settings → Sync → Show code**; on the phone
 Releases are built without any OAuth clients (unset `KAIZEN_GOOGLE_CLIENT_ID`, `KAIZEN_GOOGLE_CLIENT_SECRET` and `KAIZEN_SPOTIFY_CLIENT_ID`), so people enter their own under Settings → Connections.
 
 - Android is signed with the release key in `~/.android/kaizen-release.jks`, read through `src-tauri/gen/android/key.properties` (gitignored: `storeFile`, `storePassword`, `keyAlias`, `keyPassword`). Keep both backed up: every update must be signed with the same key.
-- Android: `env -u KAIZEN_GOOGLE_CLIENT_ID -u KAIZEN_GOOGLE_CLIENT_SECRET -u KAIZEN_SPOTIFY_CLIENT_ID pnpm tauri android build --target aarch64 --apk`
+- APKs (release and `pnpm android:build`) are signed by `scripts/sign-android.sh` with the release key plus a rotation from the old debug key (`src-tauri/gen/android/signing-lineage.bin`), so a phone that had a debug build updates in place and keeps its data.
+- Android: `env -u KAIZEN_GOOGLE_CLIENT_ID -u KAIZEN_GOOGLE_CLIENT_SECRET -u KAIZEN_SPOTIFY_CLIENT_ID pnpm tauri android build --target aarch64 --apk`, then `scripts/sign-android.sh <apk> release/Kaizen-X.Y.Z-android-arm64.apk`
 - macOS: `env -u KAIZEN_GOOGLE_CLIENT_ID -u KAIZEN_GOOGLE_CLIENT_SECRET -u KAIZEN_SPOTIFY_CLIENT_ID pnpm tauri build --bundles dmg`
 - Bump the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, tag `vX.Y.Z` and attach both files to a GitHub release.
 
