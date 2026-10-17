@@ -96,6 +96,7 @@ Releases are built without any OAuth clients (unset `KAIZEN_GOOGLE_CLIENT_ID`, `
 - APKs (release and `pnpm android:build`) are signed by `scripts/sign-android.sh` with the release key plus a rotation from the old debug key (`src-tauri/gen/android/signing-lineage.bin`), so a phone that had a debug build updates in place and keeps its data.
 - Android: `env -u KAIZEN_GOOGLE_CLIENT_ID -u KAIZEN_GOOGLE_CLIENT_SECRET -u KAIZEN_SPOTIFY_CLIENT_ID pnpm tauri android build --target aarch64 --apk`, then `scripts/sign-android.sh <apk> release/Kaizen-X.Y.Z-android-arm64.apk`
 - macOS: `env -u KAIZEN_GOOGLE_CLIENT_ID -u KAIZEN_GOOGLE_CLIENT_SECRET -u KAIZEN_SPOTIFY_CLIENT_ID pnpm tauri build --bundles dmg`
+- Icons are generated from `src-tauri/icons/source/kai-brush.svg` by `python3 scripts/make-icons.py` (desktop, macOS, Android adaptive and themed, favicon, in-app mark).
 - Bump the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, tag `vX.Y.Z` and attach both files to a GitHub release.
 
 ### Layout

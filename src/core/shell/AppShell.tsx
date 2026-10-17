@@ -136,7 +136,7 @@ function MobileTopBar() {
     <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 pt-safe backdrop-blur-xl md:hidden">
       <div className="flex h-13 items-center justify-between px-4">
         <Link to="/" aria-label="Kaizen, go to Today" className="flex items-center gap-2.5 transition-transform active:scale-95">
-          <BrandMark className="size-7 rounded-[9px] text-[13px]" />
+          <BrandMark className="size-7 rounded-[9px]" />
           <span className="text-[15px] font-semibold tracking-[-0.02em]">Kaizen</span>
         </Link>
         <div className="flex items-center gap-1">

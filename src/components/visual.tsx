@@ -1,8 +1,9 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useId, type CSSProperties, type ReactNode } from "react";
 import type { Icon } from "@phosphor-icons/react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { cn } from "@/lib/utils";
+import { KAI_PATH, KAI_TRANSFORM } from "./brandPath";
 import { dayPeriod, useNow, type DayPeriod } from "@/lib/time";
 
 // ---------------------------------------------------------------------------
@@ -118,17 +119,26 @@ export function Wash({ hue, className }: { hue: string; className?: string }) {
   );
 }
 
-/** Brand mark: the first character of 改善 (kaizen) on the accent tile. */
+/** Brand mark: 改 (the first character of 改善, kaizen) in brush script, as on the app icon. */
 export function BrandMark({ className }: { className?: string }) {
+  const id = `kai${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   return (
-    <span
+    <svg
       aria-hidden
-      className={cn(
-        "grid size-8 place-items-center rounded-[10px] bg-accent text-[14px] font-semibold text-accent-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_6px_14px_-6px_var(--accent)]",
-        className,
-      )}
+      viewBox="0 0 100 100"
+      className={cn("size-8 shrink-0 rounded-[10px] shadow-[0_6px_14px_-6px_rgb(19_22_30/0.6)]", className)}
     >
-      改
-    </span>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#8ea2f2" />
+          <stop offset="0.55" stopColor="#a77bdc" />
+          <stop offset="1" stopColor="#f0a03c" />
+        </linearGradient>
+      </defs>
+      <rect width="100" height="100" rx="23" fill="#13161e" />
+      <g transform="translate(50 51) scale(0.074)">
+        <path transform={KAI_TRANSFORM} d={KAI_PATH} fill={`url(#${id})`} />
+      </g>
+    </svg>
   );
 }

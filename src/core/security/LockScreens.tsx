@@ -61,7 +61,7 @@ function Shell({ title, description, children }: { title: string; description: R
         <Sky className="h-[36dvh] min-h-[250px] rounded-b-[32px] md:h-full md:min-h-0 md:rounded-[28px]">
           <div className="flex h-full flex-col justify-between p-6 pt-[calc(env(safe-area-inset-top)+1.25rem)] md:p-10">
             <span className="flex items-center gap-2.5 text-white">
-              <BrandMark className="bg-white/20 text-white shadow-none ring-1 ring-white/30 backdrop-blur" />
+              <BrandMark className="ring-1 ring-white/30" />
               <span className="text-[16px] font-semibold tracking-[-0.02em]">Kaizen</span>
             </span>
             <span className="md:hidden">

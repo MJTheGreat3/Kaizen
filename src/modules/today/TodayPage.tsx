@@ -41,6 +41,7 @@ import { loadDebts } from "@/modules/debts/data";
 import { loadHabits, logHabit } from "@/modules/habits/data";
 import { isDone, isScheduled } from "@/modules/habits/streaks";
 import { loadTasks, setTaskDone, useAddTask } from "@/modules/lists/data";
+import { useFinance } from "@/modules/finance/data";
 import { ReadingGlance } from "@/modules/lists/ReadingSession";
 import { modules } from "@/modules/registry";
 import { ActivityGlance } from "@/modules/activity/Glance";
@@ -56,6 +57,7 @@ import { openUrl } from "@/lib/native";
 
 /** Module routes are built from the registry, so their paths are plain strings. */
 const CALENDAR_PATH: string = "/calendar";
+const FINANCE_PATH: string = "/finance";
 
 const hueOf = (id: string) => modules.find((m) => m.id === id)?.hue ?? "var(--accent)";
 
@@ -111,6 +113,23 @@ function Card({ to, title, icon, hue, className, children, action }: { to: strin
 
 function Muted({ children }: { children: ReactNode }) {
   return <p className="text-[14px] leading-relaxed text-muted-foreground">{children}</p>;
+}
+
+/** Money across all accounts, in the Today card's free corner; opens Finance. */
+function BalanceCorner() {
+  const { data } = useFinance();
+  const live = data?.accounts.filter((a) => !a.archived) ?? [];
+  if (!data || !live.length) return null;
+  const total = live.reduce((sum, a) => sum + (data.balance.get(a.id) ?? 0), 0);
+  return (
+    <Link to={FINANCE_PATH} className="ml-auto text-right transition-opacity hover:opacity-80">
+      <p className="text-[13px] font-medium text-white/75">Balance</p>
+      <p className="text-[22px] font-semibold tracking-[-0.02em] text-white/95 md:text-[28px]">
+        {total < 0 ? "−" : ""}
+        {formatPaise(Math.abs(total))}
+      </p>
+    </Link>
+  );
 }
 
 function QuickTask() {
@@ -200,12 +219,15 @@ export function TodayPage() {
                 <p className="text-[15px] font-medium text-white/85">{greeting(now)}</p>
                 <p className="text-[24px] font-semibold tabular-nums tracking-[-0.02em] text-white/90 md:text-[30px]">{formatClock(now)}</p>
               </div>
-              <div>
-                <p className="text-[40px] font-semibold leading-none tracking-[-0.035em] md:text-[56px]">{formatWeekday(now)}</p>
-                <p className="mt-2 text-[16px] font-medium text-white/85 md:text-[18px]">
-                  {formatDayMonth(now)}
-                  {data ? <span className="text-white/70">{summary.length ? `, ${summary.join(", ")}` : ", nothing pressing"}</span> : null}
-                </p>
+              <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+                <div className="min-w-0">
+                  <p className="text-[40px] font-semibold leading-none tracking-[-0.035em] md:text-[56px]">{formatWeekday(now)}</p>
+                  <p className="mt-2 text-[16px] font-medium text-white/85 md:text-[18px]">
+                    {formatDayMonth(now)}
+                    {data ? <span className="text-white/70">{summary.length ? `, ${summary.join(", ")}` : ", nothing pressing"}</span> : null}
+                  </p>
+                </div>
+                <BalanceCorner />
               </div>
             </div>
           </Sky>
