@@ -9,7 +9,7 @@
     <string name="shortcut_reading">Log reading</string>
     <string name="tile_capture">Capture</string>
     <string name="widget_today_name">Today</string>
-    <string name="widget_today_description">Today\'s tasks and habits; tick them off from the home screen.</string>
+    <string name="widget_today_description">Due and undated tasks, habits and goals; tick them off from the home screen.</string>
     <string name="widget_streak_name">Streak</string>
     <string name="widget_streak_description">One streak: days or weeks in a row.</string>
     <string name="widget_upnext_name">Up next</string>

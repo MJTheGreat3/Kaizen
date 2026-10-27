@@ -73,14 +73,221 @@
             android:src="@drawable/ic_widget_add" />
     </LinearLayout>
 
-    <ListView
-        android:id="@+id/widget_list"
+    <!-- Four lists, each scrolling on its own: due today, habits, undated tasks, goals. -->
+    <LinearLayout
+        android:id="@+id/widget_grid"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="10dp"
         android:layout_weight="1"
-        android:divider="@null"
-        android:dividerHeight="0dp" />
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_pane"
+            android:orientation="vertical"
+            android:paddingStart="6dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="6dp">
+
+            <TextView
+                android:id="@+id/pane_due_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.06"
+                android:paddingStart="4dp"
+                android:paddingBottom="2dp"
+                android:text="Due today"
+                android:textAllCaps="true"
+                android:textColor="@color/widget_muted"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <ListView
+                android:id="@+id/list_due"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:divider="@null"
+                android:dividerHeight="0dp"
+                android:scrollbars="none" />
+
+            <TextView
+                android:id="@+id/empty_due"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:paddingBottom="6dp"
+                android:text="Nothing due"
+                android:textColor="@color/widget_muted"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+            <Space
+                android:layout_width="6dp"
+                android:layout_height="match_parent" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_pane"
+            android:orientation="vertical"
+            android:paddingStart="6dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="6dp">
+
+            <TextView
+                android:id="@+id/pane_habits_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.06"
+                android:paddingStart="4dp"
+                android:paddingBottom="2dp"
+                android:text="Habits"
+                android:textAllCaps="true"
+                android:textColor="@color/widget_muted"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <ListView
+                android:id="@+id/list_habits"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:divider="@null"
+                android:dividerHeight="0dp"
+                android:scrollbars="none" />
+
+            <TextView
+                android:id="@+id/empty_habits"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:paddingBottom="6dp"
+                android:text="No habits today"
+                android:textColor="@color/widget_muted"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+        </LinearLayout>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="6dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_pane"
+            android:orientation="vertical"
+            android:paddingStart="6dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="6dp">
+
+            <TextView
+                android:id="@+id/pane_someday_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.06"
+                android:paddingStart="4dp"
+                android:paddingBottom="2dp"
+                android:text="Someday"
+                android:textAllCaps="true"
+                android:textColor="@color/widget_muted"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <ListView
+                android:id="@+id/list_someday"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:divider="@null"
+                android:dividerHeight="0dp"
+                android:scrollbars="none" />
+
+            <TextView
+                android:id="@+id/empty_someday"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:paddingBottom="6dp"
+                android:text="No undated tasks"
+                android:textColor="@color/widget_muted"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+            <Space
+                android:layout_width="6dp"
+                android:layout_height="match_parent" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_pane"
+            android:orientation="vertical"
+            android:paddingStart="6dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="6dp">
+
+            <TextView
+                android:id="@+id/pane_goals_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.06"
+                android:paddingStart="4dp"
+                android:paddingBottom="2dp"
+                android:text="Goals"
+                android:textAllCaps="true"
+                android:textColor="@color/widget_muted"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <ListView
+                android:id="@+id/list_goals"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:divider="@null"
+                android:dividerHeight="0dp"
+                android:scrollbars="none" />
+
+            <TextView
+                android:id="@+id/empty_goals"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:paddingBottom="6dp"
+                android:text="No active goals"
+                android:textColor="@color/widget_muted"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
 
     <TextView
         android:id="@+id/widget_empty"
@@ -88,7 +295,7 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:gravity="center"
-        android:text="Nothing due today."
+        android:text="Tap to open Kaizen"
         android:textColor="@color/widget_muted"
         android:textSize="13sp"
         android:visibility="gone" />

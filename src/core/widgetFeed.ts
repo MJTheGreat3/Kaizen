@@ -1,7 +1,7 @@
 /**
  * What the phone's home-screen widgets show that only the app works out:
- * every streak (activity types, any activity, habits) and the Up next list,
- * the same as on Today. Written to `widget-app.json` by `widget_refresh`.
+ * every streak (activity types, any activity, habits), the Up next list and
+ * active goals with their progress, the same as on Today. Written to `widget-app.json` by `widget_refresh`.
  */
 import { getPref } from "@/core/db/prefs";
 import { todayKey } from "@/lib/dates";
@@ -11,6 +11,8 @@ import { upcomingDates, loadDates } from "@/modules/calendar/data";
 import { DATE_STYLE } from "@/modules/calendar/labels";
 import { totals as debtTotals } from "@/modules/debts/balances";
 import { loadDebts } from "@/modules/debts/data";
+import { loadGoals } from "@/modules/goals/data";
+import { PACE_LABEL } from "@/modules/goals/logic";
 import { formatPaise } from "@/lib/money";
 import { loadHabits } from "@/modules/habits/data";
 import { streaks as habitStreaks } from "@/modules/habits/streaks";
@@ -50,10 +52,21 @@ export interface DebtFeed {
   people: { name: string; amount: string; toMe: boolean }[];
 }
 
+export interface GoalFeed {
+  id: string;
+  title: string;
+  color: string;
+  /** 0..100 */
+  percent: number;
+  /** "Ahead", "12 days left", or "". */
+  note: string;
+}
+
 export interface WidgetFeed {
   streaks: StreakFeed[];
   upNext: UpNextFeed[];
   debts: DebtFeed;
+  goals: GoalFeed[];
   at: number;
 }
 
@@ -61,7 +74,7 @@ const hue = (id: string) => modules.find((m) => m.id === id)?.hue ?? "#7a6ff0";
 
 export async function buildWidgetFeed(now = Date.now()): Promise<WidgetFeed> {
   const today = todayKey(new Date(now));
-  const [activity, habits, dates, contests, platforms, matches, debts] = await Promise.all([
+  const [activity, habits, dates, contests, platforms, matches, debts, goals] = await Promise.all([
     loadActivity(),
     loadHabits(400),
     loadDates(),
@@ -69,6 +82,7 @@ export async function buildWidgetFeed(now = Date.now()): Promise<WidgetFeed> {
     getPref("practice.contestPlatforms"),
     loadMatches(now),
     loadDebts(),
+    loadGoals(),
   ]);
 
   const totals = totalsByDay(activity.events);
@@ -120,5 +134,18 @@ export async function buildWidgetFeed(now = Date.now()): Promise<WidgetFeed> {
     people,
   };
 
-  return { streaks: out, upNext, debts: debtFeed, at: now };
+  const goalFeed: GoalFeed[] = goals
+    .filter((v) => v.goal.status === "active")
+    .sort((a, b) => (a.goal.targetDate ?? "9999").localeCompare(b.goal.targetDate ?? "9999"))
+    .map(({ goal, progress }) => ({
+      id: goal.id,
+      title: goal.title,
+      color: goal.color,
+      percent: Math.round(progress.fraction * 100),
+      note:
+        PACE_LABEL[progress.pace] ||
+        (progress.daysLeft !== null && progress.daysLeft >= 0 ? `${progress.daysLeft} ${progress.daysLeft === 1 ? "day" : "days"} left` : ""),
+    }));
+
+  return { streaks: out, upNext, debts: debtFeed, goals: goalFeed, at: now };
 }
