@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { clearActivity, recordActivity } from "@/core/activity";
 import { db, schema } from "@/core/db/client";
@@ -9,6 +9,7 @@ import { todayKey } from "@/lib/dates";
 import { ipc } from "@/lib/ipc";
 import { exactMatch, metaFrom } from "./details";
 import { nextDue } from "./recurrence";
+import { ancestors, buildTree, descendants } from "./subtasks";
 
 const t = schema.tasks;
 
@@ -55,11 +56,13 @@ async function fillDetails(id: string, list: "read" | "watch", title: string): P
 
 export function useAddTask() {
   const client = useQueryClient();
-  return useTaskMutation(async (p: ParsedTask & { notes?: string | null; remind?: boolean }) => {
+  return useTaskMutation(async (p: ParsedTask & { notes?: string | null; remind?: boolean; parentId?: string | null }) => {
     const [created] = await db
       .insert(t)
       .values({
-        list: p.list,
+        // Subtasks are always to-dos.
+        list: p.parentId ? "todo" : p.list,
+        parentId: p.parentId ?? null,
         title: p.title,
         notes: p.notes ?? null,
         dueDate: p.dueDate,
@@ -70,7 +73,7 @@ export function useAddTask() {
         tags: p.tags,
       })
       .returning({ id: t.id });
-    if (created && p.list !== "todo") {
+    if (created && p.list !== "todo" && !p.parentId) {
       void fillDetails(created.id, p.list, p.title).then((filled) => {
         if (filled) client.invalidateQueries({ queryKey: ["tasks"] });
       });
@@ -84,38 +87,74 @@ export function useUpdateTask() {
   );
 }
 
+/** The live to-dos, as a subtask tree. */
+async function loadTree() {
+  const all = await loadTasks("todo");
+  return { tree: buildTree(all), byId: new Map(all.map((x) => [x.id, x])) };
+}
+
+/** Deletes a task with its subtasks. */
 export function useDeleteTask() {
   return useTaskMutation(async (id: string) => {
-    await db.update(t).set({ deletedAt: Date.now() }).where(eq(t.id, id));
-    await clearActivity("tasks", id);
+    const { tree } = await loadTree();
+    const ids = [id, ...descendants(id, tree.children).map((x) => x.id)];
+    await db.update(t).set({ deletedAt: Date.now() }).where(inArray(t.id, ids));
+    for (const each of ids) await clearActivity("tasks", each);
   });
 }
 
-/** Completes or reopens a task. Completing a recurring task schedules the next one. */
+/**
+ * Completes or reopens a task. Completing one completes its open subtasks;
+ * reopening one reopens the tasks above it. Completing a recurring task
+ * schedules the next one, with fresh copies of its subtasks.
+ */
 export async function setTaskDone(task: Task, done: boolean) {
   const today = todayKey();
+  const { tree, byId } = task.list === "todo" ? await loadTree() : { tree: buildTree([]), byId: new Map<string, Task>() };
   if (done) {
-    await db.update(t).set({ status: "done", completedAt: Date.now() }).where(eq(t.id, task.id));
+    const now = Date.now();
+    await db.update(t).set({ status: "done", completedAt: now }).where(eq(t.id, task.id));
     if (task.list === "todo") await recordActivity("tasks", today, "tasks", task.id);
+    const open = descendants(task.id, tree.children)
+      .filter((x) => x.status !== "done")
+      .map((x) => x.id);
+    if (open.length) await db.update(t).set({ status: "done", completedAt: now }).where(inArray(t.id, open));
     if (task.recurrence) {
-      await db.insert(t).values({
-        list: task.list,
-        title: task.title,
-        notes: task.notes,
-        dueDate: nextDue(task.recurrence, task.dueDate, today),
-        dueTime: task.dueTime,
-        remind: task.remind,
-        recurrence: task.recurrence,
-        priority: task.priority,
-        tags: task.tags,
-      });
+      const [next] = await db
+        .insert(t)
+        .values({
+          list: task.list,
+          parentId: task.parentId,
+          title: task.title,
+          notes: task.notes,
+          dueDate: nextDue(task.recurrence, task.dueDate, today),
+          dueTime: task.dueTime,
+          remind: task.remind,
+          recurrence: task.recurrence,
+          priority: task.priority,
+          tags: task.tags,
+        })
+        .returning({ id: t.id });
+      if (next) await copySubtasks(task.id, next.id, tree.children);
     }
   } else {
+    const reopen = [task, ...ancestors(task, byId).filter((x) => x.status === "done")];
     await db
       .update(t)
       .set({ status: task.list === "todo" ? "open" : "in_progress", completedAt: null })
-      .where(eq(t.id, task.id));
-    await clearActivity("tasks", task.id);
+      .where(inArray(t.id, reopen.map((x) => x.id)));
+    for (const each of reopen) await clearActivity("tasks", each.id);
+  }
+}
+
+/** Copies the subtasks under `from` to `to`, all open. */
+async function copySubtasks(from: string, to: string, children: Map<string, Task[]>) {
+  for (const c of children.get(from) ?? []) {
+    const [copy] = await db
+      .insert(t)
+      .values({ list: c.list, parentId: to, title: c.title, notes: c.notes, priority: c.priority, tags: c.tags })
+      .returning({ id: t.id });
+    if (copy) await copySubtasks(c.id, copy.id, children);
   }
 }
 

@@ -16,7 +16,8 @@ use serde::Serialize;
 use crate::error::Result;
 
 pub const FILE: &str = "widget.json";
-const MAX_TASKS: usize = 12;
+/// Each widget list scrolls, so this only keeps the snapshot small.
+const MAX_TASKS: usize = 40;
 
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -48,6 +49,8 @@ pub struct Snapshot {
     pub tasks: Vec<WidgetTask>,
     /// Due today or earlier, beyond the ones listed.
     pub more_tasks: usize,
+    /// Top-level to-dos with no due date.
+    pub someday: Vec<WidgetTask>,
     pub habits: Vec<WidgetHabit>,
     /// The widget can tick things itself (the key is kept on the phone).
     pub live: bool,
@@ -109,6 +112,33 @@ pub fn snapshot(conn: &Connection, today: NaiveDate, live: bool) -> Result<Snaps
     let more_tasks = all.len().saturating_sub(MAX_TASKS);
     let tasks = all.into_iter().take(MAX_TASKS).collect();
 
+    // Subtasks without a date show under their task in the app, not here.
+    let mut stmt = conn.prepare(
+        "SELECT t.id, t.title,
+           (SELECT count(*) FROM tasks c WHERE c.parent_id = t.id AND c.deleted_at IS NULL),
+           (SELECT count(*) FROM tasks c WHERE c.parent_id = t.id AND c.deleted_at IS NULL AND c.status = 'done')
+         FROM tasks t
+         WHERE t.list = 'todo' AND t.status != 'done' AND t.deleted_at IS NULL
+           AND t.due_date IS NULL AND t.parent_id IS NULL
+         ORDER BY t.priority DESC, t.created_at DESC
+         LIMIT ?1",
+    )?;
+    let someday = stmt
+        .query_map([MAX_TASKS as i64], |r| {
+            let (all, done): (i64, i64) = (r.get(2)?, r.get(3)?);
+            Ok(WidgetTask {
+                id: r.get(0)?,
+                title: r.get(1)?,
+                when: if all > 0 {
+                    format!("{done}/{all}")
+                } else {
+                    String::new()
+                },
+                overdue: false,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+
     let weekday = today.weekday().number_from_monday();
     let mut stmt = conn.prepare(
         "SELECT h.id, h.name, h.color, h.kind, h.target, h.unit, h.schedule, coalesce(l.value, 0)
@@ -158,6 +188,7 @@ pub fn snapshot(conn: &Connection, today: NaiveDate, live: bool) -> Result<Snaps
         date: day,
         tasks,
         more_tasks,
+        someday,
         habits,
         live,
         debts: crate::quick::debt_summary(conn)?,
@@ -240,20 +271,32 @@ pub fn complete_task(conn: &Connection, id: &str, today: NaiveDate, device: &str
         Option<String>,
         i64,
         String,
+        Option<String>,
     );
     let row: Option<Row> = conn
         .query_row(
-            "SELECT list, title, notes, due_date, due_time, remind, recurrence, priority, tags FROM tasks
+            "SELECT list, title, notes, due_date, due_time, remind, recurrence, priority, tags, parent_id FROM tasks
              WHERE id = ?1 AND status != 'done' AND deleted_at IS NULL",
             [id],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?, r.get(8)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?, r.get(8)?, r.get(9)?)),
         )
         .optional()?;
-    let Some((list, title, notes, due, time, remind, recurrence, priority, tags)) = row else {
+    let Some((list, title, notes, due, time, remind, recurrence, priority, tags, parent)) = row
+    else {
         return Ok(());
     };
     conn.execute(
         "UPDATE tasks SET status = 'done', completed_at = ?1, updated_at = ?1 WHERE id = ?2",
+        params![now, id],
+    )?;
+    // Its subtasks are done with it, as in the app.
+    conn.execute(
+        "WITH RECURSIVE below (id) AS (
+           SELECT id FROM tasks WHERE parent_id = ?2 AND deleted_at IS NULL
+           UNION SELECT t.id FROM tasks t JOIN below b ON t.parent_id = b.id WHERE t.deleted_at IS NULL
+         )
+         UPDATE tasks SET status = 'done', completed_at = ?1, updated_at = ?1
+         WHERE id IN (SELECT id FROM below) AND status != 'done'",
         params![now, id],
     )?;
     if list == "todo" {
@@ -264,11 +307,12 @@ pub fn complete_task(conn: &Connection, id: &str, today: NaiveDate, device: &str
             .as_deref()
             .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
         if let Some(next) = next_due(&rule, due_date, today) {
+            let next_id = uuid::Uuid::now_v7().to_string();
             conn.execute(
-                "INSERT INTO tasks (id, list, title, notes, due_date, due_time, remind, recurrence, priority, tags, created_at, updated_at, device_id)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12)",
+                "INSERT INTO tasks (id, list, title, notes, due_date, due_time, remind, recurrence, priority, tags, created_at, updated_at, device_id, parent_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12, ?13)",
                 params![
-                    uuid::Uuid::now_v7().to_string(),
+                    next_id,
                     list,
                     title,
                     notes,
@@ -279,10 +323,42 @@ pub fn complete_task(conn: &Connection, id: &str, today: NaiveDate, device: &str
                     priority,
                     tags,
                     now,
-                    device
+                    device,
+                    parent
                 ],
             )?;
+            copy_subtasks(conn, id, &next_id, device, now)?;
         }
+    }
+    Ok(())
+}
+
+/// Copies the subtasks under `from` to `to`, all open (for the next round of a recurring task).
+fn copy_subtasks(conn: &Connection, from: &str, to: &str, device: &str, now: i64) -> Result<()> {
+    let mut stmt = conn.prepare(
+        "SELECT id, list, title, notes, priority, tags FROM tasks
+         WHERE parent_id = ?1 AND deleted_at IS NULL ORDER BY created_at",
+    )?;
+    let kids = stmt
+        .query_map([from], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, Option<String>>(3)?,
+                r.get::<_, i64>(4)?,
+                r.get::<_, String>(5)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    for (old, list, title, notes, priority, tags) in kids {
+        let copy = uuid::Uuid::now_v7().to_string();
+        conn.execute(
+            "INSERT INTO tasks (id, list, title, notes, priority, tags, parent_id, created_at, updated_at, device_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8, ?9)",
+            params![copy, list, title, notes, priority, tags, to, now, device],
+        )?;
+        copy_subtasks(conn, &old, &copy, device, now)?;
     }
     Ok(())
 }
@@ -495,6 +571,65 @@ mod tests {
             )
             .unwrap();
         assert_eq!(open, 1);
+    }
+
+    #[test]
+    fn lists_undated_top_level_tasks_with_their_subtasks() {
+        let conn = db();
+        conn.execute_batch(
+            "INSERT INTO tasks (id, list, title, priority, parent_id, status, created_at, updated_at, device_id) VALUES
+               ('p', 'todo', 'Project', 0, NULL, 'open', 1, 1, 'd'),
+               ('p1', 'todo', 'Step one', 0, 'p', 'done', 2, 2, 'd'),
+               ('p2', 'todo', 'Step two', 0, 'p', 'open', 3, 3, 'd'),
+               ('u', 'todo', 'Urgent', 3, NULL, 'open', 4, 4, 'd'),
+               ('w', 'watch', 'A film', 0, NULL, 'open', 5, 5, 'd');",
+        )
+        .unwrap();
+        let s = snapshot(&conn, d("2026-10-15"), true).unwrap();
+        let someday: Vec<_> = s
+            .someday
+            .iter()
+            .map(|t| (t.title.as_str(), t.when.as_str()))
+            .collect();
+        assert_eq!(someday, vec![("Urgent", ""), ("Project", "1/2")]);
+    }
+
+    #[test]
+    fn completing_a_task_completes_its_subtasks_and_repeats_them() {
+        let conn = db();
+        conn.execute_batch(
+            "INSERT INTO tasks (id, list, title, due_date, recurrence, parent_id, created_at, updated_at, device_id) VALUES
+               ('r', 'todo', 'Weekly review', '2026-10-15', 'weekly', NULL, 1, 1, 'd'),
+               ('r1', 'todo', 'Inbox', NULL, NULL, 'r', 2, 2, 'd'),
+               ('r1a', 'todo', 'Email', NULL, NULL, 'r1', 3, 3, 'd');",
+        )
+        .unwrap();
+        complete_task(&conn, "r", d("2026-10-15"), "d").unwrap();
+        let done: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM tasks WHERE id IN ('r', 'r1', 'r1a') AND status = 'done'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(done, 3);
+        // The next round has fresh, open copies under it.
+        let next: String = conn
+            .query_row(
+                "SELECT id FROM tasks WHERE title = 'Weekly review' AND status = 'open'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let (kid, grandkids): (String, i64) = conn
+            .query_row(
+                "SELECT c.title, (SELECT count(*) FROM tasks g WHERE g.parent_id = c.id AND g.status = 'open')
+                 FROM tasks c WHERE c.parent_id = ?1 AND c.status = 'open'",
+                [&next],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((kid.as_str(), grandkids), ("Inbox", 1));
     }
 
     #[test]

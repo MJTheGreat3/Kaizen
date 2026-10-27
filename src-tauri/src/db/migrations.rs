@@ -2149,7 +2149,18 @@ ALTER TABLE debt_payments ADD COLUMN account_id TEXT;
     Ok(())
 }
 
-pub const LATEST: i64 = 19;
+/// Tasks can have subtasks, and those their own (three levels in all):
+/// `parent_id` points at the task one level up.
+fn v20(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "ALTER TABLE tasks ADD COLUMN parent_id TEXT;
+         CREATE INDEX tasks_parent ON tasks (parent_id);",
+    )?;
+    install_clock_triggers(conn, "tasks")?;
+    Ok(())
+}
+
+pub const LATEST: i64 = 20;
 
 pub fn current_version(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
@@ -2196,6 +2207,7 @@ pub(crate) fn migrate_to(conn: &mut Connection, target: i64) -> Result<()> {
             17 => v17(&tx)?,
             18 => v18(&tx)?,
             19 => v19(&tx)?,
+            20 => v20(&tx)?,
             _ => unreachable!(),
         }
         tx.pragma_update(None, "user_version", next)?;
@@ -2226,9 +2238,10 @@ mod tests {
                 Ok((r.get(0)?, r.get(1)?))
             })
             .unwrap();
+        // Every column but `id`, and `parent_id` (added in v20, unset on this row).
         assert_eq!(
             count,
-            table_columns(&conn, "tasks").unwrap().len() as i64 - 1
+            table_columns(&conn, "tasks").unwrap().len() as i64 - 2
         );
         assert_eq!(ts, 7);
 

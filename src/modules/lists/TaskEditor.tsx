@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Star, Trash } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
@@ -8,16 +8,23 @@ import { Field, Input } from "@/components/ui/input";
 import { DateTimeInput, Textarea } from "@/components/ui/kit";
 import type { Recurrence, Task, TaskList } from "@/core/db/schema";
 import { cn } from "@/lib/utils";
-import { useDeleteTask, useUpdateTask } from "./data";
+import { modules } from "@/modules/registry";
+import { useDeleteTask, useTasks, useUpdateTask } from "./data";
 import { DetailsFinder } from "./DetailsFinder";
 import { byBook, useReadingSessions } from "./reading";
 import { SessionHistory } from "./ReadingSession";
 import { recurrenceLabel } from "./recurrence";
+import { buildTree, canNest } from "./subtasks";
+import { SubtaskChecklist } from "./SubtaskParts";
+
+const HUE = modules.find((m) => m.id === "lists")!.hue;
 
 export function TaskEditor({ task, onClose }: { task: Task | null; onClose: () => void }) {
   const update = useUpdateTask();
   const remove = useDeleteTask();
   const sessions = useReadingSessions();
+  const todos = useTasks("todo");
+  const tree = useMemo(() => buildTree(todos.data ?? []), [todos.data]);
   // Remounted per task (keyed by id), so state starts from the task.
   const [draft, setDraft] = useState<Task | null>(task);
   const [tagText, setTagText] = useState(task?.tags.join(", ") ?? "");
@@ -248,6 +255,15 @@ export function TaskEditor({ task, onClose }: { task: Task | null; onClose: () =
           <Field label="Notes" htmlFor="task-notes">
             <Textarea id="task-notes" value={draft.notes ?? ""} onChange={(e) => set("notes", e.target.value)} />
           </Field>
+
+          {task?.list === "todo" && draft.list === "todo" ? (
+            <SubtaskChecklist
+              parentId={draft.id}
+              subtasks={tree.children.get(draft.id) ?? []}
+              hue={HUE}
+              canAdd={canNest(tree.depth.get(draft.id) ?? 0)}
+            />
+          ) : null}
         </div>
         <DialogFooter className="sm:justify-between">
           <Button

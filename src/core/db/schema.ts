@@ -167,6 +167,8 @@ export const tasks = sqliteTable("tasks", {
   meta: json<TaskMeta>("meta").notNull().default({}),
   completedAt: integer("completed_at"),
   sortOrder: real("sort_order").notNull().default(0),
+  /** The task this is a subtask of (migration v20); to-do tasks nest three levels deep. */
+  parentId: text("parent_id"),
   ...base,
 });
 

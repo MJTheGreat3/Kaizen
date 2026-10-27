@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowClockwise,
@@ -9,11 +9,13 @@ import {
   FilmSlate,
   Flag,
   ListChecks,
+  ListPlus,
   PencilSimple,
   Star,
   Sun,
   Timer,
   Trash,
+  TreeStructure,
 } from "@phosphor-icons/react";
 
 import { Segmented, Skeleton } from "@/components/ui/controls";
@@ -33,6 +35,8 @@ import { byBook, totalsOf, useReadingSessions } from "./reading";
 import { BookPicker, ReadingBar, StartReading } from "./ReadingSession";
 import { hoursMinutes } from "@/modules/review/logic";
 import { TaskEditor } from "./TaskEditor";
+import { buildTree, canNest, subtaskProgress, TreeContext } from "./subtasks";
+import { SubtaskInput } from "./SubtaskParts";
 
 const mod = modules.find((m) => m.id === "lists")!;
 const HUE = mod.hue;
@@ -66,6 +70,13 @@ function TaskRow({ task, onEdit }: { task: Task; onEdit: (t: Task) => void }) {
     task.list === "read" && task.meta.pagesTotal ? Math.min(1, (task.meta.pagesRead ?? 0) / task.meta.pagesTotal) : null;
   const sessions = useReadingSessions();
   const read = task.list === "read" ? totalsOf(byBook(sessions.data).get(task.id) ?? []) : null;
+  const tree = useContext(TreeContext);
+  const kids = tree.children.get(task.id) ?? [];
+  const depth = tree.depth.get(task.id) ?? 0;
+  const nestable = task.list === "todo" && canNest(depth) && !done;
+  const sub = kids.length ? subtaskProgress(task.id, tree.children) : null;
+  const [expanded, setExpanded] = useState(true);
+  const [adding, setAdding] = useState(false);
 
   return (
     <motion.li
@@ -74,95 +85,144 @@ function TaskRow({ task, onEdit }: { task: Task; onEdit: (t: Task) => void }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -12, transition: { duration: 0.18 } }}
       transition={{ duration: 0.35, ease }}
-      onClick={() => onEdit(task)}
-      className="group flex cursor-pointer items-start gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-surface-muted/70"
     >
-      {task.list !== "todo" && task.meta.cover ? <ItemCover task={task} className="h-14 w-10" /> : null}
-      <span className="pt-0.5">
-        <CheckCircle
-          checked={done}
-          hue={HUE}
-          label={done ? `Mark "${task.title}" as not done` : `Complete "${task.title}"`}
-          onChange={(v) => setDone.mutate({ task, done: v })}
-        />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p
-          className={cn(
-            "text-[15px] leading-snug transition-colors",
-            done && "text-muted-foreground line-through decoration-muted-foreground/50",
-          )}
-        >
-          {task.title}
-        </p>
-        {(task.dueDate || task.tags.length || task.recurrence || task.priority || task.meta.author || task.meta.creator || task.meta.year || task.meta.medium || task.meta.rating || read?.sessions) && !done ? (
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {task.dueDate ? (
-              <Chip tone={overdue ? "danger" : task.dueDate === today ? "hue" : "muted"} hue={HUE} icon={CalendarBlank}>
-                {relativeDay(task.dueDate, today)}
-                {task.dueTime ? `, ${formatMinutes(timeToMinutes(task.dueTime))}` : ""}
-              </Chip>
-            ) : null}
-            {task.recurrence ? <Chip icon={ArrowClockwise}>{recurrenceLabel[task.recurrence]}</Chip> : null}
-            {task.priority ? (
-              <span className={cn("inline-flex items-center", priorityTone[task.priority])} aria-label={`Priority ${task.priority}`}>
-                <Flag size={14} weight="fill" />
-              </span>
-            ) : null}
-            {task.meta.author ? <Chip>{task.meta.author}</Chip> : null}
-            {task.meta.creator ? <Chip className="max-w-[16rem] truncate">{task.meta.creator}</Chip> : null}
-            {task.meta.year ? <Chip>{task.meta.year}</Chip> : null}
-            {task.meta.medium ? <Chip className="capitalize">{task.meta.medium}</Chip> : null}
-            {read?.sessions ? (
-              <Chip icon={Timer}>
-                {read.sessions} {read.sessions === 1 ? "session" : "sessions"} · {hoursMinutes(read.minutes)}
-              </Chip>
-            ) : null}
-            {task.tags.map((tag) => (
-              <Chip key={tag}>#{tag}</Chip>
-            ))}
-          </div>
-        ) : null}
-        {done && task.meta.rating ? (
-          <div className="mt-1 flex gap-0.5 text-[#d4b62c]" aria-label={`${task.meta.rating} stars`}>
-            {Array.from({ length: task.meta.rating }, (_, i) => (
-              <Star key={i} size={13} weight="fill" />
-            ))}
-          </div>
-        ) : null}
-        {progress !== null && !done ? (
-          <div className="mt-2 flex items-center gap-2.5">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-muted">
-              <motion.div
-                className="h-full rounded-full"
-                style={{ background: HUE }}
-                initial={{ width: 0 }}
-                animate={{ width: `${progress * 100}%` }}
-                transition={{ duration: 0.6, ease }}
-              />
-            </div>
-            <span className="text-[12px] tabular-nums text-muted-foreground">
-              {task.meta.pagesRead ?? 0}/{task.meta.pagesTotal}
-            </span>
-          </div>
-        ) : null}
-      </div>
-      {task.list === "read" && !done ? (
-        <span onClick={(e) => e.stopPropagation()}>
-          <StartReading task={task} hue={HUE} />
+      <div
+        onClick={() => onEdit(task)}
+        className={cn(
+          "group flex cursor-pointer items-start gap-3 rounded-xl px-3 transition-colors hover:bg-surface-muted/70",
+          depth ? "py-2" : "py-3",
+        )}
+      >
+        {task.list !== "todo" && task.meta.cover ? <ItemCover task={task} className="h-14 w-10" /> : null}
+        <span className="pt-0.5">
+          <CheckCircle
+            checked={done}
+            hue={HUE}
+            size={depth ? 20 : 22}
+            label={done ? `Mark "${task.title}" as not done` : `Complete "${task.title}"`}
+            onChange={(v) => setDone.mutate({ task, done: v })}
+          />
         </span>
+        <div className="min-w-0 flex-1">
+          <p
+            className={cn(
+              "text-[15px] leading-snug transition-colors",
+              done && "text-muted-foreground line-through decoration-muted-foreground/50",
+            )}
+          >
+            {task.title}
+          </p>
+          {(task.dueDate || task.tags.length || task.recurrence || task.priority || task.meta.author || task.meta.creator || task.meta.year || task.meta.medium || task.meta.rating || read?.sessions || sub) && !done ? (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {sub ? (
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  aria-label={expanded ? "Hide subtasks" : "Show subtasks"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpanded((v) => !v);
+                  }}
+                >
+                  <Chip tone={sub.done === sub.total ? "hue" : "muted"} hue={HUE} icon={TreeStructure}>
+                    {sub.done}/{sub.total}
+                    <motion.span animate={{ rotate: expanded ? 0 : -90 }} transition={{ duration: 0.2 }} className="inline-flex">
+                      <CaretDown size={11} weight="bold" />
+                    </motion.span>
+                  </Chip>
+                </button>
+              ) : null}
+              {task.dueDate ? (
+                <Chip tone={overdue ? "danger" : task.dueDate === today ? "hue" : "muted"} hue={HUE} icon={CalendarBlank}>
+                  {relativeDay(task.dueDate, today)}
+                  {task.dueTime ? `, ${formatMinutes(timeToMinutes(task.dueTime))}` : ""}
+                </Chip>
+              ) : null}
+              {task.recurrence ? <Chip icon={ArrowClockwise}>{recurrenceLabel[task.recurrence]}</Chip> : null}
+              {task.priority ? (
+                <span className={cn("inline-flex items-center", priorityTone[task.priority])} aria-label={`Priority ${task.priority}`}>
+                  <Flag size={14} weight="fill" />
+                </span>
+              ) : null}
+              {task.meta.author ? <Chip>{task.meta.author}</Chip> : null}
+              {task.meta.creator ? <Chip className="max-w-[16rem] truncate">{task.meta.creator}</Chip> : null}
+              {task.meta.year ? <Chip>{task.meta.year}</Chip> : null}
+              {task.meta.medium ? <Chip className="capitalize">{task.meta.medium}</Chip> : null}
+              {read?.sessions ? (
+                <Chip icon={Timer}>
+                  {read.sessions} {read.sessions === 1 ? "session" : "sessions"} · {hoursMinutes(read.minutes)}
+                </Chip>
+              ) : null}
+              {task.tags.map((tag) => (
+                <Chip key={tag}>#{tag}</Chip>
+              ))}
+            </div>
+          ) : null}
+          {done && task.meta.rating ? (
+            <div className="mt-1 flex gap-0.5 text-[#d4b62c]" aria-label={`${task.meta.rating} stars`}>
+              {Array.from({ length: task.meta.rating }, (_, i) => (
+                <Star key={i} size={13} weight="fill" />
+              ))}
+            </div>
+          ) : null}
+          {progress !== null && !done ? (
+            <div className="mt-2 flex items-center gap-2.5">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-muted">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ background: HUE }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress * 100}%` }}
+                  transition={{ duration: 0.6, ease }}
+                />
+              </div>
+              <span className="text-[12px] tabular-nums text-muted-foreground">
+                {task.meta.pagesRead ?? 0}/{task.meta.pagesTotal}
+              </span>
+            </div>
+          ) : null}
+        </div>
+        {task.list === "read" && !done ? (
+          <span onClick={(e) => e.stopPropagation()}>
+            <StartReading task={task} hue={HUE} />
+          </span>
+        ) : null}
+        <span className="opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
+          <RowMenu
+            items={[
+              { label: "Edit", icon: PencilSimple, onSelect: () => onEdit(task) },
+              ...(nestable
+                ? [
+                    {
+                      label: "Add subtask",
+                      icon: ListPlus,
+                      onSelect: () => {
+                        setExpanded(true);
+                        setAdding(true);
+                      },
+                    },
+                  ]
+                : []),
+              ...(task.list === "todo" && !done
+                ? [{ label: "Do tomorrow", icon: Sun, onSelect: () => update.mutate({ id: task.id, dueDate: addDaysKey(today, 1) }) }]
+                : []),
+              { label: "Delete", icon: Trash, danger: true, onSelect: () => remove.mutate(task.id) },
+            ]}
+          />
+        </span>
+      </div>
+      {(kids.length && expanded) || adding ? (
+        <ul className="ml-6 grid border-l border-border/70 pl-1">
+          <AnimatePresence initial={false}>
+            {expanded ? kids.map((k) => <TaskRow key={k.id} task={k} onEdit={onEdit} />) : null}
+          </AnimatePresence>
+          {adding ? (
+            <li>
+              <SubtaskInput parentId={task.id} hue={HUE} autoFocus onDone={() => setAdding(false)} />
+            </li>
+          ) : null}
+        </ul>
       ) : null}
-      <span className="opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
-        <RowMenu
-          items={[
-            { label: "Edit", icon: PencilSimple, onSelect: () => onEdit(task) },
-            ...(task.list === "todo" && !done
-              ? [{ label: "Do tomorrow", icon: Sun, onSelect: () => update.mutate({ id: task.id, dueDate: addDaysKey(today, 1) }) }]
-              : []),
-            { label: "Delete", icon: Trash, danger: true, onSelect: () => remove.mutate(task.id) },
-          ]}
-        />
-      </span>
     </motion.li>
   );
 }
@@ -264,8 +324,10 @@ export function ListsPage() {
   }, [all.data]);
 
   const items = useMemo(() => (all.data ?? []).filter((t) => t.list === list), [all.data, list]);
-  const open = items.filter((t) => t.status !== "done").sort(sortTasks);
-  const done = items
+  // Subtasks show under their task, so only top-level tasks are grouped.
+  const tree = useMemo(() => buildTree(items), [items]);
+  const open = tree.roots.filter((t) => t.status !== "done").sort(sortTasks);
+  const done = tree.roots
     .filter((t) => t.status === "done")
     .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0))
     .slice(0, 50);
@@ -304,44 +366,46 @@ export function ListsPage() {
 
       <ReadingBar books={books} hue={HUE} />
 
-      <motion.div variants={rise} className="mt-4 rounded-2xl border border-border bg-surface p-2 shadow-soft">
-        {all.isLoading ? (
-          <div className="grid gap-2 p-2">
-            <Skeleton className="h-12" />
-            <Skeleton className="h-12" />
-            <Skeleton className="h-12" />
-          </div>
-        ) : !open.length && !done.length ? (
-          <EmptyState
-            icon={list === "watch" ? FilmSlate : list === "read" ? BookOpen : ListChecks}
-            hue={HUE}
-            title={{ todo: "Nothing to do", watch: "Nothing to watch yet", read: "No books yet" }[list]}
-          >
-            {
+      <TreeContext.Provider value={tree}>
+        <motion.div variants={rise} className="mt-4 rounded-2xl border border-border bg-surface p-2 shadow-soft">
+          {all.isLoading ? (
+            <div className="grid gap-2 p-2">
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+            </div>
+          ) : !open.length && !done.length ? (
+            <EmptyState
+              icon={list === "watch" ? FilmSlate : list === "read" ? BookOpen : ListChecks}
+              hue={HUE}
+              title={{ todo: "Nothing to do", watch: "Nothing to watch yet", read: "No books yet" }[list]}
+            >
               {
-                todo: 'Type above and press enter. Dates, times, #tags, !priority and "every week" are understood.',
-                watch: "Movies, shows and videos you want to get to.",
-                read: "Books you're reading or want to read. Press Read on one to time a session and log the page you got to.",
-              }[list]
-            }
-          </EmptyState>
-        ) : list === "todo" ? (
-          <>
-            <Group title="Overdue" tone="danger" tasks={open.filter((t) => t.dueDate && t.dueDate < today)} onEdit={setEditing} />
-            <Group title="Today" tasks={open.filter((t) => t.dueDate === today)} onEdit={setEditing} />
-            <Group title="Upcoming" tasks={open.filter((t) => t.dueDate && t.dueDate > today)} onEdit={setEditing} />
-            <Group title="Someday" tasks={open.filter((t) => !t.dueDate)} onEdit={setEditing} />
-            {!open.length ? <p className="px-3 py-6 text-center text-[14px] text-muted-foreground">All done.</p> : null}
-            <DoneGroup tasks={done} onEdit={setEditing} label="Completed" />
-          </>
-        ) : (
-          <>
-            <Group title={list === "read" ? "Reading" : "Watching"} tasks={open.filter((t) => t.status === "in_progress")} onEdit={setEditing} />
-            <Group title="Planned" tasks={open.filter((t) => t.status === "open")} onEdit={setEditing} />
-            <DoneGroup tasks={done} onEdit={setEditing} label="Finished" />
-          </>
-        )}
-      </motion.div>
+                {
+                  todo: 'Type above and press enter. Dates, times, #tags, !priority and "every week" are understood.',
+                  watch: "Movies, shows and videos you want to get to.",
+                  read: "Books you're reading or want to read. Press Read on one to time a session and log the page you got to.",
+                }[list]
+              }
+            </EmptyState>
+          ) : list === "todo" ? (
+            <>
+              <Group title="Overdue" tone="danger" tasks={open.filter((t) => t.dueDate && t.dueDate < today)} onEdit={setEditing} />
+              <Group title="Today" tasks={open.filter((t) => t.dueDate === today)} onEdit={setEditing} />
+              <Group title="Upcoming" tasks={open.filter((t) => t.dueDate && t.dueDate > today)} onEdit={setEditing} />
+              <Group title="Someday" tasks={open.filter((t) => !t.dueDate)} onEdit={setEditing} />
+              {!open.length ? <p className="px-3 py-6 text-center text-[14px] text-muted-foreground">All done.</p> : null}
+              <DoneGroup tasks={done} onEdit={setEditing} label="Completed" />
+            </>
+          ) : (
+            <>
+              <Group title={list === "read" ? "Reading" : "Watching"} tasks={open.filter((t) => t.status === "in_progress")} onEdit={setEditing} />
+              <Group title="Planned" tasks={open.filter((t) => t.status === "open")} onEdit={setEditing} />
+              <DoneGroup tasks={done} onEdit={setEditing} label="Finished" />
+            </>
+          )}
+        </motion.div>
+      </TreeContext.Provider>
 
       <TaskEditor key={editing?.id ?? "none"} task={editing} onClose={() => setEditing(null)} />
       <BookPicker open={picking} books={unread} onClose={() => setPicking(false)} />
