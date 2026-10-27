@@ -27,7 +27,8 @@ import androidx.core.graphics.ColorUtils
  * once a minute while music plays (the second hand of an analog clock),
  * with the progress ring and buttons in the cover's colour.
  * Tap the middle to play or pause, the left or right edge to go back or
- * forward 15 s, the corner buttons to skip.
+ * forward 15 s, the bottom corners to skip. Top left opens the song in
+ * Spotify, top right opens Music in Kaizen.
  */
 class MusicWidget : AppWidgetProvider() {
   companion object {
@@ -134,10 +135,21 @@ class MusicWidget : AppWidgetProvider() {
       return out
     }
 
+    /**
+     * Opens Spotify at what is playing: the player's own "now playing"
+     * screen when it has a session, otherwise Spotify itself.
+     */
+    private fun spotify(context: Context): PendingIntent? {
+      MusicState.controller?.sessionActivity?.let { return it }
+      val launch = context.packageManager.getLaunchIntentForPackage(MusicState.SPOTIFY) ?: return null
+      launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      return PendingIntent.getActivity(context, 37, launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+    }
+
     /** The open, previous and next buttons in the cover's colour, icons light or dark to stand out. */
     private fun tintButtons(views: RemoteViews, color: Int) {
       val icon = if (ColorUtils.calculateLuminance(color) > 0.55) 0xFF15131B.toInt() else Color.WHITE
-      for (id in listOf(R.id.music_open, R.id.music_prev, R.id.music_next)) {
+      for (id in listOf(R.id.music_spotify, R.id.music_open, R.id.music_prev, R.id.music_next)) {
         if (Build.VERSION.SDK_INT >= 31) views.setColorStateList(id, "setBackgroundTintList", ColorStateList.valueOf(color))
         views.setInt(id, "setColorFilter", icon)
       }
@@ -172,6 +184,9 @@ class MusicWidget : AppWidgetProvider() {
 
         tintButtons(views, MusicState.accent)
         views.setOnClickPendingIntent(R.id.music_open, WidgetFeed.openApp(context, 36, "page:music"))
+        val song = spotify(context)
+        views.setViewVisibility(R.id.music_spotify, if (song != null) View.VISIBLE else View.GONE)
+        if (song != null) views.setOnClickPendingIntent(R.id.music_spotify, song)
         if (!access) {
           val settings = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
           val open = PendingIntent.getActivity(context, 30, settings, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

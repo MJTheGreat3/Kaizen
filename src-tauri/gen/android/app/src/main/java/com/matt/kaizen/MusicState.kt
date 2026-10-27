@@ -22,7 +22,7 @@ import androidx.palette.graphics.Palette
  */
 object MusicState {
   private const val TAG = "KaizenMusic"
-  private const val SPOTIFY = "com.spotify.music"
+  const val SPOTIFY = "com.spotify.music"
   private const val TICK_MS = 15_000L
 
   var controller: MediaController? = null
