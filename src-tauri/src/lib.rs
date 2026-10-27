@@ -9,6 +9,8 @@ mod desktop;
 mod error;
 mod keys;
 mod logging;
+#[cfg(target_os = "macos")]
+mod mac_widgets;
 mod media;
 mod music;
 mod oauth;
@@ -75,6 +77,8 @@ pub fn run() {
             app.manage(AppState { data_dir, log_dir, session: Mutex::new(None) });
             #[cfg(desktop)]
             desktop::setup(app)?;
+            #[cfg(target_os = "macos")]
+            mac_widgets::start(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -135,10 +139,17 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app, _event| {
-            // Clicking the Dock icon brings the hidden window back.
             #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Reopen { .. } = _event {
-                desktop::show(_app);
+            match _event {
+                // Clicking the Dock icon brings the hidden window back.
+                tauri::RunEvent::Reopen { .. } => desktop::show(_app),
+                // A link on a desktop widget.
+                tauri::RunEvent::Opened { urls } => {
+                    for url in urls {
+                        mac_widgets::open_url(_app, url.as_str());
+                    }
+                }
+                _ => {}
             }
         });
 }

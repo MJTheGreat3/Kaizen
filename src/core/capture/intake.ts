@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { useOpenRequest } from "@/core/shell/openRequest";
@@ -21,27 +21,47 @@ const SHORTCUTS: Record<string, { module: string; id: string; page: string }> = 
 
 /**
  * Brings in what the phone handed to Kaizen (shares, app shortcuts, the
- * Quick Settings tile, widgets) and the laptop's quick capture shortcut.
+ * Quick Settings tile, widgets), the laptop's quick capture shortcut and
+ * links on the Mac's desktop widgets.
  */
 export function useIntake(platform: "android" | "desktop" | string) {
   const open = useCapture((s) => s.open);
   const navigate = useNavigate();
 
+  /** A shortcut or widget kind: a page (`page:goals`), a page action (`expense`) or quick capture (`task`). */
+  const openKind = useCallback(
+    (kind: string) => {
+      const target = SHORTCUTS[kind];
+      if (kind.startsWith("page:")) {
+        void navigate({ to: pathOf(kind.slice(5)) });
+      } else if (target) {
+        useOpenRequest.getState().request({ module: target.module, id: target.id });
+        void navigate({ to: pathOf(target.page) });
+      } else {
+        open({ kind: (kind as "task" | "watch" | "read") || "" });
+      }
+    },
+    [navigate, open],
+  );
+
   useEffect(() => {
     if (platform === "android") return;
-    let unlisten: (() => void) | undefined;
+    const unlisten: (() => void)[] = [];
     let cancelled = false;
-    void import("@tauri-apps/api/event").then(({ listen }) =>
-      listen("capture://open", () => open({})).then((fn) => {
+    void import("@tauri-apps/api/event").then(async ({ listen }) => {
+      for (const fn of [
+        await listen("capture://open", () => open({})),
+        await listen<string>("widget://open", (e) => openKind(e.payload)),
+      ]) {
         if (cancelled) fn();
-        else unlisten = fn;
-      }),
-    );
+        else unlisten.push(fn);
+      }
+    });
     return () => {
       cancelled = true;
-      unlisten?.();
+      unlisten.forEach((fn) => fn());
     };
-  }, [platform, open]);
+  }, [platform, open, openKind]);
 
   useEffect(() => {
     if (platform !== "android") return;
@@ -52,15 +72,8 @@ export function useIntake(platform: "android" | "desktop" | string) {
       try {
         const { ipc } = await import("@/lib/ipc");
         for (const item of await ipc.intakeTake(false)) {
-          const target = item.source === "capture" ? SHORTCUTS[item.kind ?? ""] : undefined;
-          if (item.source === "capture" && item.kind?.startsWith("page:")) {
-            // A widget opening its page.
-            void navigate({ to: pathOf(item.kind.slice(5)) });
-          } else if (target) {
-            useOpenRequest.getState().request({ module: target.module, id: target.id });
-            void navigate({ to: pathOf(target.page) });
-          } else if (item.source === "capture") {
-            open({ kind: (item.kind as "task" | "watch" | "read") || "" });
+          if (item.source === "capture") {
+            openKind(item.kind ?? "");
           } else {
             const text = [item.subject && !item.text?.includes(item.subject) ? item.subject : null, item.text]
               .filter(Boolean)
@@ -81,5 +94,5 @@ export function useIntake(platform: "android" | "desktop" | string) {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", check);
     };
-  }, [platform, open, navigate]);
+  }, [platform, open, openKind]);
 }

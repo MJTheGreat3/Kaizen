@@ -963,7 +963,7 @@ pub async fn music_status(state: State<'_, AppState>) -> Result<music::Status> {
 
 /// A working access token. Network calls happen without holding the
 /// database, which is only touched to read or rotate the refresh token.
-fn music_token(app: &tauri::AppHandle) -> Result<String> {
+pub(crate) fn music_token(app: &tauri::AppHandle) -> Result<String> {
     if let Some(token) = music::cached_access() {
         return Ok(token);
     }
@@ -1137,9 +1137,9 @@ pub async fn intake_take(return_to_app: bool) -> Result<JsonValue> {
     .await
 }
 
-/// Rewrites the phone widgets' data after changes in the app (the Today
-/// snapshot from the database, and `feed`: streaks and Up next, which the
-/// app works out) and redraws the widgets. Does nothing elsewhere.
+/// Rewrites the widgets' data after changes in the app (the Today snapshot
+/// from the database, and `feed`: streaks, Up next and goals, which the app
+/// works out) and redraws the widgets, on the phone and on the Mac.
 #[tauri::command]
 pub async fn widget_refresh(app: tauri::AppHandle, feed: JsonValue) -> Result<()> {
     blocking(move || {
@@ -1160,7 +1160,9 @@ pub async fn widget_refresh(app: tauri::AppHandle, feed: JsonValue) -> Result<()
             })?;
             crate::android::call("Native", "updateWidgets", "")?;
         }
-        #[cfg(not(target_os = "android"))]
+        #[cfg(target_os = "macos")]
+        crate::mac_widgets::refresh(&app.state::<AppState>(), Some(&feed))?;
+        #[cfg(not(any(target_os = "android", target_os = "macos")))]
         let _ = (app, feed);
         Ok(())
     })

@@ -1,0 +1,35 @@
+# The Mac's desktop widgets, embedded in Kaizen.app by scripts/build-mac.sh.
+# Regenerate the Xcode project after changing this file: `xcodegen` here.
+name: KaizenWidgets
+options:
+  deploymentTarget:
+    macOS: "14.0"
+targets:
+  KaizenWidgets:
+    type: app-extension
+    platform: macOS
+    sources: [Sources]
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Kaizen
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: KaizenWidgets.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        # Kaizen writes the widgets' data here; taps leave files in actions/.
+        com.apple.security.temporary-exception.files.home-relative-path.read-write:
+          - /Library/Application Support/com.matt.kaizen/widgets/
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.matt.kaizen.widgets
+      MARKETING_VERSION: "0.1.0"
+      CURRENT_PROJECT_VERSION: "1"
+      CODE_SIGN_IDENTITY: "-"
+      CODE_SIGN_STYLE: Manual
+      SWIFT_VERSION: "5.0"
+      ENABLE_HARDENED_RUNTIME: NO
